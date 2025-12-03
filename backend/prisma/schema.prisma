@@ -1,0 +1,248 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // Pooler para la app
+  directUrl = env("DIRECT_URL") // Conexión directa para migraciones
+}
+
+// --- MODELOS DE LA APLICACIÓN ---
+
+model User {
+  id        String   @id @default(cuid())
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  secondLastName String?  @map("second_last_name")
+  email     String   @unique
+  password  String
+  countryCode String?  @map("country_code")
+  phone     String?
+  street         String?
+  neighborhood   String?
+  city           String?
+  state          String?
+  postalCode     String?  @map("postal_code")
+  role       Role      @relation(fields: [roleId], references: [id])
+  roleId     String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  // Relaciones
+  products Product[]
+  orders   Order[]
+  reviews  Review[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String       @id @default(cuid())
+  name        String       @unique // e.g., SUPER_ADMIN, VENDEDOR, USER
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  users       User[]
+  permissions Permission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g., product:create, order:read
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  roles       Role[]
+
+  @@map("permissions")
+}
+
+model Product {
+  id                 String           @id @default(cuid())
+  sku                String           @unique
+  name               String
+  description        String           @db.Text
+  price              Float
+  costPrice          Float?           @default(0)
+  brand              String?
+  countInStock       Int              @default(0)
+  productType        ProductType      @default(IN_HOUSE)
+  supplierInfo       String?
+  isArchived         Boolean          @default(false)
+  rating             Float            @default(0)
+  numReviews         Int              @default(0)
+  meliItemId         String?          @unique
+  meliPublicationUrl String?
+  youtubeUrl         String?          @db.Text
+  lastMeliSync       DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  // Relaciones
+  user               User             @relation(fields: [userId], references: [id])
+  userId             String
+  category           Category         @relation(fields: [categoryId], references: [id])
+  categoryId         String
+  media              Media[]
+  characteristics    Characteristic[]
+  reviews            Review[]
+  orderItems         OrderItem[]
+
+  @@map("products")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones jerárquicas
+  parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  parentId   String?
+  children   Category[] @relation("CategoryHierarchy")
+  products   Product[]
+
+  @@map("categories")
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  itemsPrice      Float
+  shippingPrice   Float
+  taxPrice        Float
+  paymentFee      Float
+  totalPrice      Float
+  isPaid          Boolean       @default(false)
+  paidAt          DateTime?
+  paymentMethod   String
+  isDelivered     Boolean       @default(false)
+  deliveredAt     DateTime?
+  status          OrderStatus   @default(PENDING_PAYMENT)
+  shippedAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  // Relaciones y JSON
+  user            User          @relation(fields: [userId], references: [id])
+  userId          String
+  orderItems      OrderItem[]
+  shippingAddress Json
+  paymentResult   Json?
+  shippingInfo    Json?
+  statusHistory   StatusHistory[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  name      String
+  qty       Int
+  image     String?
+  price     Float
+  // Relaciones
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  @@map("order_items")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  name      String
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  // Relaciones
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+
+  @@map("reviews")
+}
+
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?  @db.Text
+  isEditable  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// --- MODELOS AUXILIARES ---
+
+model Counter {
+  id            String @id
+  sequenceValue Int    @default(0) @map("sequence_value")
+
+  @@map("counters")
+}
+
+model Media {
+  id        String    @id @default(cuid())
+  type      MediaType
+  url       String
+  altText   String?
+  product   Product   @relation(fields: [productId], references: [id])
+  productId String
+
+  @@map("media")
+}
+
+model Characteristic {
+  id        String  @id @default(cuid())
+  key       String
+  value     String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  @@map("characteristics")
+}
+
+model StatusHistory {
+  id      String    @id @default(cuid())
+  status  String
+  date    DateTime  @default(now())
+  notes   String?
+  order   Order     @relation(fields: [orderId], references: [id])
+  orderId String
+
+  @@map("status_histories")
+}
+
+
+// --- ENUMS ---
+
+enum ProductType {
+  IN_HOUSE
+  DROPSHIPPING
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PROCESSING
+  PENDING_FULFILLMENT
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}

@@ -1,0 +1,214 @@
+openapi: 3.0.1
+info:
+  title: "PowerUpMovil API"
+  description: "API para la plataforma de e-commerce PowerUpMovil. Gestiona productos, pedidos, usuarios e integraciones."
+  version: "1.0.0"
+servers:
+  - url: "http://localhost:5000"
+    description: "Servidor de Desarrollo"
+paths:
+  /api/orders:
+    post:
+      tags:
+        - "Pedidos (Orders)"
+      summary: "Crear un nuevo pedido"
+      description: |
+        Crea un nuevo pedido para el usuario autenticado.
+        El backend es responsable de calcular todos los precios (items, envío, impuestos y total) basándose en los productos de la base de datos para garantizar la seguridad y prevenir la manipulación de precios desde el cliente.
+        Esta ruta está protegida y requiere un token JWT válido.
+      security:
+        - BearerAuth: []
+      requestBody:
+        description: "Datos necesarios para crear el pedido. Solo se envían los IDs de los productos y las cantidades; el servidor calcula los precios."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+      responses:
+        '201':
+          description: "Pedido creado exitosamente. Devuelve el objeto completo del pedido recién creado."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    $ref: '#/components/schemas/Order'
+        '400':
+          description: "Solicitud inválida. Ocurre si no hay artículos en el pedido o si falta la dirección de envío."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: "No autorizado. El token no fue proporcionado o es inválido."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: "Error interno del servidor."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    OrderCreateRequest:
+      type: object
+      required:
+        - orderItems
+        - shippingAddress
+        - paymentMethod
+      properties:
+        orderItems:
+          type: array
+          description: "Lista de artículos en el pedido."
+          items:
+            type: object
+            required:
+              - product
+              - qty
+            properties:
+              product:
+                type: string
+                description: "El ID (o SKU) del producto."
+                example: "SMART-WATCH-X1"
+              qty:
+                type: integer
+                description: "Cantidad del producto."
+                example: 2
+        shippingAddress:
+          $ref: '#/components/schemas/ShippingAddress'
+        paymentMethod:
+          type: string
+          description: "Método de pago seleccionado por el usuario."
+          example: "PayPal"
+
+    Order:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: "ID único del pedido en la base de datos."
+          example: "60d0fe4f5311236168a109ca"
+        orderNumber:
+          type: string
+          description: "Número de pedido legible y secuencial para el cliente."
+          example: "PUM-00012024"
+        user:
+          type: string
+          description: "ID del usuario que realizó el pedido."
+          example: "60d0fe4f5311236168a109cb"
+        orderItems:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "Smartwatch Modelo X1"
+              qty:
+                type: integer
+                example: 2
+              image:
+                type: string
+                example: "/images/smartwatch-x1.jpg"
+              price:
+                type: number
+                format: double
+                example: 1500.00
+              product:
+                type: string
+                example: "60d0fe4f5311236168a109cc"
+        shippingAddress:
+          $ref: '#/components/schemas/ShippingAddress'
+        paymentMethod:
+          type: string
+          example: "PayPal"
+        itemsPrice:
+          type: number
+          format: double
+          description: "Precio total de los artículos (calculado en backend)."
+          example: 3000.00
+        taxPrice:
+          type: number
+          format: double
+          description: "Precio de impuestos (calculado en backend)."
+          example: 480.00
+        shippingPrice:
+          type: number
+          format: double
+          description: "Costo de envío (calculado en backend)."
+          example: 150.00
+        totalPrice:
+          type: number
+          format: double
+          description: "Precio final total (calculado en backend)."
+          example: 3630.00
+        status:
+          type: string
+          description: "Estado actual del pedido."
+          enum: ["Pending Payment", "Processing", "Pending Fulfillment", "Shipped", "Delivered", "Cancelled"]
+          example: "Pending Payment"
+        isPaid:
+          type: boolean
+          default: false
+        paidAt:
+          type: string
+          format: date-time
+        isDelivered:
+          type: boolean
+          default: false
+        deliveredAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ShippingAddress:
+      type: object
+      required:
+        - address
+        - city
+        - postalCode
+        - country
+      properties:
+        address:
+          type: string
+          example: "Av. Siempre Viva 123"
+        city:
+          type: string
+          example: "Springfield"
+        postalCode:
+          type: string
+          example: "12345"
+        country:
+          type: string
+          example: "México"
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "error"
+        message:
+          type: string
+          example: "No se proporcionó el token de autenticación."
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Autenticación por Token JWT. Incluir el token en el header 'Authorization' como 'Bearer {token}'."

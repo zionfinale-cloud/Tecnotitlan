@@ -1,0 +1,66 @@
+/* frontend/src/components/HeroSection.module.css */
+
+.hero {
+  /* Fondo principal */
+  background-color: var(--brand-dark); 
+  color: var(--text-on-dark); /* Texto Blanco */
+  padding: 0; 
+  position: relative;
+  overflow: hidden;
+  
+  /* --- ESTILOS CRÍTICOS DE LA IMAGEN DE FONDO --- */
+  background-size: cover; 
+  background-position: center center; 
+  background-repeat: no-repeat;
+  
+  /* Sombra interna ajustada para el tamaño más pequeño */
+  box-shadow: inset 0 0 100px 30px var(--brand-dark); 
+
+  /* --- CONTROL DE LAYOUT (REDUCIDO) --- */
+  min-height: 400px; /* Reducido de 550px a 400px para ser más compacto */
+  display: flex;
+  align-items: center; 
+  
+  /* CRÍTICO: Redondeo inferior grande (Efecto 'Dark Tecnotitlán') */
+  border-bottom-left-radius: 1.5rem;
+  border-bottom-right-radius: 1.5rem;
+}
+
+/* Contenido dentro del Container de Bootstrap */
+.heroContent {
+  max-width: 550px; 
+  z-index: 10; 
+  position: relative;
+  /* Padding reducido de 4rem a 2rem */
+  padding: 2rem 0; 
+}
+
+.heroTitle {
+  /* Tamaño reducido de 3.5rem a 2.8rem */
+  font-size: 2.8rem; 
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+  color: var(--text-on-dark) !important; 
+}
+
+.heroSubtitle {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  margin-bottom: 1.5rem;
+  color: var(--text-on-dark) !important; 
+}
+
+.heroButton {
+  display: inline-block;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+}
+
+.heroButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 220, 130, 0.3);
+}

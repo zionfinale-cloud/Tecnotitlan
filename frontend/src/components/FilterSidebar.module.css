@@ -1,0 +1,68 @@
+/* frontend/src/components/FilterSidebar.module.css */
+
+.sidebarContainer {
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a; /* Slate 900 */
+  margin-bottom: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-left: 0.75rem; /* Alineado con los items */
+}
+
+.listGroup {
+  border: none;
+  background: transparent;
+}
+
+.categoryItem {
+  background-color: transparent !important; /* Quitar fondo default */
+  border: none !important; /* Quitar bordes default */
+  color: #64748b; /* Slate 500 (Inactivo) */
+  font-weight: 500;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Efecto Hover */
+.categoryItem:hover {
+  background-color: #f8fafc; /* Gris muy claro */
+  color: #1e293b; /* Slate 800 */
+  transform: translateX(4px); /* Pequeño desplazamiento a la derecha */
+}
+
+/* Estado Activo (Seleccionado) */
+.active {
+  color: var(--cta-color) !important; /* Verde Neón */
+  font-weight: 700;
+  background-color: rgba(0, 220, 130, 0.05) !important; /* Fondo verde muy sutil */
+}
+
+/* Botón de Limpiar */
+.clearButton {
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s;
+  text-align: left;
+  padding-left: 1rem;
+}
+
+.clearButton:hover {
+  color: #ef4444; /* Rojo al pasar el mouse */
+}
