@@ -32,7 +32,7 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ## 2. Estado Actual y Próximos Pasos (Continuidad del Proyecto)
 
-**Última Actualización:** 17 de Noviembre, 2025
+**Última Actualización:** 04 de Diciembre, 2025
 
 Esta sección sirve como punto de control para dar continuidad al desarrollo.
 
@@ -43,21 +43,28 @@ Esta sección sirve como punto de control para dar continuidad al desarrollo.
 
 ### En qué nos quedamos:
 
-1.  **Flujo de Subida del Logo Solucionado:** Se implementó una solución robusta y definitiva para la gestión del logo. El backend ahora tiene una ruta dedicada (`/api/settings/logo`) que renombra cualquier imagen subida a `logo.png` y la guarda directamente en la carpeta `frontend/public/images/logo/`.
-2.  **Header Estable y Funcional:** El componente `Header.js` ahora carga el logo desde una ruta estática y predecible. Se solucionó el problema de los "brincos" (layout shift) al sincronizar la estructura del `HeaderSkeleton.js` con la del componente final.
-3.  **Panel de Configuración Iniciado:** Se creó el componente `PageSettingsScreen.js` en el panel de administración, que ya permite subir el logo y servirá de base para gestionar otros aspectos visuales de la página.
-4.  **Permisos Corregidos:** Se solucionó un error de permisos (`setting:update` vs `settings:update`) que impedía al administrador subir el logo, dejando el sistema RBAC funcionando como se esperaba.
+1.  **Infraestructura Lista:** Se configuró la instancia de `Ubuntu-1` en AWS Lightsail con su IP estática (`3.148.78.23`).
+2.  **Entorno Preparado:** Se instaló Docker, Docker Compose y Git en el servidor. Se solucionaron los problemas de conexión SSH.
+3.  **Backend Desplegado:** El backend de Node.js se clonó desde GitHub y ahora está corriendo 24/7 dentro de un contenedor de Docker en el servidor. El contenedor está configurado para reiniciarse automáticamente.
 
 ### Problema Resuelto Recientemente:
 
-*   **Problema:** El logo del sitio no se mostraba, la barra de navegación "brincaba" al cargar, y al subir una nueva imagen, esta se guardaba con un nombre aleatorio en una carpeta incorrecta (`/uploads`), impidiendo que el frontend la encontrara. Además, un error de permisos bloqueaba la subida.
-*   **Solución:** Se creó una ruta dedicada en el backend (`POST /api/settings/logo`) que guarda la imagen como `logo.png` en una carpeta pública (`frontend/public/images/logo/`). El frontend ahora carga el logo desde esta ruta estática y predecible, solucionando los problemas de visualización y carga. Se corrigió también un permiso (`setting:update`) en el backend que bloqueaba la subida.
+*   **Problema:** No se podía establecer una conexión SSH con el servidor de Lightsail. El cliente web mostraba un error `UPSTREAM_ERROR [515]` y la terminal local daba `Permission denied`.
+*   **Solución:** Se identificó que el problema estaba en la instancia del servidor, no en el cliente. Un **reinicio (reboot)** de la instancia desde el panel de Lightsail solucionó el problema y restauró la conectividad. Posteriormente, se solucionó un problema de autenticación con GitHub usando un **Token de Acceso Personal (PAT)** para clonar el repositorio.
 
 ### Próximo Paso Inmediato:
 
-Ahora que los elementos de branding (logo y nombre) son funcionales y la UI es estable, el siguiente paso es hacer que más componentes sean dinámicos.
+**Objetivo:** Desplegar el backend en la instancia de Lightsail y conectar el frontend.
 
-**Acción Sugerida:** Conectar el componente `Footer.js` al `SettingsContext` para que muestre dinámicamente las redes sociales y otra información de contacto que pueda ser gestionada desde el panel de administración. Esto continuará con la filosofía de hacer la plataforma completamente personalizable.
+**Acciones en Progreso:**
+1.  **Preparación del Servidor:** Se ha establecido la conexión SSH con la instancia `Ubuntu-1`. Actualmente se están instalando las dependencias necesarias (Git, Docker, Docker Compose) y actualizando el sistema operativo. El proceso de `apt upgrade` está en curso.
+2.  **Refactorización del Frontend:** Mientras esperamos que finalice la configuración del servidor, se está realizando una refactorización completa del frontend para eliminar toda dependencia de Tailwind CSS y alinear el 100% de los componentes con la arquitectura de CSS Modules. Se han creado y refactorizado componentes clave como `AdminLayout`, `SubMenu`, `SearchBox` y las pantallas del panel de administración (`AdminDashboard`, `ProductListScreen`, `UserListScreen`, `RoleListScreen`).
+
+**Siguientes Pasos:**
+1.  Una vez finalizada la instalación de dependencias en el servidor, se clonará el repositorio del backend.
+2.  Se configurará el archivo `.env` con las variables de entorno de producción.
+3.  Se construirá y ejecutará la imagen de Docker del backend.
+4.  Se abrirá el puerto `5000` en el firewall de Lightsail para exponer la API.
 
 **NOTA IMPORTANTE DE ESTRATEGIA DE DESARROLLO:**
 Dado que el proyecto se encuentra en una fase inicial sin clientes ni productos en producción y el presupuesto es limitado, se adopta una estrategia de **"desarrollo en vivo"**.
@@ -165,6 +172,8 @@ A continuación se detalla el estado de cada módulo del backend.
     - ✅ **Caché de Configuración:** `configService.js` para optimizar el acceso a las configuraciones.
 
 ### 4.2. Frontend (Funcional y Refactorizado)
+
+> **Nota de Refactorización (En Progreso):** Se está llevando a cabo una migración completa para eliminar Tailwind CSS. Todos los componentes nuevos y existentes se están adaptando para usar exclusivamente **CSS Modules**, siguiendo la arquitectura definida.
 
 - **UI/UX (Experiencia de Usuario):**
     - **Navegación de Catálogo:** La página de inicio (`HomeScreen.js`) ha sido enriquecida con un carrusel de productos top y una sección de productos destacados (`SmartwatchShowcase.js`). El buscador (`SearchBox.js`) ahora es automático (con debounce) y cuenta con una interfaz más limpia para una experiencia de búsqueda fluida.
@@ -314,7 +323,7 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone <URL_DEL_REPOSITORIO>
+    git clone https://github.com/zionfinale-cloud/Tecnotitlan.git
     cd tecnotitlan # Asegúrate de que la carpeta del proyecto se llame así
     ```
 
@@ -337,10 +346,8 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
     # =================================
     # BASE DE DATOS (PostgreSQL)
     # =================================
-    # Opción 1: Usar una base de datos local con Docker (requiere configuración en docker-compose.yml)
-    # DATABASE_URL="postgresql://postgres:password@localhost:5432/tecnotitlan?schema=public"
-    # Opción 2: Usar la base de datos de Supabase (recomendado para un entorno de desarrollo consistente)
-    DATABASE_URL="postgresql://postgres.ecfbrxohxvvpwrhqzpwk:ze200785@aws-1-us-east-1.pooler.supabase.com:6543/postgres" # URL con Pooler para la app
+    # Usar la base de datos de Supabase (recomendado para un entorno de desarrollo consistente)
+    DATABASE_URL="postgresql://postgres.ecfbrxohxvvpwrhqzpwk:ze200785@aws-1-us-east-1.pooler.supabase.com:6543/postgres" # URL con Pooler para la app (producción/desarrollo)
     DIRECT_URL="postgresql://postgres:ze200785@db.ecfbrxohxvvpwrhqzpwk.supabase.co:5432/postgres" # URL directa para migraciones de Prisma
     
     # =================================
@@ -382,13 +389,7 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
     ```
     *Nota: Para eliminar todos los datos de la base de datos, puedes usar `npm run seed:destroy`.*
 
-4.  **Iniciar los servicios:**
-    Usa Docker Compose para levantar la base de datos (si la tienes configurada en `docker-compose.yml`) y otros servicios.
-    ```bash
-    docker-compose up -d
-    ```
-
-5.  **Ejecutar la aplicación:**
+4.  **Ejecutar la aplicación:**
     Puedes ejecutar el backend y el frontend simultáneamente desde la raíz.
     ```bash
     npm run dev
@@ -422,6 +423,7 @@ El proyecto sigue una filosofía de bajo costo inicial, alineando la inversión 
     -   **Fase Gratuita:** Aprovechar las capas gratuitas de las APIs.
     -   **Fase de Pago:** Modelo **Pay-As-You-Go** al superar los límites.
 
+
 ### 7.3.1. Guía de Despliegue en Producción (Frontend en Render)
 
 El frontend, al ser una aplicación de React (Create React App), se despliega como un **Sitio Estático**.
@@ -437,7 +439,35 @@ El frontend, al ser una aplicación de React (Create React App), se despliega co
     -   **Publish Directory:** `build` (Esta es la carpeta que genera el build).
     -   **Environment Variables:**
         -   `REACT_APP_API_URL`: `http://3.148.78.23:5000` (La IP estática de nuestro backend en Lightsail).
+    -   **Render URL:** `https://tecnotitlan.onrender.com` (URL pública del frontend desplegado).
 
+
+### 7.3.2. Guía de Despliegue en Producción (Backend en Lightsail)
+
+El backend se ejecuta como un contenedor de Docker en la instancia `Ubuntu-1` de AWS Lightsail.
+
+1.  **Conexión al Servidor:**
+    Conéctate a la instancia vía SSH usando las credenciales correspondientes.
+
+2.  **Clonar o Actualizar Repositorio:**
+    Si es el primer despliegue, clona el repositorio. Si es una actualización, haz `pull` de los últimos cambios.
+    ```bash
+    # Para el primer despliegue
+    git clone https://<TU_PAT>@github.com/zionfinale-cloud/Tecnotitlan.git
+    cd tecnotitlan
+
+    # Para actualizaciones
+    git pull origin main
+    ```
+
+3.  **Configurar Variables de Entorno:**
+    Crea o edita el archivo `.env` en la raíz del proyecto con las variables de producción (especialmente `DATABASE_URL`, `JWT_SECRET`, y las claves de las pasarelas de pago).
+
+4.  **Construir y Ejecutar el Contenedor Docker:**
+    Desde la raíz del proyecto, utiliza Docker Compose para construir la nueva imagen y reiniciar el servicio en segundo plano.
+    ```bash
+    sudo docker-compose up --build -d
+    ```
 
 ### 7.4. Guía de Despliegue en Producción (VPS para n8n)
 
@@ -589,16 +619,11 @@ Para construir y probar los workflows de n8n de forma segura y sin costo antes d
 -   **Función:** Construir y probar la lógica: conectar el nodo de Supabase, dar formato a los mensajes de WhatsApp y mapear el envío al proveedor.
 -   **Limitación:** Los Webhooks no funcionarán, ya que tu IP local no es pública. Se debe usar el botón **"Execute Workflow"** manualmente para las pruebas.
 
-#### 2. Conexión a Base de Datos Local (Persistencia)
--   **Acción:** La instancia de n8n que corre en Docker se conecta a la misma base de datos PostgreSQL (`tecnotitlan_postgres`) que utiliza el backend.
--   **Ventaja:** Todos los workflows y credenciales que crees se guardan en la base de datos local. Esto permite un desarrollo y prueba de integraciones completamente aislado y consistente, ya que tanto el backend como n8n operan sobre los mismos datos.
-
 #### Secuencia Recomendada
 1.  **Instalar n8n Localmente:** Sigue la guía oficial para instalar la versión Desktop (la más fácil).
-1.  **Levantar el Entorno Docker:** Ejecuta `docker-compose up` en la raíz del proyecto. Esto iniciará el backend, la base de datos y n8n.
-2.  **Construir Workflows:** Accede a n8n en `http://localhost:5678` y crea todos los flujos necesarios (Pedido a WhatsApp, Actualización de Stock, etc.).
-3.  **Verificar Lógica:** Ejecuta manualmente cada flujo para confirmar que se conecta a la base de datos local y procesa los datos correctamente.
-4.  **Desplegar a Producción:** Solo cuando toda la lógica esté lista y probada, puedes exportar los workflows (como JSON) y desplegarlos en una instancia de producción (ej. en un VPS) que ya se conectará a la base de datos de producción (Supabase).
+2.  **Construir Workflows:** Accede a n8n y crea todos los flujos necesarios (Pedido a WhatsApp, Actualización de Stock, etc.), conectándolos a la base de datos de desarrollo/producción en Supabase.
+3.  **Verificar Lógica:** Ejecuta manualmente cada flujo para confirmar que se conecta a la base de datos de Supabase y procesa los datos correctamente.
+4.  **Desplegar a Producción:** Solo cuando toda la lógica esté lista y probada, puedes exportar los workflows (como JSON) y desplegarlos en la instancia de n8n en producción (VPS).
 
 ---
 

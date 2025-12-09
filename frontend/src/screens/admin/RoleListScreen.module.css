@@ -1,0 +1,11 @@
+.title {
+    font-size: 1.875rem; /* text-3xl */
+    font-weight: 700; /* font-bold */
+    margin-bottom: 1rem; /* mb-4 */
+    color: #1e293b; /* text-slate-800 */
+}
+
+.subtitle {
+    color: #4b5563; /* text-gray-600 */
+    margin-bottom: 1.25rem; /* mb-5 */
+}

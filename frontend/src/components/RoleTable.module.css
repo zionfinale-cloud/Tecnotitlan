@@ -1,0 +1,21 @@
+.roleTable {
+    margin-top: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.permissionsCell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.permissionBadge {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.actionsCell {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}

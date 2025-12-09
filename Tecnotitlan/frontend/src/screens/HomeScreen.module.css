@@ -1,0 +1,47 @@
+/* frontend/src/screens/HomeScreen.module.css */
+
+.mainSection {
+    background-color: var(--secondary-bg-color); /* #F1F5F9 */
+    padding-top: 3rem;
+    padding-bottom: 5rem;
+    min-height: 100vh;
+}
+
+/* --- BARRA LATERAL (Filtros) --- */
+.filterContainer {
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    /* Sticky: se pega al hacer scroll */
+    position: sticky;
+    top: 100px; /* Debajo del Header */
+    border: 1px solid #f1f5f9;
+}
+
+.filterTitle {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: #1e293b;
+    border-bottom: 2px solid var(--cta-color);
+    padding-bottom: 0.5rem;
+    display: inline-block;
+}
+
+/* --- CONTENEDOR DE PRODUCTOS --- */
+.productsContainer {
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    border: 1px solid #f1f5f9;
+    min-height: 600px;
+}
+
+.sectionTitle {
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 1.5rem;
+    color: #0f172a;
+}

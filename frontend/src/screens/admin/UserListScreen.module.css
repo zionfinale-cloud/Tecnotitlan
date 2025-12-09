@@ -1,0 +1,25 @@
+.title {
+    font-size: 1.875rem; /* text-3xl */
+    font-weight: 700; /* font-bold */
+    margin-bottom: 1rem; /* mb-4 */
+    color: #1e293b; /* text-slate-800 */
+}
+
+.subtitle {
+    color: #4b5563; /* text-gray-600 */
+    margin-bottom: 1.25rem; /* mb-5 */
+}
+
+.placeholderBox {
+    margin-top: 1.25rem; /* mt-5 */
+    padding: 1rem; /* p-4 */
+    background-color: #eff6ff; /* bg-blue-50 */
+    border-radius: 0.5rem; /* rounded-lg */
+    border: 1px dashed #93c5fd; /* border-dashed border-blue-300 */
+    text-align: center;
+    color: #1e40af; /* text-blue-800 */
+}
+
+.placeholderText {
+    margin-bottom: 0;
+}
