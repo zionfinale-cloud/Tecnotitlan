@@ -1,5 +1,4 @@
 import pkg from 'whatsapp-web.js';
-import qrcode from 'qrcode-terminal';
 import { getConfig } from './configService.js';
 
 // The 'whatsapp-web.js' library is a CommonJS module.
