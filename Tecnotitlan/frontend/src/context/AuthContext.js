@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 // Asumimos que apiService.js existe en src/services/
-import api from '../services/apiService'; 
+import api from '../services/apiService';
 
 // Creamos el contexto con un valor por defecto
 export const AuthContext = createContext({
@@ -15,6 +16,7 @@ export const AuthProvider = ({ children }) => {
     // userInfo contiene el token, nombre, email, role y permisos
     const [userInfo, setUserInfo] = useState(null);
     const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const checkAuth = () => {
@@ -34,6 +36,18 @@ export const AuthProvider = ({ children }) => {
         };
         checkAuth();
     }, []);
+
+    // MEJORA 1: Escuchar el evento de sesión expirada desde apiService
+    useEffect(() => {
+        const handleSessionExpired = () => {
+            console.log('AuthContext: Sesión expirada detectada. Limpiando estado.');
+            setUserInfo(null);
+            navigate('/login'); // Redirigir al usuario a la página de login
+        };
+
+        window.addEventListener('session-expired', handleSessionExpired);
+        return () => window.removeEventListener('session-expired', handleSessionExpired);
+    }, [navigate]);
 
     const login = async (email, password) => {
         setLoading(true);
@@ -70,8 +84,12 @@ export const AuthProvider = ({ children }) => {
     
     // Función para actualizar los datos del usuario después de una edición de perfil
     const updateProfile = (updatedUser) => {
-        setUserInfo(prev => ({ ...prev, ...updatedUser }));
-        localStorage.setItem('userInfo', JSON.stringify({ ...userInfo, ...updatedUser }));
+        // MEJORA 2: Usar la forma funcional para garantizar la consistencia del estado
+        setUserInfo(prevUserInfo => {
+            const newUserInfo = { ...prevUserInfo, ...updatedUser };
+            localStorage.setItem('userInfo', JSON.stringify(newUserInfo));
+            return newUserInfo;
+        });
     }
 
     return (

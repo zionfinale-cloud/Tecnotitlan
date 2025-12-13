@@ -44,17 +44,21 @@ Esta sección sirve como punto de control para dar continuidad al desarrollo.
 ### En qué nos quedamos:
 
 1.  **Infraestructura Lista:** Se configuró la instancia de `Ubuntu-1` en AWS Lightsail con su IP estática (`3.148.78.23`).
-2.  **Entorno Preparado:** Se instaló Docker, Docker Compose y Git en el servidor. Se solucionaron los problemas de conexión SSH.
-3.  **Backend Desplegado:** El backend de Node.js se clonó desde GitHub y ahora está corriendo 24/7 dentro de un contenedor de Docker en el servidor. El contenedor está configurado para reiniciarse automáticamente.
+2.  **Entorno Preparado:** Se instaló Docker, Docker Compose y Git en el servidor. Se solucionaron los problemas de conexión SSH y de memoria del servidor creando un archivo de `swap`.
+3.  **Backend Desplegado (Casi Listo):** El backend de Node.js se clonó desde GitHub y se está ejecutando en un contenedor de Docker. Sin embargo, el contenedor se reinicia constantemente debido a un error.
 
 ### Problema Resuelto Recientemente:
 
 *   **Problema:** No se podía establecer una conexión SSH con el servidor de Lightsail. El cliente web mostraba un error `UPSTREAM_ERROR [515]` y la terminal local daba `Permission denied`.
 *   **Solución:** Se identificó que el problema estaba en la instancia del servidor, no en el cliente. Un **reinicio (reboot)** de la instancia desde el panel de Lightsail solucionó el problema y restauró la conectividad. Posteriormente, se solucionó un problema de autenticación con GitHub usando un **Token de Acceso Personal (PAT)** para clonar el repositorio.
 
+### Problema Actual (Para Continuar Mañana):
+*   **Error:** El contenedor del backend falla al arrancar con el error `Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@prisma/client'`.
+*   **Causa Probable:** El cliente de Prisma no se está generando durante el proceso de construcción de la imagen de Docker.
+
 ### Próximo Paso Inmediato:
 
-**Objetivo:** Desplegar el backend en la instancia de Lightsail y conectar el frontend.
+**Objetivo:** Solucionar el error del cliente de Prisma y tener el backend 100% funcional.
 
 **Acciones en Progreso:**
 1.  **Preparación del Servidor:** Se ha establecido la conexión SSH con la instancia `Ubuntu-1`. Actualmente se están instalando las dependencias necesarias (Git, Docker, Docker Compose) y actualizando el sistema operativo. El proceso de `apt upgrade` está en curso.

@@ -1,15 +1,16 @@
 import { PrismaClient } from '@prisma/client';
 import logger from '../utils/logger.js';
-import dotenv from 'dotenv';
+
 import path from 'path'; // Para construir rutas
 import { fileURLToPath } from 'url'; // Para convertir la URL del módulo a una ruta de archivo
 
 // Reconstrucción de __dirname para ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Cargar .env para el arranque inicial y para valores no gestionados en DB
-dotenv.config({ path: path.resolve(__dirname, '../../.env') }); // Ahora __dirname está definido
+if (process.env.NODE_ENV !== 'production') {
+  const dotenv = await import('dotenv');
+  dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+}
 
 const prisma = new PrismaClient();
 const configCache = {};

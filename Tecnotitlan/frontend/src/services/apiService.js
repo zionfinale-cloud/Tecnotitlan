@@ -47,10 +47,14 @@ api.interceptors.response.use(
         if (error.response && error.response.status === 401) {
             console.warn("Sesión expirada o no autorizada (401). Limpiando sesión local.");
             
-            // Limpiamos la sesión del usuario inmediatamente
+            // 1. Limpiamos la sesión del usuario inmediatamente
             localStorage.removeItem('userInfo');
             
-            // CRÍTICO: Aunque el componente AuthProvider gestiona el estado, 
+            // 2. (MEJORA) Despachamos un evento global para notificar a la app que la sesión expiró.
+            // Esto permite que AuthContext reaccione inmediatamente sin crear dependencias circulares.
+            window.dispatchEvent(new Event('session-expired'));
+
+            // 3. CRÍTICO: Aunque el componente AuthProvider gestiona el estado, 
             // a veces es necesario forzar la redirección para el Admin Layout, pero lo evitamos
             // para no crear un ciclo de dependencia. Dejamos que AuthContext maneje el estado.
         }
