@@ -13,6 +13,9 @@ COPY package*.json ./
 # Instala TODAS las dependencias.
 RUN npm install --force
 
+# CRÍTICO: Copia el resto del código fuente a la etapa de construcción.
+COPY . .
+
 # --- Fase 2: Ejecución (Runner) ---
 # Crea la imagen final y ligera para producción.
 FROM node:18-alpine
