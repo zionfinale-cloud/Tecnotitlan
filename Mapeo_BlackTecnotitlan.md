@@ -34,31 +34,30 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 **Última Actualización:** 04 de Diciembre, 2025
 
-Esta sección sirve como punto de control para dar continuidad al desarrollo.
-
-**Dominios:**
-- www.tecnotitlan.com.mx
-- tecnotitlan.shop
-- tecnotitlan.online
-
 ### En qué nos quedamos:
 
 1.  **Infraestructura Lista:** Se configuró la instancia de `Ubuntu-1` en AWS Lightsail con su IP estática (`3.148.78.23`).
 2.  **Entorno Preparado:** Se instaló Docker, Docker Compose y Git en el servidor. Se solucionaron los problemas de conexión SSH y de memoria del servidor creando un archivo de `swap`.
-3.  **Backend Desplegado (Casi Listo):** El backend de Node.js se clonó desde GitHub y se está ejecutando en un contenedor de Docker. Sin embargo, el contenedor se reinicia constantemente debido a un error.
+3.  **¡Build Exitoso!** El backend de Node.js se clonó desde GitHub y la imagen de Docker **se construye exitosamente**. El contenedor se crea y se pone en marcha.
 
 ### Problema Resuelto Recientemente:
 
 *   **Problema:** No se podía establecer una conexión SSH con el servidor de Lightsail. El cliente web mostraba un error `UPSTREAM_ERROR [515]` y la terminal local daba `Permission denied`.
 *   **Solución:** Se identificó que el problema estaba en la instancia del servidor, no en el cliente. Un **reinicio (reboot)** de la instancia desde el panel de Lightsail solucionó el problema y restauró la conectividad. Posteriormente, se solucionó un problema de autenticación con GitHub usando un **Token de Acceso Personal (PAT)** para clonar el repositorio.
+*   **Problema:** El build de Docker fallaba con el error `Could not find Prisma Schema`.
+*   **Solución:** Se refactorizó el `Dockerfile` a un **build multi-etapa**, asegurando que `prisma generate` se ejecute en la fase de construcción. Se corrigió el `docker-compose.yml` para que apunte al `Dockerfile` correcto y se eliminaron los volúmenes de código para el entorno de producción.
+*   **Problema:** El contenedor se reiniciaba con el error `sh: nodemon: not found`.
+*   **Solución:** Se cambió el comando `CMD` en el `Dockerfile` para ejecutar la aplicación directamente con `node backend/src/index.js`, ya que `nodemon` es solo para desarrollo.
+*   **Problema:** El contenedor fallaba con el error `Cannot find package 'dotenv'`.
+*   **Solución:** Se modificó `configService.js` para cargar `dotenv` de forma condicional, solo en entornos que no son de producción.
 
 ### Problema Actual (Para Continuar Mañana):
-*   **Error:** El contenedor del backend falla al arrancar con el error `Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@prisma/client'`.
-*   **Causa Probable:** El cliente de Prisma no se está generando durante el proceso de construcción de la imagen de Docker.
+*   **Error:** El contenedor arranca pero se detiene inmediatamente con el error `Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'qrcode-terminal'`.
+*   **Causa Probable:** El archivo `whatsappService.js` está intentando importar el paquete `qrcode-terminal`. Este paquete es una dependencia de desarrollo (`devDependency`) y, correctamente, no se instala en la imagen de producción para mantenerla ligera.
 
 ### Próximo Paso Inmediato:
 
-**Objetivo:** Solucionar el error del cliente de Prisma y tener el backend 100% funcional.
+**Objetivo:** Solucionar el error de `qrcode-terminal` y tener el backend 100% funcional y estable.
 
 **Acciones en Progreso:**
 1.  **Preparación del Servidor:** Se ha establecido la conexión SSH con la instancia `Ubuntu-1`. Actualmente se están instalando las dependencias necesarias (Git, Docker, Docker Compose) y actualizando el sistema operativo. El proceso de `apt upgrade` está en curso.

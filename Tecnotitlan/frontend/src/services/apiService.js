@@ -44,7 +44,10 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         // Si el backend devuelve un error 401, significa que el token es inválido o expiró.
-        if (error.response && error.response.status === 401) {
+        // CRÍTICO: Nos aseguramos de que el error no provenga de un intento de login fallido.
+        const isLoginAttempt = error.config.url.includes('/users/login');
+
+        if (error.response && error.response.status === 401 && !isLoginAttempt) {
             console.warn("Sesión expirada o no autorizada (401). Limpiando sesión local.");
             
             // 1. Limpiamos la sesión del usuario inmediatamente
