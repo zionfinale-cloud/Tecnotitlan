@@ -36,7 +36,7 @@ const initializeWhatsAppClient = () => {
       // CRÍTICO: En producción, esta opción evita que Puppeteer descargue Chromium,
       // lo que nos ahorra +500MB y soluciona el error 'no space left on device'.
       // Usaremos una versión ligera que viene con el sistema base del contenedor.
-      executablePath: '/usr/bin/google-chrome-stable'
+      executablePath: '/usr/bin/chromium-browser'
     },
     authStrategy: new LocalAuth({
       // Especifica una carpeta para la sesión para evitar que se cree en la raíz
