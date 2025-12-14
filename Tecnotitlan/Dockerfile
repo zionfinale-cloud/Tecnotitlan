@@ -16,7 +16,8 @@ COPY package*.json ./
 COPY backend/prisma/ ./prisma/
 
 # Instala TODAS las dependencias para que el script `postinstall` de Prisma se ejecute.
-RUN npm install
+# Usamos --force para evitar problemas con peer dependencies y nos aseguramos de instalar todo.
+RUN npm install --force
 
 # Copia el resto del código fuente.
 COPY . .
