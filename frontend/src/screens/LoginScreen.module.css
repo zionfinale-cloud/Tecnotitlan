@@ -1,0 +1,77 @@
+/* Contenedor principal de la página de Login */
+.pageContainer {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Alinea la tarjeta arriba */
+    padding: 4rem 0; /* Espaciado vertical generoso */
+    min-height: 80vh;
+}
+
+/* Tarjeta de Login */
+.loginCard {
+    padding: 2rem;
+    border-radius: 1rem; /* rounded-xl */
+    border: none;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); /* shadow-lg */
+    background-color: var(--card-bg-color); /* Fondo blanco o gris oscuro en dark mode */
+}
+
+/* Título "Iniciar Sesión" */
+.title {
+    font-size: 1.875rem; /* text-3xl */
+    font-weight: 700; /* font-bold */
+    margin-bottom: 1.5rem; /* mb-4 */
+    text-align: center;
+    color: var(--text-primary);
+}
+
+/* Etiquetas de los campos (Email, Contraseña) */
+.label {
+    font-weight: 500; /* font-medium */
+    color: var(--text-secondary);
+}
+
+/* Campos de texto */
+.input {
+    border-radius: 0.5rem !important; /* rounded-lg */
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important; /* shadow-sm */
+    border: 1px solid var(--border-color) !important;
+    background-color: var(--input-bg-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.input:focus {
+    border-color: var(--cta-color) !important;
+    box-shadow: 0 0 0 3px rgba(0, 220, 130, 0.2) !important; /* Sombra de foco personalizada */
+}
+
+/* Botón de "Entrar" */
+.submitButton {
+    width: 100%;
+    border-radius: 9999px !important; /* rounded-full */
+    padding: 0.75rem 0 !important;
+    margin-bottom: 0.75rem;
+    font-weight: bold;
+    background-color: var(--cta-color) !important;
+    border-color: var(--cta-color) !important;
+    color: var(--brand-dark) !important;
+    transition: transform 0.2s;
+}
+
+.submitButton:hover {
+    transform: scale(1.02);
+}
+
+/* Contenedor del enlace de registro */
+.registerRow {
+    padding: 1rem 0;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+/* Enlace "¿Nuevo cliente? Regístrate" */
+.registerLink {
+    text-decoration: none;
+    color: var(--cta-color);
+    font-weight: bold;
+}

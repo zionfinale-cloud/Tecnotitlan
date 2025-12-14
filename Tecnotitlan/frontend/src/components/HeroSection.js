@@ -13,9 +13,9 @@ function HeroSection() {
     return (
         // CLASES CRÍTICAS:
         // 1. Añadimos 'rounded-b-2xl' para el redondeo inferior grande.
-        // 2. Usamos 'container-fluid' para que el fondo del Hero sea de borde a borde.
+        // 2. Usamos 'container-fluid' para que el fondo del Hero sea de borde a borde. Se elimina el redondeo.
         // Los estilos de padding y altura mínima se definen en HeroSection.module.css
-        <div className={`${styles.hero} container-fluid rounded-b-2xl`} style={heroStyle}> 
+        <div className={`${styles.hero} container-fluid`} style={heroStyle}> 
             {/* Contenido dentro de un Container para alinear el texto con el resto del sitio */}
             <Container> 
                 <Row>
