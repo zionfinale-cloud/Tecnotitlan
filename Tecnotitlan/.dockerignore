@@ -14,8 +14,7 @@ frontend/build/
 .env
 *.md
 Dockerfile
-docker-compose.yml
-.dockerignore
+docker-compose.yml 
 
 # Ignorar logs y archivos de caché
 npm-debug.log*
