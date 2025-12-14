@@ -1,5 +1,4 @@
 import pkg from 'whatsapp-web.js';
-import qrcode from 'qrcode-terminal';
 import { getConfig } from './configService.js';
 
 // The 'whatsapp-web.js' library is a CommonJS module.
@@ -32,10 +31,12 @@ const initializeWhatsAppClient = () => {
     // Opciones para Puppeteer. 'headless: true' es para que no se abra una ventana del navegador.
     // 'args' son para asegurar compatibilidad en servidores (especialmente Linux).
     puppeteer: {
-      // Usamos el nuevo modo headless para evitar la advertencia de deprecación.
-      // Esto es recomendado por Puppeteer para futuras versiones.
-      headless: 'new',
+      headless: true, // Modo headless estándar
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      // CRÍTICO: En producción, esta opción evita que Puppeteer descargue Chromium,
+      // lo que nos ahorra +500MB y soluciona el error 'no space left on device'.
+      // Usaremos una versión ligera que viene con el sistema base del contenedor.
+      executablePath: '/usr/bin/google-chrome-stable'
     },
     authStrategy: new LocalAuth({
       // Especifica una carpeta para la sesión para evitar que se cree en la raíz

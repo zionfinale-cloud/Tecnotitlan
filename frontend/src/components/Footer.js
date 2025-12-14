@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { Container, Row, Col } from 'react-bootstrap';
-import { SettingsContext } from '../context/SettingsContext'; 
+import { Link } from 'react-router-dom'; // CRÍTICO: Importar Link para navegación SPA
+import { SettingsContext } from '../context/SettingsContext';
 import styles from './Footer.module.css';
 
 const Footer = () => {
@@ -20,9 +21,9 @@ const Footer = () => {
               Tecnología con Raíces, Poder sin Límites.
             </p>
             <div className={styles.socialIcons}>
-                <a href="#facebook" className={styles.socialLink}><i className="fab fa-facebook-f"></i></a>
-                <a href="#instagram" className={styles.socialLink}><i className="fab fa-instagram"></i></a>
-                <a href="#whatsapp" className={styles.socialLink}><i className="fab fa-whatsapp"></i></a>
+                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className={styles.socialLink} aria-label="Facebook"><i className="fab fa-facebook-f"></i></a>
+                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className={styles.socialLink} aria-label="Instagram"><i className="fab fa-instagram"></i></a>
+                <a href="https://whatsapp.com" target="_blank" rel="noopener noreferrer" className={styles.socialLink} aria-label="WhatsApp"><i className="fab fa-whatsapp"></i></a>
             </div>
           </Col>
 
@@ -30,9 +31,9 @@ const Footer = () => {
           <Col xs={6} md={2} className="mb-4 mb-md-0">
             <h5 className={styles.footerTitle}>Navegación</h5>
             <ul className={styles.footerNav}>
-              <li><a href="/" className={styles.footerLink}>Inicio</a></li>
-              <li><a href="/cart" className={styles.footerLink}>Carrito</a></li>
-              <li><a href="/profile" className={styles.footerLink}>Perfil</a></li>
+              <li><Link to="/" className={styles.footerLink}>Inicio</Link></li>
+              <li><Link to="/cart" className={styles.footerLink}>Carrito</Link></li>
+              <li><Link to="/profile" className={styles.footerLink}>Perfil</Link></li>
             </ul>
           </Col>
 
@@ -40,19 +41,19 @@ const Footer = () => {
           <Col xs={6} md={3} className="mb-4 mb-md-0">
             <h5 className={styles.footerTitle}>Legal</h5>
             <ul className={styles.footerNav}>
-              <li><a href="#privacy" className={styles.footerLink}>Política de Privacidad</a></li>
-              <li><a href="#terms" className={styles.footerLink}>Términos de Servicio</a></li>
+              <li><Link to="/privacy" className={styles.footerLink}>Política de Privacidad</Link></li>
+              <li><Link to="/terms" className={styles.footerLink}>Términos de Servicio</Link></li>
             </ul>
           </Col>
 
           {/* Columna 4: Pagos (Íconos de tarjetas) */}
           <Col md={3}>
             <h5 className={styles.footerTitle}>Pagos Seguros</h5>
-            <div className={styles.paymentIcons}>
-                <i className="fab fa-cc-paypal text-gray-400"></i>
-                <i className="fab fa-cc-mastercard text-gray-400"></i>
-                <i className="fab fa-cc-visa text-gray-400"></i>
-                <i className="fab fa-cc-amex text-gray-400"></i>
+            <div className={styles.paymentIcons} aria-label="Métodos de pago aceptados">
+                <i className={`fab fa-cc-paypal ${styles.paymentIcon}`} title="PayPal"></i>
+                <i className={`fab fa-cc-mastercard ${styles.paymentIcon}`} title="Mastercard"></i>
+                <i className={`fab fa-cc-visa ${styles.paymentIcon}`} title="Visa"></i>
+                <i className={`fab fa-cc-amex ${styles.paymentIcon}`} title="American Express"></i>
             </div>
           </Col>
         </Row>
