@@ -4,9 +4,9 @@ services:
   backend: # Nombre del servicio
     build: # Configuración de la construcción de la imagen
       context: ./Tecnotitlan # CRÍTICO: El contexto es la carpeta que contiene el código fuente
-      dockerfile: ./Dockerfile # El Dockerfile está en la raíz del repositorio
+      dockerfile: Dockerfile # El Dockerfile está DENTRO del contexto (./Tecnotitlan/Dockerfile)
     ports: # Mapeo de puertos
       - "5000:5000" # Expone el puerto 5000 del contenedor al puerto 5000 del host
     env_file: # Archivo de variables de entorno
-      - ./Tecnotitlan/.env # La ruta al .env ahora es relativa a la nueva ubicación
+      - ./Tecnotitlan/.env # La ruta al .env es relativa a este archivo docker-compose.yml
     restart: always # Reinicia el contenedor si falla
