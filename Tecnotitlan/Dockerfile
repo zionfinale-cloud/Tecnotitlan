@@ -15,13 +15,9 @@ COPY package*.json ./
 # Instala TODAS las dependencias.
 RUN npm install --force
 
-# Copia el resto del código fuente.
+# Copia el resto del código fuente DESPUÉS de instalar las dependencias.
+# Esto optimiza la caché de Docker: los cambios en el código no invalidarán la capa de node_modules.
 COPY . .
-
-
-# --- Fase 2: Ejecución (Runner) ---
-# Esta es la imagen final, optimizada y ligera que se ejecutará en producción.
-FROM node:18-alpine
 
 WORKDIR /app
 
