@@ -1,26 +1,21 @@
-# d:/Tecnotitlan/Tecnotitlan/Dockerfile
-
 # --- Fase 1: Construcción (Builder) ---
 # Instala dependencias y genera el cliente de Prisma.
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# [OPTIMIZACIÓN] Variable de entorno para saltar la descarga de Chromium.
+# Evita que Puppeteer descargue su propia versión de Chromium.
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-# Copia solo los archivos de definición de paquetes para cachear la capa de node_modules.
+# Copia los archivos de definición de paquetes.
 COPY package*.json ./
 
-# Copia el schema de Prisma para que `prisma generate` funcione.
-COPY backend/prisma/ ./prisma/
-
-# Instala TODAS las dependencias para que el script `postinstall` de Prisma se ejecute.
-# Usamos --force para evitar problemas con peer dependencies y nos aseguramos de instalar todo.
+# Instala TODAS las dependencias.
 RUN npm install --force
 
 # Copia el resto del código fuente.
 COPY . . 
+
 
 # --- Fase 2: Ejecución (Runner) ---
 # Crea la imagen final y ligera para producción.
@@ -28,13 +23,14 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# [CRÍTICO] Instala Chromium desde el gestor de paquetes de Alpine. Es mucho más ligero.
+# Instala la versión de Chromium de Alpine Linux, que es mucho más ligera.
 RUN apk add --no-cache udev ttf-freefont chromium
 
 # Copia solo los artefactos necesarios desde la fase 'builder'.
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/ .
+# CRÍTICO: Copiamos solo la carpeta del backend, que es lo que se necesita para correr.
+COPY --from=builder /app/backend ./backend
 
 EXPOSE 5000
 
