@@ -10,16 +10,16 @@ WORKDIR /app
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Copia solo los archivos de definición de paquetes para cachear la capa de node_modules.
-COPY Tecnotitlan/package*.json ./
+COPY package*.json ./
 
 # Copia el schema de Prisma para que `prisma generate` funcione.
-COPY Tecnotitlan/backend/prisma/ ./prisma/
+COPY backend/prisma/ ./prisma/
 
 # Instala TODAS las dependencias para que el script `postinstall` de Prisma se ejecute.
 RUN npm install
 
 # Copia el resto del código fuente.
-COPY Tecnotitlan/ .
+COPY . .
 
 # --- Fase 2: Ejecución (Runner) ---
 # Crea la imagen final y ligera para producción.
