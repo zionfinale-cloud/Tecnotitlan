@@ -1,35 +1,36 @@
 # d:/Tecnotitlan/Tecnotitlan/Dockerfile
 
 # --- Fase 1: Construcción (Builder) ---
-# Esta fase instala TODAS las dependencias (incluyendo devDependencies)
-# y construye los artefactos necesarios, como el cliente de Prisma.
+# Instala dependencias y genera el cliente de Prisma.
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# 1. Copia los archivos de definición de paquetes.
+# [OPTIMIZACIÓN] Variable de entorno para saltar la descarga de Chromium.
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
+# Copia solo los archivos de definición de paquetes para cachear la capa de node_modules.
 COPY package*.json ./
 
-# 2. [CORRECCIÓN CLAVE] Copia la carpeta de Prisma para que el schema esté disponible.
-# Esto debe ocurrir ANTES de `npm install`.
+# Copia el schema de Prisma para que `prisma generate` funcione.
 COPY backend/prisma/ ./prisma/
 
-# 3. [CORRECCIÓN CLAVE] Instala TODAS las dependencias.
-# Se elimina el flag `--only=production` para que `prisma` se instale
-# y el script `postinstall` ("prisma generate") pueda ejecutarse.
+# Instala TODAS las dependencias para que el script `postinstall` de Prisma se ejecute.
 RUN npm install
 
-# 4. Copia el resto del código fuente de la aplicación.
+# Copia el resto del código fuente.
 COPY . .
 
 # --- Fase 2: Ejecución (Runner) ---
-# Esta fase crea una imagen más ligera solo con lo necesario para correr la app.
+# Crea la imagen final y ligera para producción.
 FROM node:18-alpine
 
 WORKDIR /app
 
-# 5. [CORRECCIÓN CLAVE] Copia los artefactos desde la fase 'builder'.
-# Copiamos solo lo estrictamente necesario para EJECUTAR la aplicación.
+# [CRÍTICO] Instala Chromium desde el gestor de paquetes de Alpine. Es mucho más ligero.
+RUN apk add --no-cache udev ttf-freefont chromium
+
+# Copia solo los artefactos necesarios desde la fase 'builder'.
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/ .
