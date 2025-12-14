@@ -19,10 +19,9 @@ COPY backend/prisma/ ./prisma/
 # Usamos --force para evitar problemas con peer dependencies y nos aseguramos de instalar todo.
 RUN npm install --force
 
-# Copia el resto del código fuente DESPUÉS de instalar las dependencias.
-# Esto optimiza la caché de Docker: los cambios en el código no invalidarán la capa de node_modules.
+# Copia el resto del código fuente. Esto se hace DESPUÉS de npm install para que los cambios
+# en el código no invaliden la caché de las dependencias, haciendo los builds más rápidos.
 COPY . .
-FROM node:18-alpine
 
 WORKDIR /app
 
