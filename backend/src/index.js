@@ -65,6 +65,7 @@ const startServer = async () => {
     const sessionStore = new PGStore({
       prisma: prisma,
       tableName: 'user_sessions', // Nombre de la tabla para las sesiones
+      createTableIfMissing: true, // Crea la tabla automáticamente si no existe
     });
 
     app.use(
