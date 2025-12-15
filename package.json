@@ -10,6 +10,12 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "prisma generate"
   },
+  "prisma": {
+    "binaryTargets": [
+      "native",
+      "linux-musl"
+    ]
+  },
   "dependencies": {
     "@prisma/client": "^5.17.0",
     "bcryptjs": "^2.4.3",
