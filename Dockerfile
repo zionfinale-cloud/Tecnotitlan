@@ -13,8 +13,11 @@ COPY package*.json ./
 # Instala TODAS las dependencias.
 RUN npm install --force
 
-# CRÍTICO: Copia el resto del código fuente a la etapa de construcción.
-COPY . .
+# CRÍTICO: Copia solo las carpetas y archivos necesarios para la construcción.
+# Esto evita el error de dependencia circular al no copiar el contexto de build de Docker.
+COPY ./backend ./backend
+COPY ./frontend ./frontend
+COPY ./prisma ./prisma
 
 # --- Fase 2: Ejecución (Runner) ---
 # Crea la imagen final y ligera para producción.
