@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend: # Nombre del servicio
     build:
