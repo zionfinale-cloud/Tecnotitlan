@@ -9,7 +9,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Copia los archivos de dependencias y el esquema de Prisma.
 COPY package*.json ./
-COPY prisma ./prisma/
+COPY backend/prisma ./prisma/
 
 # Instala solo las dependencias de producción y genera el cliente de Prisma.
 RUN npm install --force
