@@ -34,6 +34,4 @@ COPY package*.json ./
 
 EXPOSE 5000
 
-# CRÍTICO: Copiamos la carpeta del backend desde el contexto original y ajustamos el comando de inicio.
-COPY ./backend ./backend
 CMD [ "node", "backend/src/index.js" ]
