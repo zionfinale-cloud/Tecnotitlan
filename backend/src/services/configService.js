@@ -1,67 +1,57 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
-
-import path from 'path'; // Para construir rutas
-import { fileURLToPath } from 'url'; // Para convertir la URL del módulo a una ruta de archivo
-
-// Reconstrucción de __dirname para ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-if (process.env.NODE_ENV !== 'production') {
-  const dotenv = await import('dotenv');
-  dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-}
-
-const prisma = new PrismaClient();
-const configCache = {};
+import { config as envConfig } from '../config/env.js';
 
 /**
- * Carga la configuración desde la base de datos y la fusiona con process.env.
- * La configuración de la DB tiene prioridad.
+ * @file configService.js
+ * @description Servicio centralizado para gestionar la configuración de la aplicación.
+ * Combina variables de entorno con configuraciones dinámicas de la base de datos.
  */
-const loadConfigFromDB = async () => {
+
+// `appConfig` almacenará la configuración fusionada y será la única fuente de verdad.
+let appConfig = { ...envConfig }; // Inicializa con la configuración base del entorno.
+
+/**
+ * Carga o recarga la configuración desde la base de datos y la fusiona
+ * con la configuración del entorno.
+ * Las configuraciones de la base de datos tienen prioridad.
+ */
+export const loadConfigFromDB = async () => {
   try {
     const settings = await prisma.setting.findMany();
-    settings.forEach(setting => {
-      configCache[setting.key] = setting.value;
-    });
-    logger.info('Configuración cargada/recargada desde la base de datos.');
+
+    if (settings.length > 0) {
+      const dbConfig = settings.reduce((acc, setting) => {
+        // Convierte 'mi-clave' a 'MI_CLAVE' para consistencia
+        const key = setting.key.toUpperCase().replace(/-/g, '_');
+        acc[key] = setting.value;
+        return acc;
+      }, {});
+
+      // Fusiona la configuración, dando prioridad a los valores de la BD
+      appConfig = { ...appConfig, ...dbConfig };
+      logger.info('Configuración cargada/recargada desde la base de datos.');
+    }
   } catch (error) {
     logger.error('No se pudo cargar la configuración desde la base de datos. Usando solo variables de entorno.', error);
-    // No detenemos el proceso, permitimos que la app continúe con .env
+    // La aplicación continuará con la configuración del entorno si la BD falla.
   }
 };
 
 /**
- * Inicializa la configuración al arrancar la aplicación.
+ * Inicializa la configuración al arrancar el servidor.
+ * Esta función se llama una vez desde `index.js`.
  */
-const initializeConfig = async () => {
-  // 1. Cargar valores base desde .env como fallback
-  Object.assign(configCache, process.env);
-
-  // 2. Sobrescribir con valores de la DB
-  await loadConfigFromDB();
-
+export const initializeConfig = async () => {
   logger.info('Configuración inicializada.');
-};
-
-/**
- * Recarga la configuración desde la DB. Se usa después de actualizar en el panel de admin.
- */
-const reloadConfig = async () => {
-  logger.info('Recargando configuración desde la base de datos...');
   await loadConfigFromDB();
 };
 
 /**
- * Devuelve el objeto de configuración cacheado.
+ * Devuelve el objeto de configuración actual.
+ * Esta es la función que el resto de la aplicación debe usar para acceder a la configuración.
+ * @returns {object} El objeto de configuración completo.
  */
-const getConfig = () => {
-  return configCache;
-};
-
-export {
-  initializeConfig,
-  reloadConfig,
-  getConfig,
+export const getConfig = () => {
+  return appConfig;
 };

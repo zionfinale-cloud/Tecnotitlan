@@ -109,8 +109,10 @@ const sendMessageToAdmin = async (message) => {
     console.error('[WHATSAPP] Cannot send message, client is not ready or authenticated.');
     return;
   }
+  // Obtiene la configuración centralizada
   const config = getConfig();
   const adminNumber = config.ADMIN_WHATSAPP_NUMBER;
+
   if (!adminNumber) {
     console.error('[WHATSAPP] ADMIN_WHATSAPP_NUMBER no está definido en la configuración.');
     return;
