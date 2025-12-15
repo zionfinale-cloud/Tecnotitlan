@@ -33,8 +33,8 @@ FROM node:18-alpine AS final
 
 WORKDIR /app
 
-# Instala Chromium y la compatibilidad con OpenSSL 1.1 para Prisma.
-RUN apk add --no-cache udev ttf-freefont chromium openssl1.1-compat
+# Instala Chromium y la compatibilidad con OpenSSL 1.1 (libssl1.1) para Prisma.
+RUN apk add --no-cache udev ttf-freefont chromium libssl1.1
 
 # Copia selectivamente los artefactos necesarios desde la etapa 'builder'
 COPY --from=builder /app/node_modules ./node_modules
