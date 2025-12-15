@@ -8,7 +8,7 @@ WORKDIR /app
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Copia los archivos de definición de paquetes.
-COPY Tecnotitlan/package*.json ./
+COPY package*.json ./
 
 # --- DEBUG: Ver el contenido después de copiar package.json ---
 RUN echo "--- Builder Stage: After package.json copy ---" && ls -la
@@ -19,11 +19,11 @@ RUN echo "--- Builder Stage: After npm install ---" && ls -la
 
 # CRÍTICO: Copia solo las carpetas y archivos necesarios para la construcción.
 # Esto evita el error de dependencia circular al no copiar el contexto de build de Docker.
-COPY Tecnotitlan/backend ./backend
+COPY backend ./backend
 RUN echo "--- Builder Stage: After backend copy ---" && ls -la
-COPY Tecnotitlan/frontend ./frontend
+COPY frontend ./frontend
 RUN echo "--- Builder Stage: After frontend copy ---" && ls -la
-COPY Tecnotitlan/prisma ./prisma
+COPY prisma ./prisma
 RUN echo "--- Builder Stage: After prisma copy ---" && ls -la
 
 # --- Fase 2: Ejecución (Runner) ---
@@ -39,9 +39,9 @@ RUN apk add --no-cache udev ttf-freefont chromium
 # Copia solo los artefactos necesarios desde la fase 'builder'.
 COPY --from=builder /app/node_modules ./node_modules
 RUN echo "--- Runner Stage: After node_modules copy ---" && ls -la
-COPY Tecnotitlan/package*.json ./
+COPY package*.json ./
 RUN echo "--- Runner Stage: After package.json copy ---" && ls -la
-COPY Tecnotitlan/backend ./backend
+COPY backend ./backend
 RUN echo "--- Runner Stage: After backend copy ---" && ls -la
 
 EXPOSE 5000
