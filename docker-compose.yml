@@ -1,10 +1,36 @@
+version: '3.8'
+
 services:
   backend: # Nombre del servicio
-    build: # Configuración de la construcción de la imagen
-      context: . # El contexto es la carpeta donde está docker-compose.yml (d:\Tecnotitlan)
-      dockerfile: Dockerfile # El Dockerfile está en la raíz del contexto (d:\Tecnotitlan\Dockerfile)
+    build:
+      context: . # El contexto es la raíz del proyecto, donde está este archivo.
+      dockerfile: Dockerfile # El Dockerfile que usará está en la misma raíz.
+    container_name: tecnotitlan_backend
     ports: # Mapeo de puertos
       - "5000:5000" # Expone el puerto 5000 del contenedor al puerto 5000 del host
     env_file: # Archivo de variables de entorno
-      - ./.env # La ruta al .env es relativa a este archivo docker-compose.yml
+      - ./.env # Carga las variables desde el archivo .env en la raíz.
     restart: always # Reinicia el contenedor si falla
+    networks: # Conecta el servicio a la red compartida
+      - tecnotitlan-net
+
+  n8n:
+    image: n8nio/n8n:latest # Usamos la última imagen estable de n8n
+    container_name: tecnotitlan_n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    env_file:
+      - ./.env # Reutilizamos el mismo archivo .env para las credenciales
+    environment:
+      - GENERIC_TIMEZONE=America/Mexico_City # Asegura la zona horaria correcta
+    volumes:
+      - n8n_data:/home/node/.n8n # Persiste los datos y workflows de n8n
+    networks:
+      - tecnotitlan-net
+
+networks: # Define la red compartida
+  tecnotitlan-net:
+
+volumes: # Define el volumen para persistir los datos de n8n
+  n8n_data:
