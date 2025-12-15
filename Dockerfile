@@ -1,7 +1,7 @@
 # --- Etapa 1: Dependencias (deps) ---
 # Esta etapa solo instala las dependencias. Se cachea y solo se reconstruye
 # si `package.json` o `prisma/schema.prisma` cambian.
-FROM node:18-alpine AS deps
+FROM node:18-slim AS deps
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN npm install --force
 # --- Etapa 2: Código Fuente (builder) ---
 # Esta etapa copia el código fuente. Se reconstruirá si el código cambia,
 # pero no reinstalará los node_modules gracias a la etapa anterior.
-FROM node:18-alpine AS builder
+FROM node:18-slim AS builder
 
 WORKDIR /app
 
@@ -29,12 +29,15 @@ COPY . .
 
 # --- Etapa 3: Ejecución (final) ---
 # Esta es la imagen final, optimizada y ligera para producción.
-FROM node:18-alpine AS final
+FROM node:18-slim AS final
 
 WORKDIR /app
 
-# Instala Chromium y la compatibilidad con OpenSSL 1.1 (libssl1.1) para Prisma.
-RUN apk add --no-cache udev ttf-freefont chromium libssl1.1
+# Instala las dependencias de sistema necesarias para Puppeteer/whatsapp-web.js en Debian.
+# Debian (en la que se basa 'slim') ya incluye las librerías OpenSSL que Prisma necesita.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copia selectivamente los artefactos necesarios desde la etapa 'builder'
 COPY --from=builder /app/node_modules ./node_modules
