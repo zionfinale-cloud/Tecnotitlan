@@ -32,42 +32,33 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ## 2. Estado Actual y Próximos Pasos (Continuidad del Proyecto)
 
-**Última Actualización:** 04 de Diciembre, 2025
+**Última Actualización:** 14 de Diciembre, 2025
 
 ### En qué nos quedamos:
 
 1.  **Infraestructura Lista:** Se configuró la instancia de `Ubuntu-1` en AWS Lightsail con su IP estática (`3.148.78.23`).
-2.  **Entorno Preparado:** Se instaló Docker, Docker Compose y Git en el servidor. Se solucionaron los problemas de conexión SSH y de memoria del servidor creando un archivo de `swap`.
-3.  **¡Build Exitoso!** El backend de Node.js se clonó desde GitHub y la imagen de Docker **se construye exitosamente**. El contenedor se crea y se pone en marcha.
+2.  **Entorno Preparado:** Se reinstaló por completo Docker y Docker Compose usando el script oficial para resolver conflictos de versiones. El servidor está limpio y con las herramientas correctas.
+3.  **Código Sincronizado:** El repositorio del proyecto está clonado en el servidor y se ha creado el archivo `.env` con las variables de entorno de producción.
 
 ### Problema Resuelto Recientemente:
 
-*   **Problema:** No se podía establecer una conexión SSH con el servidor de Lightsail. El cliente web mostraba un error `UPSTREAM_ERROR [515]` y la terminal local daba `Permission denied`.
-*   **Solución:** Se identificó que el problema estaba en la instancia del servidor, no en el cliente. Un **reinicio (reboot)** de la instancia desde el panel de Lightsail solucionó el problema y restauró la conectividad. Posteriormente, se solucionó un problema de autenticación con GitHub usando un **Token de Acceso Personal (PAT)** para clonar el repositorio.
-*   **Problema:** El build de Docker fallaba con el error `Could not find Prisma Schema`.
-*   **Solución:** Se refactorizó el `Dockerfile` a un **build multi-etapa**, asegurando que `prisma generate` se ejecute en la fase de construcción. Se corrigió el `docker-compose.yml` para que apunte al `Dockerfile` correcto y se eliminaron los volúmenes de código para el entorno de producción.
-*   **Problema:** El contenedor se reiniciaba con el error `sh: nodemon: not found`.
-*   **Solución:** Se cambió el comando `CMD` en el `Dockerfile` para ejecutar la aplicación directamente con `node backend/src/index.js`, ya que `nodemon` es solo para desarrollo.
-*   **Problema:** El contenedor fallaba con el error `Cannot find package 'dotenv'`.
-*   **Solución:** Se modificó `configService.js` para cargar `dotenv` de forma condicional, solo en entornos que no son de producción.
+*   **Problema:** El build de Docker fallaba repetidamente por falta de espacio (`no space left on device`).
+*   **Solución:** Se identificó que el "contexto de build" era demasiado grande. Se creó y corrigió un archivo `.dockerignore` para excluir las carpetas `node_modules` y otros archivos innecesarios, reduciendo el contexto de +600MB a ~2MB.
 
 ### Problema Actual (Para Continuar Mañana):
-*   **Error:** El contenedor arranca pero se detiene inmediatamente con el error `Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'qrcode-terminal'`.
-*   **Causa Probable:** El archivo `whatsappService.js` está intentando importar el paquete `qrcode-terminal`. Este paquete es una dependencia de desarrollo (`devDependency`) y, correctamente, no se instala en la imagen de producción para mantenerla ligera.
+*   **Error:** El build de Docker falla consistentemente con el error `failed to solve: circular dependency detected on stage: builder` o `COPY failed: stat app/node_modules: file does not exist`.
+*   **Causa Raíz Identificada:** El `Dockerfile` tiene un error lógico en su estructura multi-etapa. La primera fase (`builder`) instala las dependencias, pero **no copia el código fuente de la aplicación** (`backend/`, `frontend/`, etc.). Cuando la segunda fase intenta copiar la carpeta `/app/backend` desde el `builder`, esta no existe, causando el fallo.
 
 ### Próximo Paso Inmediato:
 
-**Objetivo:** Solucionar el error de `qrcode-terminal` y tener el backend 100% funcional y estable.
+**Objetivo:** Corregir el `Dockerfile` para que la construcción de la imagen sea exitosa y el backend se ejecute correctamente en el contenedor.
 
-**Acciones en Progreso:**
-1.  **Preparación del Servidor:** Se ha establecido la conexión SSH con la instancia `Ubuntu-1`. Actualmente se están instalando las dependencias necesarias (Git, Docker, Docker Compose) y actualizando el sistema operativo. El proceso de `apt upgrade` está en curso.
-2.  **Refactorización del Frontend:** Mientras esperamos que finalice la configuración del servidor, se está realizando una refactorización completa del frontend para eliminar toda dependencia de Tailwind CSS y alinear el 100% de los componentes con la arquitectura de CSS Modules. Se han creado y refactorizado componentes clave como `AdminLayout`, `SubMenu`, `SearchBox` y las pantallas del panel de administración (`AdminDashboard`, `ProductListScreen`, `UserListScreen`, `RoleListScreen`).
+**Acción:** Modificar el `Dockerfile` para añadir un comando `COPY . .` **dentro de la primera fase (`builder`)**, justo después de `RUN npm install --force`. Esto asegurará que todo el código fuente esté disponible en la etapa de construcción antes de que la segunda etapa intente copiar los artefactos necesarios.
 
-**Siguientes Pasos:**
-1.  Una vez finalizada la instalación de dependencias en el servidor, se clonará el repositorio del backend.
-2.  Se configurará el archivo `.env` con las variables de entorno de producción.
-3.  Se construirá y ejecutará la imagen de Docker del backend.
-4.  Se abrirá el puerto `5000` en el firewall de Lightsail para exponer la API.
+**Siguientes Pasos (Post-Build):**
+1.  Verificar que el contenedor esté corriendo con `sudo docker compose ps`.
+2.  Revisar los logs con `sudo docker compose logs -f` para confirmar que el servidor se inició correctamente.
+3.  Abrir el puerto `5000` en el firewall de Lightsail para poder acceder a la API desde internet.
 
 **NOTA IMPORTANTE DE ESTRATEGIA DE DESARROLLO:**
 Dado que el proyecto se encuentra en una fase inicial sin clientes ni productos en producción y el presupuesto es limitado, se adopta una estrategia de **"desarrollo en vivo"**.
