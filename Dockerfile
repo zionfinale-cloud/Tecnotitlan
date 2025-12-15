@@ -30,8 +30,10 @@ RUN apk add --no-cache udev ttf-freefont chromium
 
 # Copia solo los artefactos necesarios desde la fase 'builder'.
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
+COPY package*.json ./
 
 EXPOSE 5000
 
+# CRÍTICO: Copiamos la carpeta del backend desde el contexto original.
+COPY ./backend ./backend
 CMD [ "node", "backend/src/index.js" ]
