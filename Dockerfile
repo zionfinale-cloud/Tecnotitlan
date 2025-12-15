@@ -36,8 +36,11 @@ WORKDIR /app
 # Instala Chromium, necesario para `whatsapp-web.js`.
 RUN apk add --no-cache udev ttf-freefont chromium
 
-# Copia solo los artefactos construidos desde la etapa 'builder'.
-COPY --from=builder /app ./
+# Copia selectivamente los artefactos necesarios desde la etapa 'builder'
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/backend ./backend
 
 EXPOSE 5000
 
