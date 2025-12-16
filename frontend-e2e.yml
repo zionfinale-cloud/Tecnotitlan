@@ -35,6 +35,10 @@ jobs:
             cd frontend && npm start
           # URL que Cypress esperará a que esté disponible antes de correr las pruebas
           wait-on: 'http://localhost:3000'
+          # CRÍTICO: Especificamos las rutas exactas de TUS archivos de prueba
+          spec: |
+            cypress/e2e/auth/login.cy.js
+            cypress/e2e/checkout.cy.js
           # Directorio donde están las pruebas del frontend
           working-directory: frontend
         env:
