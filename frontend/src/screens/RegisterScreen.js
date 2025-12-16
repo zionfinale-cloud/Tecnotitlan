@@ -39,8 +39,9 @@ const RegisterScreen = () => {
         }
 
         try {
-            await register(name, email, password);
-            // Si el registro es exitoso, el useEffect se encargará de la redirección
+            const success = await register(name, email, password);
+            // Asumimos que la función register devuelve `true` al tener éxito
+            if (success) navigate(redirect); // Redirigir explícitamente al tener éxito
         } catch (error) {
             // Mostrar error de la API
             showNotification(error.response?.data?.message || 'Error de registro. Inténtelo de nuevo.', 'danger');

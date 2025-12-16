@@ -31,8 +31,8 @@ const LoginScreen = () => {
     const submitHandler = async (e) => {
         e.preventDefault();
         try {
-            await login(email, password);
-            // Si el login es exitoso, el useEffect se encargará de la redirección
+            const success = await login(email, password);
+            if (success) navigate(redirect); // Redirigir explícitamente al tener éxito
         } catch (error) {
             // Mostrar error de la API
             showNotification(error.response?.data?.message || 'Error de conexión. Inténtelo de nuevo.', 'danger');
