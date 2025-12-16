@@ -7,5 +7,7 @@ module.exports = defineConfig({
     },
     // CRÍTICO: Le decimos a Cypress que busque las pruebas en esta carpeta
     specPattern: 'cypress/e2e/**/*.cy.js',
+    // Desactivamos la búsqueda del archivo de soporte, ya que no lo usamos.
+    supportFile: false,
   },
 });
