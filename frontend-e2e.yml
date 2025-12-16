@@ -21,20 +21,12 @@ jobs:
       - name: Install Backend Dependencies
         run: npm install --force
 
-      - name: Install Frontend Dependencies
-        run: cd frontend && npm install
-
       # Paso clave: Usamos la acción oficial de Cypress
       # https://github.com/cypress-io/github-action
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
-          # Le decimos a Cypress que inicie tanto el backend como el frontend
-          start: |
-            npm run server &
-            cd frontend && npm start
-          # URL que Cypress esperará a que esté disponible antes de correr las pruebas
-          wait-on: 'http://localhost:3000'
+          # Ya no iniciamos servidores locales, apuntamos directamente a producción
           # CRÍTICO: Especificamos las rutas exactas de TUS archivos de prueba
           spec: |
             cypress/e2e/auth/login.cy.js
@@ -42,13 +34,10 @@ jobs:
           # Directorio donde están las pruebas del frontend
           working-directory: frontend
         env:
-          # Pasamos las variables de entorno necesarias para el backend
-          # CRÍTICO: Estas deben estar configuradas como "Secrets" en tu repositorio de GitHub
-          # (Settings > Secrets and variables > Actions)
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          CLIENT_URL_PRIMARY: 'http://localhost:3000'
-          # Añade aquí cualquier otra variable que tu backend necesite para arrancar
+          # CRÍTICO: Sobrescribimos la URL base de Cypress para que apunte a tu sitio en vivo
+          # y la URL de la API para que las pruebas del frontend sepan a dónde llamar.
+          CYPRESS_BASE_URL: 'https://www.tecnotitlan.com.mx'
+          CYPRESS_REACT_APP_API_URL: 'https://api.tecnotitlan.com.mx'
 
       # (Opcional) Sube los artefactos de las pruebas (videos, screenshots)
       # para poder revisarlos si una prueba falla.
