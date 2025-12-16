@@ -1,6 +1,7 @@
 /* Contenedor principal de la página de Registro */
 .pageContainer {
     display: flex;
+    flex-direction: column; /* Asegura que los elementos se apilen verticalmente */
     justify-content: center;
     align-items: flex-start; /* Alinea la tarjeta arriba */
     padding: 4rem 0; /* Espaciado vertical generoso */
