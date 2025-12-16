@@ -1,6 +1,8 @@
 # Ignorar dependencias de Node, son la causa principal de la lentitud
 node_modules/
-frontend/node_modules/
+
+# CRÍTICO: Ignorar TODA la carpeta del frontend. Se despliega por separado.
+frontend/
 
 # Ignorar artefactos de build del frontend
 frontend/build/
