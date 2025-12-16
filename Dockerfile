@@ -1,38 +1,41 @@
-# --- Etapa 1: Builder ---
-# Esta etapa instala dependencias y prepara el código para producción.
-FROM node:18-slim AS builder
+# --- Etapa 1: Dependencias (deps) ---
+# Esta etapa solo instala las dependencias para optimizar la caché.
+FROM node:18-slim AS deps
 
 WORKDIR /app
 
 # Evita que Puppeteer descargue su propia versión de Chromium.
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-# Copia primero los archivos de definición de paquetes para optimizar la caché de Docker.
+# Copia los archivos de dependencias y el esquema de Prisma.
 COPY package*.json ./
+COPY backend/prisma ./prisma/
 
-# Copia el resto del código fuente del backend.
-COPY backend/ ./backend/
-
-# Establece el directorio de trabajo dentro del backend.
-WORKDIR /app/backend
-
-# Instala las dependencias y genera el cliente de Prisma.
+# Instala las dependencias.
 RUN npm install --force
 
-# --- Etapa 2: Ejecución (final) ---
+# --- Etapa 2: Builder ---
+# Esta etapa copia el código fuente y las dependencias ya instaladas.
+FROM node:18-slim AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# --- Etapa 3: Ejecución (final) ---
 # Esta es la imagen final, optimizada y ligera para producción.
 FROM node:18-slim AS final
 
-WORKDIR /app/backend
+WORKDIR /app
 
 # Instala las dependencias de sistema necesarias para Puppeteer/whatsapp-web.js en Debian.
-# Debian (en la que se basa 'slim') ya incluye las librerías OpenSSL que Prisma necesita.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     && rm -rf /var/lib/apt/lists/*
 
-# Copia los artefactos construidos desde la etapa 'builder'.
-COPY --from=builder /app/backend ./
+# Copia solo los artefactos necesarios del backend desde la etapa 'builder'.
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/backend ./backend
 
 EXPOSE 5000
 
