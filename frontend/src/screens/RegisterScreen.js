@@ -5,6 +5,7 @@ import { Form, Button, Row, Col, Card, Container } from 'react-bootstrap';
 import { AuthContext } from '../context/AuthContext';
 import { NotificationContext } from '../context/NotificationContext';
 // Componentes dependientes
+import styles from './RegisterScreen.module.css'; // Importar los estilos
 import LoadingSpinner from '../components/LoadingSpinner'; 
 
 const RegisterScreen = () => {
@@ -48,12 +49,12 @@ const RegisterScreen = () => {
     };
 
     return (
-        <Container className="d-flex justify-content-center py-5" style={{ minHeight: '80vh', backgroundColor: 'var(--secondary-bg-color)' }}>
+        <div className={styles.pageContainer} style={{ backgroundColor: 'var(--secondary-bg-color)' }}>
             <Row className="w-full">
                 <Col md={8} lg={6} xl={5} className="mx-auto">
-                    <Card className="p-4 rounded-xl border-0 shadow-lg">
+                    <Card className={styles.registerCard}>
                         <Card.Body>
-                            <h1 className="text-3xl font-bold mb-4 text-center">Crear Cuenta</h1>
+                            <h1 className={styles.title}>Crear Cuenta</h1>
                             
                             {loading && <LoadingSpinner />} 
                             
@@ -61,52 +62,52 @@ const RegisterScreen = () => {
                                 
                                 {/* Campo Nombre */}
                                 <Form.Group controlId='name' className="mb-3">
-                                    <Form.Label className="font-medium">Nombre Completo</Form.Label>
+                                    <Form.Label className={styles.label}>Nombre Completo</Form.Label>
                                     <Form.Control
                                         type='text'
                                         placeholder='Introduce tu nombre'
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                        className="rounded-lg shadow-sm focus:border-0"
+                                        className={styles.input}
                                         required
                                     ></Form.Control>
                                 </Form.Group>
 
                                 {/* Campo Email */}
                                 <Form.Group controlId='email' className="mb-3">
-                                    <Form.Label className="font-medium">Correo Electrónico</Form.Label>
+                                    <Form.Label className={styles.label}>Correo Electrónico</Form.Label>
                                     <Form.Control
                                         type='email'
                                         placeholder='Introduce tu email'
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className="rounded-lg shadow-sm focus:border-0"
+                                        className={styles.input}
                                         required
                                     ></Form.Control>
                                 </Form.Group>
 
                                 {/* Campo Contraseña */}
                                 <Form.Group controlId='password' className="mb-3">
-                                    <Form.Label className="font-medium">Contraseña</Form.Label>
+                                    <Form.Label className={styles.label}>Contraseña</Form.Label>
                                     <Form.Control
                                         type='password'
                                         placeholder='Introduce tu contraseña'
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="rounded-lg shadow-sm focus:border-0"
+                                        className={styles.input}
                                         required
                                     ></Form.Control>
                                 </Form.Group>
                                 
                                 {/* Campo Confirmar Contraseña */}
                                 <Form.Group controlId='confirmPassword' className="mb-4">
-                                    <Form.Label className="font-medium">Confirmar Contraseña</Form.Label>
+                                    <Form.Label className={styles.label}>Confirmar Contraseña</Form.Label>
                                     <Form.Control
                                         type='password'
                                         placeholder='Confirma tu contraseña'
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
-                                        className="rounded-lg shadow-sm focus:border-0"
+                                        className={styles.input}
                                         required
                                     ></Form.Control>
                                 </Form.Group>
@@ -115,7 +116,7 @@ const RegisterScreen = () => {
                                 <Button 
                                     type='submit' 
                                     variant='primary' 
-                                    className="w-full rounded-full py-2 mb-3"
+                                    className={styles.submitButton}
                                     disabled={loading}
                                 >
                                     {loading ? 'Registrando...' : 'Registrarme'}
@@ -123,10 +124,10 @@ const RegisterScreen = () => {
                             </Form>
 
                             {/* Enlace de Login */}
-                            <Row className="py-3 text-center">
+                            <Row className={styles.loginRow}>
                                 <Col>
                                     ¿Ya tienes cuenta?{' '}
-                                    <Link to={redirect ? `/login?redirect=${redirect}` : '/login'} className="text-decoration-none" style={{ color: 'var(--cta-color)' }}>
+                                    <Link to={redirect ? `/login?redirect=${redirect}` : '/login'} className={styles.loginLink}>
                                         Entrar
                                     </Link>
                                 </Col>
@@ -136,7 +137,7 @@ const RegisterScreen = () => {
                     </Card>
                 </Col>
             </Row>
-        </Container>
+        </div>
     );
 };
 
