@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
-import { reloadConfig, getConfig } from '../services/configService.js';
+import { loadConfigFromDB, getConfig } from '../services/configService.js';
 import logger from '../utils/logger.js';
 
 const PUBLIC_SETTINGS = [
@@ -60,7 +60,7 @@ const updateSetting = asyncHandler(async (req, res, next) => {
   });
 
   // ¡Paso clave! Recargamos la configuración en la caché.
-  await reloadConfig();
+  await loadConfigFromDB();
   logger.info(`[Config] Configuración '${key}' actualizada y recargada en caché.`);
 
   res.status(200).json({
@@ -93,7 +93,7 @@ const uploadSiteLogo = asyncHandler(async (req, res, next) => {
     create: { key: 'siteLogoUrl', value: publicLogoUrl, isEditable: true, isPublic: true },
   });
 
-  await reloadConfig();
+  await loadConfigFromDB();
   logger.info(`[Config] Logo del sitio actualizado y recargado en caché.`);
 
   res.status(200).json({
