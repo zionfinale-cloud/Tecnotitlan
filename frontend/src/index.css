@@ -1,13 +1,14 @@
 /* Importar fuente Roboto para un look tecnológico limpio */
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
 
+/* --- MODO CLARO (POR DEFECTO) --- */
 :root {
   /* --- COLORES BASE DEL DISEÑO TECNOTITLÁN --- */
   
   /* Color Maestro (Header, Hero, Footer) - Negro Profundo para fusión */
   --brand-dark: #020617; /* Slate 950 */
 
-  /* Color de Acento/CTA - Verde Neón */
+  /* Color de Acento/CTA (Call to Action) - Verde Neón */
   --cta-color: #00DC82; 
   
   /* Color de Fondo principal del CONTENIDO (Gris muy claro) */
@@ -15,6 +16,13 @@
 
   /* Color de Fondo de Tarjetas (Filtros, Productos) */
   --card-bg-color: #FFFFFF;
+  --card-bg-rgb: 255, 255, 255; /* Para efectos de transparencia */
+
+  /* Color de fondo para los inputs */
+  --input-bg-color: #F8FAFC; /* Slate 50 */
+
+  /* Color de los bordes */
+  --border-color: #E2E8F0; /* Slate 200 */
 
   /* Texto */
   --text-on-dark: #FFFFFF;
@@ -22,12 +30,23 @@
   --text-secondary: #64748B;
 }
 
+/* --- MODO OSCURO --- */
+[data-theme='dark'] {
+  --secondary-bg-color: #0F172A; /* Slate 900 */
+  --card-bg-color: #1E293B; /* Slate 800 */
+  --card-bg-rgb: 30, 41, 59;
+  --input-bg-color: #334155; /* Slate 700 */
+  --border-color: #475569; /* Slate 600 */
+  --text-primary: #F1F5F9; /* Slate 100 */
+  --text-secondary: #94A3B8; /* Slate 400 */
+}
+
 body {
   margin: 0;
   font-family: 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* CRÍTICO: Usamos un gris muy oscuro (#111827) para que el fondo se distinga del Header (#020617) */
-  background-color: #1f1f1f; 
+  /* El fondo ahora se controla con una variable para que cambie con el tema */
+  background-color: var(--secondary-bg-color); 
   color: var(--text-primary);
 }
 

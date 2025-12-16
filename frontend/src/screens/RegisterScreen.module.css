@@ -11,10 +11,12 @@
 /* Tarjeta de Registro */
 .registerCard {
     padding: 2rem;
-    border-radius: 1rem; /* rounded-xl */
-    border: none;
+    border-radius: 1.5rem; /* Un poco más redondeado */
+    border: 1px solid rgba(255, 255, 255, 0.1); /* Borde sutil para el efecto de vidrio */
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); /* shadow-lg */
-    background-color: var(--card-bg-color); /* Fondo blanco o gris oscuro en dark mode */
+    background-color: rgba(var(--card-bg-rgb), 0.8); /* Fondo semi-transparente */
+    -webkit-backdrop-filter: blur(10px); /* Efecto de desenfoque para navegadores Webkit */
+    backdrop-filter: blur(10px); /* Efecto de desenfoque estándar */
     width: 100%;
     max-width: 550px; /* Un poco más ancho para el formulario de registro */
 }
@@ -37,9 +39,10 @@
 /* Campos de texto */
 .input {
     border-radius: 0.5rem !important; /* rounded-lg */
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important; /* shadow-sm */
+    /* Sombra interior para dar profundidad */
+    box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05) !important;
     border: 1px solid var(--border-color) !important;
-    background-color: var(--input-bg-color) !important;
+    background-color: var(--input-bg-color) !important; /* Un color ligeramente más oscuro que el fondo de la tarjeta */
     color: var(--text-primary) !important;
 }
 
