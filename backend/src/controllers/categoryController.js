@@ -2,17 +2,13 @@ import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
 import { NotFoundError, BadRequestError } from '../utils/errorUtils.js';
 import slugify from 'slugify';
-import { getConfig } from '../services/configService.js';
 
 // @desc    Crear una nueva categoría
 // @route   POST /api/categories
 // @access  Private/Admin
 const createCategory = asyncHandler(async (req, res) => {
   const { name, parent } = req.body;
-  // Aunque slugify no necesita config, es un ejemplo de cómo se usaría.
-  const config = getConfig();
-  const slugifyOptions = config.SLUGIFY_OPTIONS || { lower: true, strict: true };
-  const slug = slugify(name, slugifyOptions);
+  const slug = slugify(name, { lower: true, strict: true });
 
   // Verificar si ya existe una categoría con el mismo slug
   const existingCategory = await prisma.category.findUnique({ where: { slug } });
@@ -88,9 +84,7 @@ const updateCategory = asyncHandler(async (req, res, next) => {
 
   if (name && name !== category.name) {
     dataToUpdate.name = name;
-    const config = getConfig();
-    const slugifyOptions = config.SLUGIFY_OPTIONS || { lower: true, strict: true };
-    dataToUpdate.slug = slugify(name, slugifyOptions);
+    dataToUpdate.slug = slugify(name, { lower: true, strict: true });
     // Verificar que el nuevo slug no esté ya en uso por otra categoría
     const existingCategory = await prisma.category.findFirst({ where: { slug: dataToUpdate.slug, id: { not: category.id } } });
     if (existingCategory) {

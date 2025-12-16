@@ -2,7 +2,6 @@ import jwt from 'jsonwebtoken';
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js';
 import { UnauthorizedError } from '../utils/errorUtils.js';
-import { getConfig } from '../services/configService.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -22,8 +21,7 @@ const protect = asyncHandler(async (req, res, next) => {
       logger.debug('[Protect] Token encontrado.');
 
       // 2. Verificar el token
-      const config = getConfig();
-      const decoded = jwt.verify(token, config.JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
       logger.debug(`[Protect] Token decodificado para usuario ID: ${decoded.id}`);
 
       // 3. Obtener el usuario, su rol y los permisos del rol en UNA SOLA CONSULTA

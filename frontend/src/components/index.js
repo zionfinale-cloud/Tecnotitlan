@@ -16,3 +16,5 @@ export { default as SearchBox } from './SearchBox';
 export { default as ToastNotification } from './ToastNotification';
 export { default as HeroSection } from './HeroSection'; // Añadido
 export { default as FilterSidebar } from './FilterSidebar'; // Añadido
+export { default as RoleTable } from './RoleTable';
+export { default as UserTable } from './UserTable';

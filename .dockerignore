@@ -1,0 +1,20 @@
+# Ignorar dependencias de Node, son la causa principal de la lentitud
+node_modules/
+frontend/node_modules/
+
+# Ignorar artefactos de build del frontend
+frontend/build/
+
+# Ignorar el control de versiones de Git
+.git/
+.github/
+
+# Ignorar archivos de configuración y documentación que no van en la imagen
+.vscode/
+.env
+*.md
+Dockerfile
+docker-compose.yml 
+
+# Ignorar logs y archivos de caché
+npm-debug.log*

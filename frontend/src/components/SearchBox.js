@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useDebounce } from '../hooks/useDebounce'; 
-// CRÍTICO: Importamos el CSS Module puro para garantizar el diseño de pastilla
-import styles from './SearchBox.module.css'; 
+import { useDebounce } from '../hooks/useDebounce';
+// Se importa el CSS Module en lugar de usar clases de Tailwind
+import styles from './SearchBox.module.css';
 
 const SearchBox = () => {
   const navigate = useNavigate();
@@ -64,37 +64,31 @@ const SearchBox = () => {
   };
 
   return (
-    // Usamos las clases del CSS Module (.searchForm)
+    // Se usa la clase del CSS Module para el formulario
     <form onSubmit={submitHandler} className={styles.searchForm} role="search">
-      
-      {/* Ícono de búsqueda (Izquierda) */}
+      {/* Ícono de búsqueda (Izquierda) con su clase del CSS Module */}
       <i className={`fas fa-search ${styles.searchIcon}`}></i>
-      
+
       <input
         type="text"
         name="q"
         onChange={(e) => setKeyword(e.target.value)}
         value={keyword}
         placeholder="Buscar productos..."
-        // Usamos la clase del CSS Module (.searchInput) para la forma de pastilla
+        // Se usa la clase del CSS Module para el input
         className={styles.searchInput}
         aria-label="Buscar productos"
         autoComplete="off"
       />
-      
+
       {/* Botones de Acción (Derecha) */}
       {isSearching ? (
-        <button type="button" className={styles.actionButton} disabled>
-            <i className="fas fa-spinner fa-spin" style={{ color: 'var(--cta-color)' }}></i>
-        </button>
+        <div className={styles.iconContainer}>
+          <i className={`fas fa-spinner ${styles.spinnerIcon}`}></i>
+        </div>
       ) : keyword && (
-        <button
-          type="button"
-          className={styles.actionButton}
-          onClick={clearSearch}
-          aria-label="Limpiar búsqueda"
-        >
-          <i className="fas fa-times-circle"></i>
+        <button type="button" className={`${styles.iconContainer} ${styles.clearButton}`} onClick={clearSearch} aria-label="Limpiar búsqueda">
+          <i className="fas fa-times"></i>
         </button>
       )}
     </form>

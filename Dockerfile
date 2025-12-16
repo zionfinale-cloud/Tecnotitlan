@@ -5,13 +5,14 @@ FROM node:18-slim AS deps
 
 WORKDIR /app
 
+# Evita que Puppeteer descargue su propia versión de Chromium.
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Copia los archivos de dependencias y el esquema de Prisma.
 COPY package*.json ./
 COPY backend/prisma ./prisma/
 
-# Instala solo las dependencias de producción y genera el cliente de Prisma.
+# Instala TODAS las dependencias.
 RUN npm install --force
 
 # --- Etapa 2: Código Fuente (builder) ---
@@ -39,7 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     && rm -rf /var/lib/apt/lists/*
 
-# Copia selectivamente los artefactos necesarios desde la etapa 'builder'
+# Copia solo los artefactos necesarios desde la fase 'builder'.
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/backend/prisma ./prisma

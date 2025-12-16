@@ -4,14 +4,11 @@ import bcrypt from 'bcryptjs';
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
 import { AppError, BadRequestError, NotFoundError, UnauthorizedError } from '../utils/errorUtils.js';
-import { getConfig } from '../services/configService.js';
 
 // Función para generar un token JWT
 const generateToken = (id) => {
-  // Obtiene la configuración centralizada para el secreto y la expiración del token.
-  const config = getConfig();
-  return jwt.sign({ id }, config.JWT_SECRET, {
-    expiresIn: config.JWT_EXPIRES_IN,
+  return jwt.sign({ id }, process.env.JWT_SECRET || 'tu_secreto_jwt_super_seguro_cambiame', {
+    expiresIn: '30d', // El token expira en 30 días
   });
 };
 

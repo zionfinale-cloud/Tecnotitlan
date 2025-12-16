@@ -3,7 +3,6 @@ import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
 import { NotFoundError, BadRequestError } from '../utils/errorUtils.js';
 import * as meliService from '../services/mercadoLibreService.js';
-import { getConfig } from '../services/configService.js';
 import logger from '../utils/logger.js';
 
 // @desc    Crear un nuevo producto
@@ -291,9 +290,8 @@ const getLowStockProducts = asyncHandler(async (req, res, next) => {
   logger.info('[ProductCtrl] Obteniendo productos con stock bajo');
   // Prisma no soporta comparar dos campos directamente en un `where` de forma sencilla.
   // Se puede hacer con una consulta raw o filtrando en la aplicación.
-  // Obtenemos el umbral desde la configuración centralizada.
-  const config = getConfig();
-  const lowStockThreshold = parseInt(config.LOW_STOCK_THRESHOLD, 10) || 10;
+  // Por ahora, usaremos un umbral fijo.
+  const lowStockThreshold = 10; // O obtenerlo de la configuración
   const lowStockProducts = await prisma.product.findMany({
     where: { countInStock: { lte: lowStockThreshold } },
     select: { name: true, countInStock: true, sku: true },

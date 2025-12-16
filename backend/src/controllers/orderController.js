@@ -80,21 +80,21 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
   // --- Lógica de comisiones segura en el backend ---
   const subtotalBeforeFee = itemsPrice + shippingPrice + taxPrice;
   let paymentFee = 0;
-  if (paymentMethod === 'PayPal') {
-    const PAYPAL_FEE_RATE = parseFloat(config.PAYPAL_FEE_RATE) || 0.045; // 4.5% por defecto
-    paymentFee = subtotalBeforeFee * PAYPAL_FEE_RATE;
-  } else if (paymentMethod === 'Stripe') {
-    const STRIPE_FEE_RATE = parseFloat(config.STRIPE_FEE_RATE) || 0.036; // 3.6% por defecto
-    const STRIPE_FEE_FIXED = parseFloat(config.STRIPE_FEE_FIXED) || 3; // +$3 MXN por defecto
-    paymentFee = (subtotalBeforeFee * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
-  }
+  if (paymentMethod === 'PayPal') {
+    const PAYPAL_FEE_RATE = parseFloat(config.PAYPAL_FEE_RATE) || 0.045; // 4.5%
+    paymentFee = subtotalBeforeFee * PAYPAL_FEE_RATE;
+  } else if (paymentMethod === 'Stripe') {
+    const STRIPE_FEE_RATE = parseFloat(config.STRIPE_FEE_RATE) || 0.036; // 3.6%
+    const STRIPE_FEE_FIXED = parseFloat(config.STRIPE_FEE_FIXED) || 3; // + $3 MXN
+    paymentFee = (subtotalBeforeFee * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
+  }
   const totalPrice = subtotalBeforeFee + paymentFee;
   // --- Fin de la lógica de precios segura ---
 
   try {
     // Usamos una transacción interactiva de Prisma para asegurar la atomicidad
     const createdOrder = await prisma.$transaction(async (tx) => {
-      // 1. Obtener el siguiente número de pedido
+      // 1. Obtener el siguiente número de pedido
       const counter = await tx.counter.upsert({
         where: { id: 'orderNumber' },
         update: { sequenceValue: { increment: 1 } },
@@ -102,7 +102,7 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
       });
       const orderNumber = `TECNO-${counter.sequenceValue.toString().padStart(6, '0')}`;
 
-      // 2. Crear el pedido
+      // 2. Crear el pedido
       const order = await tx.order.create({
         data: {
           orderNumber,
@@ -114,7 +114,7 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
           totalPrice,
           shippingAddress, // Prisma maneja el JSON automáticamente
           paymentMethod,
-          // 3. Crear los items del pedido y conectarlos
+          // 3. Crear los items del pedido y conectarlos
           orderItems: {
             create: orderItems.map(item => {
               const dbProduct = productMap[item.product];
@@ -130,7 +130,7 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
         },
       });
 
-      // 4. Actualizar el stock de los productos (solo los In-House)
+      // 4. Actualizar el stock de los productos (solo los In-House)
       for (const item of orderItems) {
         const dbProduct = productMap[item.product];
         if (dbProduct && dbProduct.productType === 'IN_HOUSE') {
@@ -146,10 +146,10 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
 
     // -----------------------------------------------------------
     // 🚨 CRÍTICO: DISPARAR EL WEBHOOK DE N8N (PRUEBA LOCAL)
-    // -----------------------------------------------------------    
-    const n8nWebhookUrl = config.N8N_ORDER_WEBHOOK_URL;
-
-    if (n8nWebhookUrl) {
+    // -----------------------------------------------------------
+    // USAMOS LA URL QUE ACABA DE FUNCIONAR EN TU LOG
+    const n8nWebhookUrl = 'http://localhost:5678/webhook-test/3e0cf8b7-aec5-48b5-8f5a-cd252cc2ea2a'; 
+    
     // Payload solo con la data necesaria para n8n
     const payload = {
         orderId: createdOrder.id,
@@ -161,9 +161,6 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
     axios.post(n8nWebhookUrl, payload)
         .then(() => logger.info(`Webhook enviado a n8n para el pedido ${createdOrder.orderNumber}`))
         .catch(error => logger.error(`Error al enviar webhook a n8n: ${error.message}`));
-    } else {
-      logger.warn('N8N_ORDER_WEBHOOK_URL no está definida. Omitiendo envío de webhook.');
-    }
     // -----------------------------------------------------------
 
     res.status(201).json({ status: 'success', data: { order: createdOrder } });

@@ -1,71 +1,64 @@
+/* frontend/src/components/SearchBox.module.css */
+
+/* Contenedor principal del formulario */
 .searchForm {
-    position: relative;
-    display: flex;
-    align-items: center;
-    width: 100%;
-    height: 2.5rem; /* Equivalente a h-10 de Tailwind */
+  /* Usamos flex para alinear el icono, el input y el botón de limpiar */
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  max-width: 450px; /* Ancho máximo para que se vea como una pastilla en desktop */
 }
 
-.searchIcon {
-    position: absolute;
-    left: 0.75rem; /* Equivalente a left-3 */
-    color: #9ca3af; /* Equivalente a text-gray-400 */
-    pointer-events: none; /* Para que no interfiera con el clic en el input */
-}
-
+/* Estilos del campo de input */
 .searchInput {
-    width: 100%;
-    height: 100%;
-    padding: 0 2.5rem; /* Espacio para los iconos a la izq y der (pr-10, pl-10) */
-    border-radius: 0.5rem; /* rounded-lg */
-    border: 1px solid transparent; /* Inicia transparente */
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); /* shadow-sm */
-    background-color: #ffffff; /* bg-white */
-    color: #111827; /* text-gray-900 */
-    transition: all 0.2s ease-in-out;
+  width: 100%;
+  height: 40px; /* Altura fija */
+  padding: 0 40px 0 40px; /* Padding ajustado para icono y botón de limpiar */
+  
+  /* CRÍTICO: Redondeo total para la forma de pastilla */
+  border-radius: 9999px; 
+  
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  
+  /* Colores */
+  background-color: #FFFFFF; /* Blanco, puedes cambiar a #F1F5F9 para gris claro */
+  color: var(--text-primary);
+  
+  /* Transición y Foco */
+  transition: all 0.2s ease-in-out;
 }
 
-.searchInput::placeholder {
-    color: #6b7280; /* placeholder-gray-500 */
-}
-
+/* Efecto de foco para el input */
 .searchInput:focus {
-    outline: none;
-    border-color: var(--cta-color);
-    box-shadow: 0 0 0 2px var(--cta-color); /* Simula focus:ring-2 */
+  outline: none;
+  /* Anillo de foco (simulando focus:ring-2) */
+  box-shadow: 0 0 0 2px var(--cta-color); 
+  border-color: transparent;
 }
 
-.iconContainer {
-    position: absolute;
-    right: 0.75rem; /* right-3 */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
+/* Estilo para el icono de búsqueda */
+.searchIcon {
+  position: absolute;
+  left: 15px;
+  color: #64748B; /* Gris suave */
+  pointer-events: none; /* Asegura que el clic pase al input */
+  z-index: 2;
 }
 
-.spinnerIcon {
-    animation: spin 1s linear infinite;
-    color: var(--cta-color);
+/* Estilo para los botones de acción (limpiar/spinner) */
+.actionButton {
+  position: absolute;
+  right: 15px;
+  background: none;
+  border: none;
+  color: #64748B; /* Gris suave */
+  cursor: pointer;
+  padding: 0;
+  z-index: 2;
 }
 
-.clearButton {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #6b7280; /* text-gray-500 */
-    padding: 0;
-}
-
-.clearButton:hover {
-    color: #374151; /* hover:text-gray-700 */
-}
-
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.actionButton:hover {
+  color: var(--text-primary);
 }

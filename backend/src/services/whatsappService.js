@@ -31,10 +31,12 @@ const initializeWhatsAppClient = () => {
     // Opciones para Puppeteer. 'headless: true' es para que no se abra una ventana del navegador.
     // 'args' son para asegurar compatibilidad en servidores (especialmente Linux).
     puppeteer: {
-      // Usamos el nuevo modo headless para evitar la advertencia de deprecación.
-      // Esto es recomendado por Puppeteer para futuras versiones.
-      headless: 'new',
+      headless: true, // Modo headless estándar
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      // CRÍTICO: En producción, esta opción evita que Puppeteer descargue Chromium,
+      // lo que nos ahorra +500MB y soluciona el error 'no space left on device'.
+      // Usaremos una versión ligera que viene con el sistema base del contenedor.
+      executablePath: '/usr/bin/chromium-browser'
     },
     authStrategy: new LocalAuth({
       // Especifica una carpeta para la sesión para evitar que se cree en la raíz
@@ -109,10 +111,8 @@ const sendMessageToAdmin = async (message) => {
     console.error('[WHATSAPP] Cannot send message, client is not ready or authenticated.');
     return;
   }
-  // Obtiene la configuración centralizada
   const config = getConfig();
   const adminNumber = config.ADMIN_WHATSAPP_NUMBER;
-
   if (!adminNumber) {
     console.error('[WHATSAPP] ADMIN_WHATSAPP_NUMBER no está definido en la configuración.');
     return;
