@@ -34,10 +34,10 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 **Última Actualización:** 17 de Noviembre, 2025
 
-Esta sección sirve como punto de control para dar continuidad al desarrollo.
+Esta sección sirve como punto de control para dar continuidad al desarrollo. **El sistema está actualmente en línea y estable.**
 
 **Dominios:**
-- www.tecnotitlan.com.mx
+- `https://www.tecnotitlan.com.mx` (Frontend en Render)
 - tecnotitlan.shop
 - tecnotitlan.online
 
@@ -45,17 +45,17 @@ Esta sección sirve como punto de control para dar continuidad al desarrollo.
 
 1.  **Flujo de Subida del Logo Solucionado:** Se implementó una solución robusta y definitiva para la gestión del logo. El backend ahora tiene una ruta dedicada (`/api/settings/logo`) que renombra cualquier imagen subida a `logo.png` y la guarda directamente en la carpeta `frontend/public/images/logo/`.
 2.  **Header Estable y Funcional:** El componente `Header.js` ahora carga el logo desde una ruta estática y predecible. Se solucionó el problema de los "brincos" (layout shift) al sincronizar la estructura del `HeaderSkeleton.js` con la del componente final.
-3.  **Panel de Configuración Iniciado:** Se creó el componente `PageSettingsScreen.js` en el panel de administración, que ya permite subir el logo y servirá de base para gestionar otros aspectos visuales de la página.
-4.  **Permisos Corregidos:** Se solucionó un error de permisos (`setting:update` vs `settings:update`) que impedía al administrador subir el logo, dejando el sistema RBAC funcionando como se esperaba.
+3.  **Infraestructura 100% Conectada:** Se configuró un reverse proxy con Nginx y se obtuvo un certificado SSL con Certbot en el servidor de Lightsail. El frontend (`https://www.tecnotitlan.com.mx`) ahora se comunica de forma segura vía HTTPS con el backend en `https://api.tecnotitlan.com.mx`.
+4.  **Sistema de Sesiones Robusto:** Se implementó `connect-pg-simple` en el backend para almacenar las sesiones de usuario en la base de datos de Supabase, eliminando el `MemoryStore` no apto para producción.
 
 ### Problema Resuelto Recientemente:
 
-*   **Problema:** El logo del sitio no se mostraba, la barra de navegación "brincaba" al cargar, y al subir una nueva imagen, esta se guardaba con un nombre aleatorio en una carpeta incorrecta (`/uploads`), impidiendo que el frontend la encontrara. Además, un error de permisos bloqueaba la subida.
-*   **Solución:** Se creó una ruta dedicada en el backend (`POST /api/settings/logo`) que guarda la imagen como `logo.png` en una carpeta pública (`frontend/public/images/logo/`). El frontend ahora carga el logo desde esta ruta estática y predecible, solucionando los problemas de visualización y carga. Se corrigió también un permiso (`setting:update`) en el backend que bloqueaba la subida.
+*   **Problema:** El frontend (HTTPS) no podía comunicarse con el backend (HTTP) debido a errores de "Mixed Content" y CORS, que eran síntomas de que el backend no arrancaba correctamente (`502 Bad Gateway`). La causa raíz eran archivos de configuración (`env.js`, `configService.js`) y controladores (`settingController.js`) desactualizados que causaban un crash al inicio.
+*   **Solución:** Se sincronizaron todos los archivos de configuración y controladores del backend con la arquitectura final (ES Modules, dependencias correctas). Se configuró Nginx y Certbot en el servidor para habilitar HTTPS en la API. Finalmente, se actualizó la URL de la API en las variables de entorno de Render.
 
 ### Próximo Paso Inmediato:
 
-Ahora que los elementos de branding (logo y nombre) son funcionales y la UI es estable, el siguiente paso es hacer que más componentes sean dinámicos.
+Ahora que la infraestructura completa (Frontend, Backend, DB) está en línea, estable y comunicándose de forma segura, el siguiente paso es mejorar la experiencia de usuario y continuar con la personalización.
 
 **Acción Sugerida:** Conectar el componente `Footer.js` al `SettingsContext` para que muestre dinámicamente las redes sociales y otra información de contacto que pueda ser gestionada desde el panel de administración. Esto continuará con la filosofía de hacer la plataforma completamente personalizable.
 
@@ -195,14 +195,134 @@ El proyecto está organizado en un monorepo con dos componentes principales: `ba
 
 tecnotitlan/ ├── .github/workflows/ # Workflows de CI/CD con GitHub Actions │ └── backend-ci.yml ├── backend/ │ ├── prisma/ # Directorio de Prisma │ │ ├── schema.prisma # Definición de modelos y conexión a la BD │ │ └── migrations/ # Migraciones de la base de datos generadas │ └── src/ │ ├── controllers/ # Lógica de negocio (ahora usarán Prisma Client) │ ├── routes/ # Definición de endpoints de la API │ ├── services/ # Lógica de servicios (WhatsApp, etc.) │ ├── middleware/ # Middlewares de Express (auth, errores) │ ├── config/ # Configuración (cliente de Prisma) │ └── index.js # Punto de entrada del servidor Express ├── frontend/ # Aplicación React (Create React App) │ └── src/ ├── scripts/ # Scripts de utilidad (seeding con Prisma) ├── .env # Variables de entorno (local) ├── docker-compose.yml # Orquestación de servicios locales (Postgres, n8n) └── Dockerfile # Receta para construir la imagen del backend
 
+---
+
+## 6. Archivos de Configuración Clave (Versión Final)
+
+A continuación se muestran las versiones finales y funcionales de los archivos de configuración más importantes del proyecto.
+
+### `d:\Tecnotitlan\Dockerfile`
+
+```dockerfile
+# --- Etapa 1: Dependencias (deps) ---
+# Esta etapa solo instala las dependencias para optimizar la caché.
+FROM node:18-slim AS deps
+
+WORKDIR /app
+
+# Evita que Puppeteer descargue su propia versión de Chromium.
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
+# Copia los archivos de dependencias y el esquema de Prisma.
+COPY package*.json ./
+COPY backend/prisma ./prisma/
+
+# Instala las dependencias.
+RUN npm install --force
+
+# --- Etapa 2: Builder ---
+# Esta etapa copia el código fuente y las dependencias ya instaladas.
+FROM node:18-slim AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# --- Etapa 3: Ejecución (final) ---
+# Esta es la imagen final, optimizada y ligera para producción.
+FROM node:18-slim AS final
+
+WORKDIR /app
+
+# Instala las dependencias de sistema necesarias para Puppeteer/whatsapp-web.js en Debian.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copia solo los artefactos necesarios del backend desde la etapa 'builder'.
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/backend ./backend
+
+EXPOSE 5000
+
+CMD [ "node", "backend/src/index.js" ]
+```
+
+### `d:\Tecnotitlan\docker-compose.yml`
+
+```yaml
+services:
+  backend: # Nombre del servicio
+    build:
+      context: . # El contexto es la raíz del proyecto, donde está este archivo.
+      dockerfile: Dockerfile # El Dockerfile que usará está en la misma raíz.
+    container_name: tecnotitlan_backend
+    ports: # Mapeo de puertos
+      - "5000:5000" # Expone el puerto 5000 del contenedor al puerto 5000 del host
+    env_file: # Archivo de variables de entorno
+      - ./.env # Carga las variables desde el archivo .env en la raíz.
+    restart: always # Reinicia el contenedor si falla
+    networks: # Conecta el servicio a la red compartida
+      - tecnotitlan-net
+
+  n8n:
+    image: n8nio/n8n:latest # Usamos la última imagen estable de n8n
+    container_name: tecnotitlan_n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    env_file:
+      - ./.env # Reutilizamos el mismo archivo .env para las credenciales
+    environment:
+      - GENERIC_TIMEZONE=America/Mexico_City # Asegura la zona horaria correcta
+    volumes:
+      - n8n_data:/home/node/.n8n # Persiste los datos y workflows de n8n
+    networks:
+      - tecnotitlan-net
+
+networks: # Define la red compartida
+  tecnotitlan-net:
+
+volumes: # Define el volumen para persistir los datos de n8n
+  n8n_data:
+```
+
+### `d:\Tecnotitlan\deploy.sh`
+
+```shellscript
+#!/bin/bash
+
+# deploy.sh - Script para automatizar el despliegue de Tecnotitlan en el VPS.
+# Este script simplifica las actualizaciones al obtener el código más reciente
+# y reconstruir los servicios de Docker.
+
+# Salir inmediatamente si un comando falla para evitar un estado inconsistente.
+set -e
+
+echo "🚀  Iniciando el despliegue de Tecnotitlan..."
+
+# 1. Obtener los últimos cambios desde el repositorio de Git.
+echo "🔄  Actualizando el código desde la rama 'main'..."
+git pull origin main
+
+# 2. Reconstruir y reiniciar los contenedores de Docker en segundo plano.
+echo "🐳  Reconstruyendo y reiniciando los servicios con Docker Compose..."
+sudo docker compose up --build -d
+
+# 3. (Opcional pero recomendado) Limpiar imágenes de Docker no utilizadas para liberar espacio.
+echo "🧹  Limpiando imágenes de Docker antiguas..."
+sudo docker image prune -f
+
+echo "✅  ¡Despliegue completado con éxito!"
+```
 
 ---
 
-## 6. Referencia de Rutas de Archivos
+## 7. Referencia de Rutas de Archivos
 
 Para facilitar la navegación y el análisis futuro del código, a continuación se listan las rutas de los archivos más relevantes del proyecto.
 
-### 6.1. Backend (`/backend`)
+### 7.1. Backend (`/backend`)
 
 -   **Punto de Entrada:** `d:/Tecnotitlan/backend/src/index.js`
 -   **Base de Datos (Prisma):**
@@ -237,7 +357,7 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 -   `d:/Tecnotitlan/backend/src/services/configService.js`
 -   `d:/Tecnotitlan/backend/src/services/mercadoLibreService.js`
 
-### 6.2. Frontend (`/frontend`)
+### 7.2. Frontend (`/frontend`)
 
 -   **Punto de Entrada y Configuración:**
 -   `d:/Tecnotitlan/frontend/src/index.js`: Renderiza la aplicación React.
@@ -281,7 +401,7 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 -   `/admin/integrations/notifications`: `d:/Tecnotitlan/frontend/src/pages/admin/NotificationSettingsScreen.js`
 -   `/admin/integrations/whatsapp`: `d:/Tecnotitlan/frontend/src/pages/admin/WhatsappSettingsScreen.js`
 -   **Otras:** `d:/Tecnotitlan/frontend/src/pages/admin/InventoryScreen.js`, `d:/Tecnotitlan/frontend/src/pages/admin/TestOrderCreationScreen.js`
-### 6.3. Pruebas, CI/CD y Documentación
+### 7.3. Pruebas, CI/CD y Documentación
 -   **Utilidades de Prueba:**
 -   `d:/Tecnotitlan/frontend/src/test-utils/renderWithProviders.js`: Helper para renderizar componentes con sus contextos mockeados.
 -   **Pruebas E2E (Cypress):**
@@ -299,9 +419,9 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 
 ---
 
-## 7. Guía de Instalación y Despliegue
+## 8. Guía de Instalación y Despliegue
 
-### 7.1. Instalación en Entorno Local
+### 8.1. Instalación en Entorno Local
 
 Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
 
@@ -395,7 +515,7 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
     ```
     La aplicación estará disponible en `http://localhost:3000` y la API en `http://localhost:5000`.
 
-### 7.2. Scripts Disponibles
+### 8.2. Scripts Disponibles
 
 - `npm run dev`: Ejecuta backend y frontend simultáneamente.
 - `npm run server`: Inicia solo el servidor backend.
@@ -404,7 +524,7 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
 - `npm run seed:import`: Puebla la base de datos con datos de prueba.
 - `npm run seed:destroy`: Elimina los datos de la base de datos.
 
-### 7.3. Arquitectura de Despliegue (Estrategia "Free-to-Paid")
+### 8.3. Arquitectura de Despliegue (Estrategia "Free-to-Paid")
 
 El proyecto sigue una filosofía de bajo costo inicial, alineando la inversión con el crecimiento.
 
@@ -422,7 +542,7 @@ El proyecto sigue una filosofía de bajo costo inicial, alineando la inversión 
     -   **Fase Gratuita:** Aprovechar las capas gratuitas de las APIs.
     -   **Fase de Pago:** Modelo **Pay-As-You-Go** al superar los límites.
 
-### 7.3.1. Guía de Despliegue en Producción (Frontend en Render)
+### 8.3.1. Guía de Despliegue en Producción (Frontend en Render)
 
 El frontend, al ser una aplicación de React (Create React App), se despliega como un **Sitio Estático**.
 
@@ -436,12 +556,12 @@ El frontend, al ser una aplicación de React (Create React App), se despliega co
     -   **Build Command:** `npm install && npm run build`
     -   **Publish Directory:** `build` (Esta es la carpeta que genera el build).
     -   **Environment Variables:**
-        -   `REACT_APP_API_URL`: `http://3.148.78.23:5000` (La IP estática de nuestro backend en Lightsail).
+        -   `REACT_APP_API_URL`: `https://api.tecnotitlan.com.mx` (La URL segura de nuestro backend en Lightsail).
 
 
-### 7.4. Guía de Despliegue en Producción (VPS para n8n)
+### 8.4. Guía de Despliegue en Producción (VPS para Backend y n8n)
 
-#### 7.4.1. Detalles de Infraestructura (AWS Lightsail)
+#### 8.4.1. Detalles de Infraestructura (AWS Lightsail)
 
 -   **Nombre de la Instancia:** `Ubuntu-1`
 -   **Nombre de la IP Estática:** `tecnotitlan-static`
@@ -454,7 +574,7 @@ Esta instancia será el servidor principal para alojar el **backend de Node.js**
 
 ---
 
-#### 7.4.2. Pasos de Despliegue
+#### 8.4.2. Pasos de Despliegue
 
 1.  **Preparar el VPS:**
     Conéctate por SSH y actualiza el sistema.
@@ -469,39 +589,25 @@ Esta instancia será el servidor principal para alojar el **backend de Node.js**
     sudo usermod -aG docker  # Requiere reiniciar sesión SSH
     ```
 
-3.  **Configurar y Ejecutar n8n:**
-    Crea un archivo `docker-compose.yml` con la siguiente configuración, reemplazando los placeholders con tus credenciales de la base de datos y tu dominio.
-    ```yaml
-    version: '3.8'
-    services:
-      n8n:
-        image: n8nio/n8n
-        restart: always
-        ports:
-          - "5678:5678"
-        environment:
-          - DB_TYPE=postgres
-          - DB_POSTGRES_HOST=db.ecfbrxohxvvpwrhqzpwk.supabase.co # Host directo de tu DB en Supabase
-          - DB_POSTGRES_DATABASE=postgres
-          - DB_POSTGRES_USER=postgres
-          - DB_POSTGRES_PASSWORD=TU_PASSWORD_SECRETA_DE_SUPABASE # ¡Usa un secreto de entorno!
-          - N8N_HOST=n8n.tecnotitlan.mx # Tu dominio
-          - WEBHOOK_URL=https://n8n.tecnotitlan.mx/
-          - NODE_ENV=production
-          - GENERIC_TIMEZONE=America/Mexico_City
-        volumes:
-          - n8n_data:/home/node/.n8n
-    volumes:
-      n8n_data:
+3.  **Clonar el Repositorio y Configurar `.env`:**
+    ```bash
+    git clone https://github.com/zionfinale-cloud/Tecnotitlan.git
+    cd Tecnotitlan
+    nano .env # Crea y edita el archivo con tus variables de producción
     ```
-    Inicia el contenedor: `docker-compose up -d`
+
+4.  **Ejecutar el Script de Despliegue:**
+    El script `deploy.sh` se encarga de todo: actualiza el código, reconstruye las imágenes y levanta los servicios definidos en `docker-compose.yml`.
+    ```bash
+    ./deploy.sh
+    ```
 
 4.  **Configurar Reverse Proxy y SSL (Crítico):**
     Es **indispensable** configurar un reverse proxy (como Nginx o Caddy) para usar tu dominio y añadir un certificado SSL (HTTPS).
 
 ---
 
-## 8. Integración Continua (CI/CD)
+## 9. Integración Continua (CI/CD)
 
 El proyecto utiliza **GitHub Actions** para automatizar las pruebas del backend. El workflow se encuentra en `.github/workflows/backend-ci.yml` y realiza los siguientes pasos en cada `push` o `pull request` a la rama `main`:
 
@@ -515,7 +621,7 @@ Este pipeline asegura que el código nuevo no rompa la funcionalidad existente.
 
 ---
 
-## 9. Hoja de Ruta y Próximos Pasos
+## 10. Hoja de Ruta y Próximos Pasos
 
 1.  **Fortalecer Pruebas en el Frontend:**
     -   **Base Establecida:** Pruebas unitarias y de integración con **React Testing Library**.
@@ -529,7 +635,7 @@ Este pipeline asegura que el código nuevo no rompa la funcionalidad existente.
 
 ---
 
-## 10. Pipeline de Infraestructura y Flujo de Trabajo
+## 11. Pipeline de Infraestructura y Flujo de Trabajo
 
 A continuación se describe la arquitectura completa del pipeline de automatización, con el objetivo de lograr un sistema de Dropshipping eficiente con costos fijos mínimos.
 
@@ -606,7 +712,7 @@ Para construir y probar los workflows de n8n de forma segura y sin costo antes d
 
 ---
 
-## 11. Arquitectura de Roles y Permisos (Sistema RBAC)
+## 12. Arquitectura de Roles y Permisos (Sistema RBAC)
 
 Para lograr un control de acceso modular y flexible, se ha implementado un sistema de **Control de Acceso Basado en Roles (RBAC)**. Esto permite crear roles personalizados (como "Vendedor", "Editor de Contenido", etc.) y asignarles permisos específicos, yendo más allá de los roles estáticos.
 
@@ -618,7 +724,7 @@ Para lograr un control de acceso modular y flexible, se ha implementado un siste
 
 ---
 
-## 12. Arquitectura de Configuración de WhatsApp
+## 13. Arquitectura de Configuración de WhatsApp
 
 La gestión de la conexión de WhatsApp se realiza desde el panel de administración, permitiendo vincular un dispositivo escaneando un código QR sin acceder a la terminal del servidor.
 
