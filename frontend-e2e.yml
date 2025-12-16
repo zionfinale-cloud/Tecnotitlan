@@ -29,7 +29,7 @@ jobs:
           # Ya no iniciamos servidores locales, apuntamos directamente a producción
           # CRÍTICO: Especificamos las rutas exactas de TUS archivos de prueba
           spec: |
-            cypress/e2e/auth/login.cy.js
+            cypress/e2e/auth.cy.js
             cypress/e2e/checkout.cy.js
           # Directorio donde están las pruebas del frontend
           working-directory: frontend
