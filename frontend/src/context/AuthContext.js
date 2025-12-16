@@ -1,5 +1,4 @@
 import React, { createContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 // Asumimos que apiService.js existe en src/services/
 import api from '../services/apiService';
 
@@ -16,7 +15,6 @@ export const AuthProvider = ({ children }) => {
     // userInfo contiene el token, nombre, email, role y permisos
     const [userInfo, setUserInfo] = useState(null);
     const [loading, setLoading] = useState(true);
-    const navigate = useNavigate();
 
     useEffect(() => {
         const checkAuth = () => {
@@ -42,12 +40,11 @@ export const AuthProvider = ({ children }) => {
         const handleSessionExpired = () => {
             console.log('AuthContext: Sesión expirada detectada. Limpiando estado.');
             setUserInfo(null);
-            navigate('/login'); // Redirigir al usuario a la página de login
         };
 
         window.addEventListener('session-expired', handleSessionExpired);
         return () => window.removeEventListener('session-expired', handleSessionExpired);
-    }, [navigate]);
+    }, []);
 
     const login = async (email, password) => {
         setLoading(true);
