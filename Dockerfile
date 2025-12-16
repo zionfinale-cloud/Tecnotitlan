@@ -39,4 +39,4 @@ COPY --from=builder /app/backend ./backend
 
 EXPOSE 5000
 
-CMD [ "node", "src/index.js" ]
+CMD [ "node", "backend/src/index.js" ]

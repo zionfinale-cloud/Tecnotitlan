@@ -104,22 +104,15 @@ const startServer = async () => {
     const __dirname = path.resolve();
     app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 
-    if (getConfig().NODE_ENV === 'production') {
-      app.use(express.static(path.join(__dirname, '/frontend/build')));
-      app.get('*', (req, res) =>
-        res.sendFile(path.resolve(__dirname, 'frontend', 'build', 'index.html'))
-      );
-    } else {
-      app.get('/', (req, res) => {
-        res.status(200).send(`
+    // Ruta raíz para verificar que la API está en línea
+   app.get('/', (req, res) => {
+     res.status(200).send(`
           <div style="font-family: sans-serif; padding: 2rem; text-align: center;">
             <h1 style="color: #333;">🚀 API de Tecnotitlan en ejecución</h1>
             <p style="font-size: 1.2rem; color: #555;">El backend está funcionando correctamente en modo <strong>${getConfig().NODE_ENV}</strong>.</p>
-            <p style="color: #777;">Para ver la tienda, visita el frontend en <a href="http://localhost:3000" style="color: #007bff; text-decoration: none;">http://localhost:3000</a>.</p>
           </div>
         `);
       });
-    }
 
     app.use(notFound);
     app.use(errorHandler);
