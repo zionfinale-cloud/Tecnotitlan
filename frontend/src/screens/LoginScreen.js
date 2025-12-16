@@ -42,66 +42,59 @@ const LoginScreen = () => {
 
     return (
         // El Container centrado y con max-width para formularios
-        <div className={styles.pageContainer} style={{ backgroundColor: 'var(--secondary-bg-color)' }}>
-            <Row className="w-full">
-                <Col md={6} lg={5} xl={4} className="mx-auto">
-                    <Card className={styles.loginCard}>
-                        <Card.Body>
-                            <h1 className={styles.title}>Iniciar Sesión</h1>
+        <div className={styles.pageContainer}>
+            <Card className={styles.loginCard}>
+                <Card.Body>
+                    <h1 className={styles.title}>Iniciar Sesión</h1>
 
-                            {loading && <LoadingSpinner />} 
-                            
-                            <Form onSubmit={submitHandler}>
-                                
-                                {/* Campo Email */}
-                                <Form.Group controlId='email' className="mb-3">
-                                    <Form.Label className={styles.label}>Correo Electrónico</Form.Label>
-                                    <Form.Control
-                                        type='email'
-                                        placeholder='Introduce tu email'
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        className={styles.input}
-                                    ></Form.Control>
-                                </Form.Group>
+                    {loading && <LoadingSpinner />} 
+                    
+                    <Form onSubmit={submitHandler}>
+                        
+                        {/* Campo Email */}
+                        <Form.Group controlId='email' className="mb-3">
+                            <Form.Label className={styles.label}>Correo Electrónico</Form.Label>
+                            <Form.Control
+                                type='email'
+                                placeholder='Introduce tu email'
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className={styles.input}
+                            ></Form.Control>
+                        </Form.Group>
 
-                                {/* Campo Contraseña */}
-                                <Form.Group controlId='password' className="mb-4">
-                                    <Form.Label className={styles.label}>Contraseña</Form.Label>
-                                    <Form.Control
-                                        type='password'
-                                        placeholder='Introduce tu contraseña'
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className={styles.input}
-                                    ></Form.Control>
-                                </Form.Group>
+                        {/* Campo Contraseña */}
+                        <Form.Group controlId='password' className="mb-4">
+                            <Form.Label className={styles.label}>Contraseña</Form.Label>
+                            <Form.Control
+                                type='password'
+                                placeholder='Introduce tu contraseña'
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className={styles.input}
+                            ></Form.Control>
+                        </Form.Group>
 
-                                {/* Botón de Submit (usa el color de acento) */}
-                                <Button 
-                                    type='submit' 
-                                    variant='primary' 
-                                    className={styles.submitButton}
-                                    disabled={loading}
-                                >
-                                    {loading ? 'Entrando...' : 'Entrar'}
-                                </Button>
-                            </Form>
+                        {/* Botón de Submit (usa el color de acento) */}
+                        <Button 
+                            type='submit' 
+                            variant='primary' 
+                            className={styles.submitButton}
+                            disabled={loading}
+                        >
+                            {loading ? 'Entrando...' : 'Entrar'}
+                        </Button>
+                    </Form>
 
-                            {/* Enlace de Registro */}
-                            <Row className={styles.registerRow}>
-                                <Col>
-                                    ¿Nuevo cliente?{' '}
-                                    <Link to={redirect ? `/register?redirect=${redirect}` : '/register'} className={styles.registerLink}>
-                                        Regístrate
-                                    </Link>
-                                </Col>
-                            </Row>
-
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
+                    {/* Enlace de Registro */}
+                    <div className={styles.linkRow}>
+                        ¿Nuevo cliente?{' '}
+                        <Link to={redirect ? `/register?redirect=${redirect}` : '/register'} className={styles.registerLink}>
+                            Regístrate
+                        </Link>
+                    </div>
+                </Card.Body>
+            </Card>
         </div>
     );
 };
