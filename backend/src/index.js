@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import pgSimple from 'connect-pg-simple';
 import session from 'express-session';
 import prisma from './config/prisma.js'; // <-- IMPORTACIÓN CORREGIDA
 import logger from './utils/logger.js';
@@ -59,10 +60,19 @@ const startServer = async () => {
       }
     });
 
+    // --- Configuración de Almacén de Sesiones Persistente ---
+    const PGStore = pgSimple(session);
+    const sessionStore = new PGStore({
+      prisma: prisma,
+      tableName: 'user_sessions', // Nombre de la tabla para las sesiones
+      createTableIfMissing: true, // Crea la tabla automáticamente si no existe
+    });
+
     // --- Middleware de Sesión (necesario para OAuth 2.0 como Mercado Libre) ---
     app.use(
       session({
-        secret: getConfig().JWT_SECRET, // Reutilizamos el JWT secret para la sesión
+        store: sessionStore,
+        secret: getConfig().JWT_SECRET,
         resave: false,
         saveUninitialized: true,
         cookie: { secure: getConfig().NODE_ENV === 'production' }, // Usar cookies seguras en producción
