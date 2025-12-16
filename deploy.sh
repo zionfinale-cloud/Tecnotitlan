@@ -15,8 +15,7 @@ git pull origin main
 
 # 2. Reconstruir y reiniciar los contenedores de Docker en segundo plano.
 echo "🐳  Reconstruyendo y reiniciando los servicios con Docker Compose..."
-sudo docker compose build --no-cache
-sudo docker compose up -d
+sudo docker compose up --build -d
 
 # 3. (Opcional pero recomendado) Limpiar imágenes de Docker no utilizadas para liberar espacio.
 echo "🧹  Limpiando imágenes de Docker antiguas..."
