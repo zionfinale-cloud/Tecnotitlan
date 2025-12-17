@@ -176,6 +176,7 @@ model Setting {
   id          String   @id @default(cuid())
   key         String   @unique
   value       String   @db.Text
+  type        String   @default("string") // ej: 'string', 'color', 'boolean', 'textarea'
   description String?  @db.Text
   isEditable  Boolean  @default(true)
   createdAt   DateTime @default(now())

@@ -108,6 +108,36 @@ async function main() {
   });
   console.log('SUPER_ADMIN user is set up.');
 
+  // 5. Crear configuraciones iniciales del sitio
+  const initialSettings = [
+    { key: 'site_name', value: 'Tecnotitlan', type: 'string' },
+    { key: 'site_slogan', value: 'Tecnología con Raíces, Poder sin Límites.', type: 'string' },
+    { key: 'contact_email', value: 'contacto@tecnotitlan.com.mx', type: 'string' },
+    { key: 'social_facebook', value: 'https://www.facebook.com/tecnotitlan', type: 'string' },
+    { key: 'social_instagram', value: 'https://www.instagram.com/tecnotitlan', type: 'string' },
+    { key: 'social_tiktok', value: 'https://www.tiktok.com/@tecnotitlan', type: 'string' },
+    { key: 'social_youtube', value: 'https://www.youtube.com/@tecnotitlan', type: 'string' },
+    { key: 'social_whatsapp', value: 'https://wa.me/5215512345678', type: 'string' },
+    { key: 'accent_color', value: '#00DCA2', type: 'color' },
+    { key: 'primary_color', value: '#0F172A', type: 'color' },
+    { key: 'page_privacy_policy', value: '<h1>Política de Privacidad</h1><p>Contenido inicial de la política de privacidad. Edite este texto desde el panel de administración.</p>', type: 'html' },
+    { key: 'page_terms_of_service', value: '<h1>Términos de Servicio</h1><p>Contenido inicial de los términos de servicio. Edite este texto desde el panel de administración.</p>', type: 'html' },
+  ];
+
+  console.log('Upserting initial settings...');
+  for (const setting of initialSettings) {
+    await prisma.setting.upsert({
+      where: { key: setting.key },
+      update: {},
+      create: {
+        key: setting.key,
+        value: setting.value,
+        type: setting.type,
+      },
+    });
+  }
+  console.log(`${initialSettings.length} settings are set up.`);
+
   console.log('Seeding finished.');
 }
 
