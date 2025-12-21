@@ -25,7 +25,8 @@ api.interceptors.request.use(
     (config) => {
         // Obtenemos la información de sesión del almacenamiento local
         const userInfo = localStorage.getItem(AUTH_STORAGE_KEY); // No change here, just for context
-        if (userInfo) {
+        // Verificamos que userInfo exista y no sea la cadena "undefined" (error común)
+        if (userInfo && userInfo !== 'undefined') {
             try {
                 const { token } = JSON.parse(userInfo);
                 if (token) {
@@ -34,7 +35,8 @@ api.interceptors.request.use(
                 }
             } catch (e) {
                 console.error("Error al parsear el token de usuario:", e);
-                // Si hay un error, dejamos que la petición pase sin token.
+                // Si el JSON es inválido, limpiamos el storage para evitar persistencia del error
+                localStorage.removeItem(AUTH_STORAGE_KEY);
             }
         }
         return config;
