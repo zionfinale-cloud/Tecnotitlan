@@ -90,7 +90,7 @@ async function main() {
   const adminPassword = process.env.ADMIN_PASSWORD || '123456';
 
   if (adminPassword.length < 6) {
-    console.error('Error: La contraseña de administrador debe tener al menos 6 caracteres.');
+    console.error('Error: La contraseña de administrador debe tener al menos 6 caracteres. Por favor, configura la variable de entorno ADMIN_PASSWORD.');
     return;
   }
 
@@ -98,10 +98,13 @@ async function main() {
   await prisma.user.upsert({
     where: { email: adminEmail },
     update: {},
+    // Si no existe, lo crea
     create: {
       email: adminEmail,
       firstName: 'Super',
       lastName: 'Administrador',
+      // Encripta la contraseña antes de guardarla
+      // ¡Asegúrate de que bcrypt esté instalado!
       password: await bcrypt.hash(adminPassword, 10),
       roleId: superAdminRole.id,
     },
@@ -134,11 +137,13 @@ async function main() {
         value: setting.value,
         type: setting.type,
       },
+      // Opcional: Puedes añadir un log aquí para verificar que cada configuración se está creando/actualizando
     });
   }
   console.log(`${initialSettings.length} settings are set up.`);
 
   console.log('Seeding finished.');
+
 }
 
 main()

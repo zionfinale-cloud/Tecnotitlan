@@ -1,83 +1,46 @@
-/* Contenedor principal de la página de Login */
-.pageContainer {
-    display: flex;
-    flex-direction: column; /* Asegura que los elementos se apilen verticalmente */
-    justify-content: flex-start; /* Alinea la tarjeta arriba */
-    align-items: center; /* Centra la tarjeta horizontalmente */
-    padding: 4rem 0; /* Espaciado vertical generoso */
+.container {
     min-height: 80vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* Tarjeta de Login */
-.loginCard {
-    padding: 2rem;
-    border-radius: 1.5rem; /* Un poco más redondeado */
-    border: 1px solid rgba(255, 255, 255, 0.1); /* Borde sutil para el efecto de vidrio */
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); /* shadow-lg */
-    background-color: rgba(var(--card-bg-rgb), 0.8); /* Fondo semi-transparente */
-    -webkit-backdrop-filter: blur(10px); /* Efecto de desenfoque para navegadores Webkit */
-    backdrop-filter: blur(10px); /* Efecto de desenfoque estándar */
-    width: 100%;
-    max-width: 450px; /* Ancho máximo para la tarjeta */
+.authCard {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+    background-color: #FFFFFF;
 }
 
-/* Título "Iniciar Sesión" */
-.title {
-    font-size: 1.875rem; /* text-3xl */
-    font-weight: 700; /* font-bold */
-    margin-bottom: 1.5rem; /* mb-4 */
-    text-align: center;
-    color: var(--text-primary);
+.inputField {
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e2e8f0;
 }
 
-/* Etiquetas de los campos (Email, Contraseña) */
-.label {
-    font-weight: 500; /* font-medium */
-    color: var(--text-secondary);
+.inputField:focus {
+    border-color: var(--cta-color);
+    box-shadow: 0 0 0 2px rgba(var(--cta-color-rgb), 0.2);
 }
 
-/* Campos de texto */
-.input {
-    border-radius: 0.5rem !important; /* rounded-lg */
-    /* Sombra interior para dar profundidad */
-    box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05) !important;
-    border: 1px solid var(--border-color) !important;
-    background-color: var(--input-bg-color) !important; /* Un color ligeramente más oscuro que el fondo de la tarjeta */
-    color: var(--text-primary) !important;
-}
-
-.input:focus {
-    border-color: var(--cta-color) !important;
-    box-shadow: 0 0 0 3px rgba(0, 220, 130, 0.2) !important; /* Sombra de foco personalizada */
-}
-
-/* Botón de "Entrar" */
 .submitButton {
-    width: 100%;
-    border-radius: 9999px !important; /* rounded-full */
-    padding: 0.75rem 0 !important;
-    margin-bottom: 0.75rem;
-    font-weight: bold;
-    background-color: var(--cta-color) !important;
-    border-color: var(--cta-color) !important;
-    color: var(--brand-dark) !important;
-    transition: transform 0.2s;
+    background-color: var(--brand-dark);
+    border: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
 }
 
 .submitButton:hover {
-    transform: scale(1.02);
+    background-color: var(--cta-color);
+    color: var(--brand-dark);
 }
 
-/* Fila para el enlace de registro/login */
-.linkRow {
-    padding: 1rem 0;
-    text-align: center;
-    color: var(--text-secondary);
-}
-
-/* Enlace "¿Nuevo cliente? Regístrate" */
-.registerLink {
-    text-decoration: none;
+.link {
     color: var(--cta-color);
-    font-weight: bold;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.link:hover {
+    text-decoration: underline;
 }

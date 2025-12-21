@@ -33,9 +33,8 @@ const Header = () => {
     return <HeaderSkeleton />;
   }
 
-  // Lógica del Logo: Usa el siteName o un fallback, y aplica el acento.
+  // Lógica del Logo: Usa el siteName o un fallback.
   const siteName = (settings?.siteName || 'TECNOTITLÁN').toUpperCase();
-  const logoHtml = siteName.replace(/Á/g, `<span class="${styles.accent}">Á</span>`);
 
   return (
     <header className={styles.header}>
@@ -46,7 +45,7 @@ const Header = () => {
               <img src={settings.logoUrl} alt={siteName} className={styles.logoImage} onError={(e) => { e.target.style.display = 'none'; }} />
             )}
             <div className={styles.logoText}>
-                <span dangerouslySetInnerHTML={{ __html: logoHtml }}></span>
+                <span>{siteName}</span>
             </div>
           </Link>
 

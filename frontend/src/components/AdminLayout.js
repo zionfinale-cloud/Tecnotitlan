@@ -8,8 +8,8 @@ const navLinks = [
     { to: '/admin/orderlist', icon: 'fa-shipping-fast', text: 'Pedidos' },
     { to: '/admin/userlist', icon: 'fa-users', text: 'Usuarios' },
     { to: '/admin/categorylist', icon: 'fa-list-alt', text: 'Categorías' }, // Agregamos Categorías
-    { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles' }, // Agregamos Roles/Permisos
-    { to: '/admin/settings/page', icon: 'fa-cogs', text: 'Configuración' },
+    { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles' },
+    { to: '/admin/settings/legal', icon: 'fa-gavel', text: 'Páginas Legales' },
 ];
 
 const AdminLayout = () => {

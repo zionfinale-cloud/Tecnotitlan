@@ -1,12 +1,23 @@
 import React, { useContext } from 'react';
 import { Container, Row, Col } from 'react-bootstrap';
-import { SettingsContext } from '../context/SettingsContext'; 
+import { SettingsContext } from '../context/SettingsContext';
+import { FaFacebookF, FaInstagram, FaWhatsapp, FaYoutube, FaTiktok } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
 import styles from './Footer.module.css';
 
 const Footer = () => {
   const { settings } = useContext(SettingsContext);
   const siteName = settings?.siteName || 'Tecnotitlan';
   const currentYear = new Date().getFullYear();
+
+  // Mapeo de claves de configuración a componentes de iconos.
+  const socialMediaMap = {
+    facebookUrl: { icon: <FaFacebookF />, name: 'Facebook' },
+    instagramUrl: { icon: <FaInstagram />, name: 'Instagram' },
+    whatsappUrl: { icon: <FaWhatsapp />, name: 'WhatsApp' },
+    tiktokUrl: { icon: <FaTiktok />, name: 'TikTok' },
+    youtubeUrl: { icon: <FaYoutube />, name: 'YouTube' },
+  };
 
   return (
     <footer className={styles.footer}>
@@ -20,9 +31,15 @@ const Footer = () => {
               Tecnología con Raíces, Poder sin Límites.
             </p>
             <div className={styles.socialIcons}>
-                <a href="#facebook" className={styles.socialLink}><i className="fab fa-facebook-f"></i></a>
-                <a href="#instagram" className={styles.socialLink}><i className="fab fa-instagram"></i></a>
-                <a href="#whatsapp" className={styles.socialLink}><i className="fab fa-whatsapp"></i></a>
+              {/* Renderiza dinámicamente los iconos solo si la URL existe en la configuración */}
+              {Object.entries(socialMediaMap).map(([key, { icon, name }]) => {
+                const url = settings[key];
+                return url ? (
+                  <a key={key} href={url} target="_blank" rel="noopener noreferrer" className={styles.socialLink} aria-label={name}>
+                    {icon}
+                  </a>
+                ) : null;
+              })}
             </div>
           </Col>
 
@@ -30,9 +47,9 @@ const Footer = () => {
           <Col xs={6} md={2} className="mb-4 mb-md-0">
             <h5 className={styles.footerTitle}>Navegación</h5>
             <ul className={styles.footerNav}>
-              <li><a href="/" className={styles.footerLink}>Inicio</a></li>
-              <li><a href="/cart" className={styles.footerLink}>Carrito</a></li>
-              <li><a href="/profile" className={styles.footerLink}>Perfil</a></li>
+              <li><Link to="/" className={styles.footerLink}>Inicio</Link></li>
+              <li><Link to="/cart" className={styles.footerLink}>Carrito</Link></li>
+              <li><Link to="/profile" className={styles.footerLink}>Perfil</Link></li>
             </ul>
           </Col>
 
@@ -40,8 +57,8 @@ const Footer = () => {
           <Col xs={6} md={3} className="mb-4 mb-md-0">
             <h5 className={styles.footerTitle}>Legal</h5>
             <ul className={styles.footerNav}>
-              <li><a href="#privacy" className={styles.footerLink}>Política de Privacidad</a></li>
-              <li><a href="#terms" className={styles.footerLink}>Términos de Servicio</a></li>
+              <li><Link to="/privacy-policy" className={styles.footerLink}>Política de Privacidad</Link></li>
+              <li><Link to="/terms-of-service" className={styles.footerLink}>Términos de Servicio</Link></li>
             </ul>
           </Col>
 

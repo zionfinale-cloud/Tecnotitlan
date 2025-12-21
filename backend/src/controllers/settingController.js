@@ -1,7 +1,5 @@
 import asyncHandler from 'express-async-handler';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../config/prisma.js'; // Importar la instancia Singleton
 
 // @desc    Obtener todas las configuraciones
 // @route   GET /api/settings

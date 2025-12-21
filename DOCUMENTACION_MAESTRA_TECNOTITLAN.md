@@ -32,7 +32,7 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ## 2. Estado Actual y Próximos Pasos (Continuidad del Proyecto)
 
-**Última Actualización:** 17 de Noviembre, 2025
+**Última Actualización:** 16 de Diciembre, 2025
 
 Esta sección sirve como punto de control para dar continuidad al desarrollo. **El sistema está actualmente en línea y estable.**
 
@@ -372,11 +372,47 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 -   `d:/Tecnotitlan/frontend/src/context/NotificationContext.js`
 -   `d:/Tecnotitlan/frontend/src/context/ToastContext.js`
 -   **Hooks Personalizados (`/frontend/src/hooks`):**
--   `d:/Tecnotitlan/frontend/src/hooks/useFormValidation.js`, `useProductFilters.js`, `useCategoryManager.js`, `useProductForm.js`, `useDashboardStats.js`, `useApi.js`, `useConfirmation.js`, `useLocalStorage.js`, `useOrderFilters.js`, `usePageTitle.js`, `useProductDetail.js`, `useReports.js`.
+-   `d:/Tecnotitlan/frontend/src/hooks/useFormValidation.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useProductFilters.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useCategoryManager.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useProductForm.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useDashboardStats.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useApi.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useConfirmation.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useLocalStorage.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useOrderFilters.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/usePageTitle.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useProductDetail.js`
+-   `d:/Tecnotitlan/frontend/src/hooks/useReports.js`
 -   **Componentes Reutilizables (`/frontend/src/components`):**
--   `d:/Tecnotitlan/frontend/src/components/ProtectedRoute.js`, `Header.js`, `Footer.js`, `LoadingSpinner.js`, `Notification.js`, `SessionManager.js`, `ProductGrid.js`, `SmartwatchShowcase.js`, `AddToCartNotification.js`, `Breadcrumb.js`, `CheckoutSteps.js`, `FilterControls.js`, `FormContainer.js`, `OrderTable.js`, `Product.js`, `ProductCardSkeleton.js`, `ProductTable.js`, `RegisterForm.js`, `SearchBox.js`, `StripeCheckoutForm.js`.
+-   `d:/Tecnotitlan/frontend/src/components/Header.js`
+-   `d:/Tecnotitlan/frontend/src/components/Footer.js`
+-   `d:/Tecnotitlan/frontend/src/components/ProtectedRoute.js`
+-   `d:/Tecnotitlan/frontend/src/components/LoadingSpinner.js`
+-   `d:/Tecnotitlan/frontend/src/components/Notification.js`
+-   `d:/Tecnotitlan/frontend/src/components/SessionManager.js`
+-   `d:/Tecnotitlan/frontend/src/components/ProductGrid.js`
+-   `d:/Tecnotitlan/frontend/src/components/SmartwatchShowcase.js`
+-   `d:/Tecnotitlan/frontend/src/components/AddToCartNotification.js`
+-   `d:/Tecnotitlan/frontend/src/components/Breadcrumb.js`
+-   `d:/Tecnotitlan/frontend/src/components/CheckoutSteps.js`
+-   `d:/Tecnotitlan/frontend/src/components/FilterControls.js`
+-   `d:/Tecnotitlan/frontend/src/components/FormContainer.js`
+-   `d:/Tecnotitlan/frontend/src/components/OrderTable.js`
+-   `d:/Tecnotitlan/frontend/src/components/Product.js`
+-   `d:/Tecnotitlan/frontend/src/components/ProductCardSkeleton.js`
+-   `d:/Tecnotitlan/frontend/src/components/ProductTable.js`
+-   `d:/Tecnotitlan/frontend/src/components/RegisterForm.js`
+-   `d:/Tecnotitlan/frontend/src/components/SearchBox.js`
+-   `d:/Tecnotitlan/frontend/src/components/StripeCheckoutForm.js`
 -   **Páginas de Cliente y Admin (`/frontend/src/pages`):**
-    -   **Cliente:** `HomeScreen.js`, `ProductDetailScreen.js`, `CartScreen.js`, `LoginScreen.js`, `ProfileScreen.js`.
+    -   **Cliente (Screens):**
+        - `d:/Tecnotitlan/frontend/src/screens/LoginScreen.js`
+        - `d:/Tecnotitlan/frontend/src/screens/RegisterScreen.js`
+        - `d:/Tecnotitlan/frontend/src/screens/ProfileScreen.js`
+        - `d:/Tecnotitlan/frontend/src/screens/HomeScreen.js`
+        - `d:/Tecnotitlan/frontend/src/screens/ProductDetailScreen.js`
+        - `d:/Tecnotitlan/frontend/src/screens/CartScreen.js`
     -   **Panel de Administración:**
 -   `d:/Tecnotitlan/frontend/src/pages/admin/AdminLayout.js`: Layout principal del panel.
 -   `d:/Tecnotitlan/frontend/src/pages/admin/SubMenu.js`
@@ -408,13 +444,13 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
     - `d:/Tecnotitlan/frontend/cypress/e2e/auth/login.cy.js`: Prueba el flujo de inicio de sesión del administrador.
     - `d:/Tecnotitlan/frontend/cypress/e2e/checkout.cy.js`: Prueba el flujo de compra completo, desde añadir un producto al carrito hasta la confirmación del pedido.
 -   **CI/CD:**
-    -   `.github/workflows/backend-ci.yml`: Workflow de GitHub Actions para pruebas del backend.
+    -   `d:/Tecnotitlan/.github/workflows/backend-ci.yml`: Workflow de GitHub Actions para pruebas del backend.
 -   **Raíz del Proyecto:**
--   `package.json`: Dependencias y scripts del backend.
--   `frontend/package.json`: Dependencias y scripts del frontend.
--   `.env`: Variables de entorno (local, no versionado).
+-   `d:/Tecnotitlan/package.json`: Dependencias y scripts del backend.
+-   `d:/Tecnotitlan/frontend/package.json`: Dependencias y scripts del frontend.
+-   `d:/Tecnotitlan/.env`: Variables de entorno (local, no versionado).
 -   `d:/Tecnotitlan/README.md`: Documentación general del proyecto.
--   `d:/Tecnotitlan/mapeo_Tecnotitlan.md`: Este mismo documento.
+-   `d:/Tecnotitlan/DOCUMENTACION_MAESTRA_TECNOTITLAN.md`: Este mismo documento.
 -   `d:/Tecnotitlan/docker-compose.yml`: Orquestación de servicios locales (Postgres, n8n).
 
 ---
@@ -434,7 +470,7 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone <URL_DEL_REPOSITORIO>
+    git clone https://github.com/zionfinale-cloud/Tecnotitlan.git
     cd tecnotitlan # Asegúrate de que la carpeta del proyecto se llame así
     ```
 
@@ -731,3 +767,4 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 ### Componentes Clave
 - **Backend:** El servicio `whatsappService.js` y los endpoints de control en `index.js` gestionan la inicialización y el estado de la conexión mediante **Socket.IO**.
 - **Frontend:** La pantalla `WhatsappSettingsScreen.js` se conecta vía WebSockets para mostrar el código QR y el estado de la conexión en tiempo real.
+```

@@ -38,7 +38,10 @@ import UserEditScreen from './screens/admin/UserEditScreen';
 import CategoryListScreen from './screens/admin/CategoryListScreen';
 import RoleListScreen from './screens/admin/RoleListScreen';
 import WhatsappSettingsScreen from './screens/admin/WhatsappSettingsScreen';
-import SettingsPage from './screens/admin/SettingsPage';
+import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-rutas
+import LegalPagesScreen from './screens/admin/LegalPagesScreen'; // Nueva pantalla
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 
 // --- Configuración de PayPal ---
 const initialOptions = {
@@ -65,6 +68,8 @@ function App() {
                                                 <Route path="cart" element={<CartScreen />} />
                                                 <Route path="login" element={<LoginScreen />} />
                                                 <Route path="register" element={<RegisterScreen />} />
+                                                <Route path="privacy-policy" element={<PrivacyPolicy />} />
+                                                <Route path="terms-of-service" element={<TermsOfService />} />
 
                                                 {/* --- Rutas Protegidas de Cliente --- */}
                                                 <Route element={<ProtectedRoute />}>
@@ -92,6 +97,7 @@ function App() {
                                                 
                                                 {/* Sub-rutas de Configuración */}
                                                 <Route path="settings" element={<SettingsPage />}>
+                                                    <Route path="legal" element={<LegalPagesScreen />} />
                                                     <Route path="whatsapp" element={<WhatsappSettingsScreen />} />
                                                 </Route>
 
