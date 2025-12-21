@@ -40,8 +40,8 @@ import RoleListScreen from './screens/admin/RoleListScreen';
 import WhatsappSettingsScreen from './screens/admin/WhatsappSettingsScreen';
 import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-rutas
 import LegalPagesScreen from './screens/admin/LegalPagesScreen';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './screens/PrivacyPolicy';
+import TermsOfService from './screens/TermsOfService';
 
 // --- Configuración de PayPal ---
 const initialOptions = {
