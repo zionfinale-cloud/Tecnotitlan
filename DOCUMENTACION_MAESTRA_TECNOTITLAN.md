@@ -32,41 +32,50 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ## 2. Estado Actual y Próximos Pasos (Continuidad del Proyecto)
 
-**Última Actualización:** 16 de Diciembre, 2025
+**Última Actualización:** 21 de Diciembre, 2025
 
 Esta sección sirve como punto de control para dar continuidad al desarrollo. **El sistema está actualmente en línea y estable.**
 
 **Dominios:**
 - `https://www.tecnotitlan.com.mx` (Frontend en Render)
+- `https://api.tecnotitlan.com.mx` (Backend en Lightsail)
 - tecnotitlan.shop
 - tecnotitlan.online
 
-### En qué nos quedamos:
+### En qué nos quedamos (Resumen de la Jornada):
 
-1.  **Flujo de Subida del Logo Solucionado:** Se implementó una solución robusta y definitiva para la gestión del logo. El backend ahora tiene una ruta dedicada (`/api/settings/logo`) que renombra cualquier imagen subida a `logo.png` y la guarda directamente en la carpeta `frontend/public/images/logo/`.
-2.  **Header Estable y Funcional:** El componente `Header.js` ahora carga el logo desde una ruta estática y predecible. Se solucionó el problema de los "brincos" (layout shift) al sincronizar la estructura del `HeaderSkeleton.js` con la del componente final.
-3.  **Infraestructura 100% Conectada:** Se configuró un reverse proxy con Nginx y se obtuvo un certificado SSL con Certbot en el servidor de Lightsail. El frontend (`https://www.tecnotitlan.com.mx`) ahora se comunica de forma segura vía HTTPS con el backend en `https://api.tecnotitlan.com.mx`.
-4.  **Sistema de Sesiones Robusto:** Se implementó `connect-pg-simple` en el backend para almacenar las sesiones de usuario en la base de datos de Supabase, eliminando el `MemoryStore` no apto para producción.
+1.  **Estabilización del Despliegue (Backend & Frontend):**
+    -   **Backend (Lightsail):** Se solucionaron los errores `500 Internal Server Error` (falta de variables `DATABASE_URL`/`DIRECT_URL`) y `403 Forbidden` (ruta de `/api/settings` protegida incorrectamente). Ahora la API responde públicamente a la configuración visual.
+    -   **Variables de Entorno:** Se aseguró la presencia de `CLIENT_URL_PRIMARY` en el `.env` de producción, requerida por `env.js` para CORS.
+    -   **Frontend (Render):** Se corrigió el error de construcción `Module not found` reorganizando la estructura de carpetas (moviendo páginas legales de `src/pages/` a `src/screens/`) y ajustando `App.js`.
+    -   **Routing en Producción:** Se configuró la regla de reescritura (Rewrite Rule) en Render para solucionar el error `404 Not Found` al recargar en rutas como `/login`.
 
-### Problema Resuelto Recientemente:
+2.  **Corrección de Bugs Críticos:**
+    -   **Login Loop:** Se blindó el interceptor de `apiService.js` para manejar y limpiar automáticamente el error `SyntaxError: "undefined" is not valid JSON` en `localStorage`.
+    -   **Docker Local:** Se actualizó `docker-compose.yml` para incluir el servicio de base de datos (`db`), permitiendo un entorno de desarrollo local 100% autocontenido.
 
-*   **Problema:** El frontend (HTTPS) no podía comunicarse con el backend (HTTP) debido a errores de "Mixed Content" y CORS, que eran síntomas de que el backend no arrancaba correctamente (`502 Bad Gateway`). La causa raíz eran archivos de configuración (`env.js`, `configService.js`) y controladores (`settingController.js`) desactualizados que causaban un crash al inicio.
-*   **Solución:** Se sincronizaron todos los archivos de configuración y controladores del backend con la arquitectura final (ES Modules, dependencias correctas). Se configuró Nginx y Certbot en el servidor para habilitar HTTPS en la API. Finalmente, se actualizó la URL de la API en las variables de entorno de Render.
+3.  **Infraestructura:**
+    -   La base de datos en Supabase está migrada y sembrada con datos iniciales.
+    -   **Scripts:** Se corrigió el `package.json` para incluir el script `seed:import` y la ruta correcta del esquema de Prisma.
+    -   El backend en Lightsail se reconstruyó correctamente con las nuevas variables de entorno.
 
-### Próximo Paso Inmediato:
+### Estado Actual:
 
-Ahora que la infraestructura completa (Frontend, Backend, DB) está en línea, estable y comunicándose de forma segura, el siguiente paso es mejorar la experiencia de usuario y continuar con la personalización.
+*   ✅ **Frontend:** Desplegado, carga sin errores, consume la configuración visual del backend y permite la navegación.
+*   ✅ **Backend:** Operativo, conectado a Supabase y sirviendo endpoints públicos y privados.
+*   ✅ **Entorno Local:** Funcional con `docker-compose up --build`.
 
-**Acción Sugerida:** Conectar el componente `Footer.js` al `SettingsContext` para que muestre dinámicamente las redes sociales y otra información de contacto que pueda ser gestionada desde el panel de administración. Esto continuará con la filosofía de hacer la plataforma completamente personalizable.
+### Próximos Pasos (Para la siguiente sesión):
 
-**NOTA IMPORTANTE DE ESTRATEGIA DE DESARROLLO:**
-Dado que el proyecto se encuentra en una fase inicial sin clientes ni productos en producción y el presupuesto es limitado, se adopta una estrategia de **"desarrollo en vivo"**.
-Todo el trabajo, tanto de frontend como de backend, se realizará directamente sobre la infraestructura de producción de bajo costo (Render, Lightsail, Supabase).
-
-**Objetivos de esta estrategia:**
-1.  **Eliminar Discrepancias:** Evitar por completo los problemas de configuración y comportamiento que surgen al migrar de `localhost` a un entorno en vivo.
-2.  **Eficiencia de Costos:** Utilizar la arquitectura de despliegue final desde el día uno, optimizando el uso del presupuesto.
-3.  **Preparación para Inversión:** Tener una plataforma 100% funcional y demostrable en línea en todo momento, lista para ser presentada a potenciales inversores y para el lanzamiento inmediato una vez se asegure la financiación.
+1.  **Prioridad #1: Prueba de Flujo Completo (End-to-End):**
+    -   Iniciar sesión con el usuario administrador en producción.
+    -   Verificar acceso al Dashboard y navegación por las secciones del admin.
+2.  **Prioridad #2: Contenido de Páginas Legales:**
+    -   Ingresar al panel de admin -> Configuración -> Páginas Legales.
+    -   Redactar y guardar el contenido para "Política de Privacidad" y "Términos de Servicio".
+    -   Verificar que se refleje en el frontend público.
+3.  **Mantenimiento:**
+    -   Atender vulnerabilidades de `npm audit`.
 
 
 
@@ -496,7 +505,7 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
     # Opción 1: Usar una base de datos local con Docker (requiere configuración en docker-compose.yml)
     # DATABASE_URL="postgresql://postgres:password@localhost:5432/tecnotitlan?schema=public"
     # Opción 2: Usar la base de datos de Supabase (recomendado para un entorno de desarrollo consistente)
-    DATABASE_URL="postgresql://postgres.ecfbrxohxvvpwrhqzpwk:ze200785@aws-1-us-east-1.pooler.supabase.com:6543/postgres" # URL con Pooler para la app
+    DATABASE_URL="postgresql://postgres.ecfbrxohxvvpwrhqzpwk:ze200785@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true" # URL con Pooler para la app (IMPORTANTE: ?pgbouncer=true)
     DIRECT_URL="postgresql://postgres:ze200785@db.ecfbrxohxvvpwrhqzpwk.supabase.co:5432/postgres" # URL directa para migraciones de Prisma
     
     # =================================
@@ -524,6 +533,7 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
     MERCADOLIBRE_APP_ID=tu_app_id_de_meli
     MERCADOLIBRE_CLIENT_SECRET=tu_client_secret_de_meli
     MERCADOLIBRE_REDIRECT_URI=http://localhost:3000/admin/settings/mercado-libre/callback
+    CLIENT_URL_PRIMARY=http://localhost:3000 # URL del Frontend (necesario para CORS)
     ```
 
 4.  **Preparar la Base de Datos (Migraciones y Seeding):**

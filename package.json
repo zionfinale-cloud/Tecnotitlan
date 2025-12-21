@@ -14,7 +14,8 @@
     "seed:destroy": "node --node-path=. backend/prisma/destroy.js"
   },
   "prisma": {
-    "schema": "prisma/schema.prisma"
+    "schema": "backend/prisma/schema.prisma",
+    "seed": "npm run seed:import"
   },
   "dependencies": {
     "@prisma/client": "^5.17.0",

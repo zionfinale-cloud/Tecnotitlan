@@ -6,6 +6,7 @@ dotenv.config();
 // Lista de variables de entorno críticas para el funcionamiento de la aplicación.
 const requiredEnvVars = [
   'DATABASE_URL',
+  'DIRECT_URL',
   'JWT_SECRET',
   'CLIENT_URL_PRIMARY',
 ];
