@@ -1,24 +1,40 @@
-import React from 'react';
-import { Container } from 'react-bootstrap';
-import usePageContent from '../hooks/usePageContent';
-import LoadingSpinner from '../components/LoadingSpinner';
-import Message from '../components/Message';
+import React, { useEffect, useState } from 'react';
+import { Container, Spinner, Alert } from 'react-bootstrap';
+import useApi from '../hooks/useApi';
 
 const PrivacyPolicy = () => {
-  const { content, loading, error } = usePageContent('page_privacy_policy');
+  const { data, loading, error, request } = useApi();
+  const [content, setContent] = useState('');
+
+  useEffect(() => {
+    // Obtenemos la configuración pública
+    request('get', '/api/settings');
+  }, [request]);
+
+  useEffect(() => {
+    if (data?.data) {
+      const settingsMap = data.data.reduce((acc, setting) => {
+        acc[setting.key] = setting.value;
+        return acc;
+      }, {});
+      setContent(settingsMap.page_privacy_policy || '<p>No hay política de privacidad definida aún.</p>');
+    }
+  }, [data]);
 
   return (
-    <Container className="py-5 mt-5">
+    <Container className="py-5">
+      <h1 className="mb-4">Política de Privacidad</h1>
       {loading ? (
-        <LoadingSpinner />
+        <div className="text-center py-5">
+          <Spinner animation="border" role="status">
+            <span className="visually-hidden">Cargando...</span>
+          </Spinner>
+        </div>
       ) : error ? (
-        <Message variant="danger">{error}</Message>
+        <Alert variant="danger">{error}</Alert>
       ) : (
-        <>
-          <h1>Política de Privacidad</h1>
-          {/* Renderiza de forma segura el contenido HTML obtenido de la base de datos */}
-          <div dangerouslySetInnerHTML={{ __html: content }} />
-        </>
+        // Renderizamos el HTML guardado por el editor de texto
+        <div dangerouslySetInnerHTML={{ __html: content }} />
       )}
     </Container>
   );

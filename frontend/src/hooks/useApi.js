@@ -1,57 +1,48 @@
-import { useState, useCallback } from 'react';
-import api from '../services/apiService'; // Importamos la instancia de axios directamente
+import { useState, useCallback, useContext }from 'react';
+import apiService from '../services/apiService';
+import { ToastContext } from '../context/ToastContext';
 
 /**
- * Hook personalizado para realizar peticiones a la API y gestionar estados.
- * Utiliza el `apiService` centralizado para ejecutar las llamadas.
- *
- * @param {Function} [onSuccess] - Callback opcional que se ejecuta si la petición es exitosa.
- * @param {Function} [onError] - Callback opcional que se ejecuta si la petición falla.
- * @returns {{
- *   data: any | null;
- *   error: string | null;
- *   loading: boolean;
- *   request: (method: 'get' | 'post' | 'put' | 'delete' | 'patch', ...args: any[]) => Promise<any>;
- * }}
- *
- * @example
- * const { data: products, loading, error, request } = useApi();
- *
- * useEffect(() => {
- *   const fetchProducts = () => request('get', '/products');
- *   fetchProducts();
- * }, [request]);
- *
- * if (loading) return <p>Cargando...</p>;
- * if (error) return <p>Error: {error}</p>;
- * return <div>{JSON.stringify(products)}</div>;
+ * Un hook genérico y robusto para realizar llamadas a la API.
+ * Maneja estados de carga, errores y notificaciones de éxito/error.
+ * @returns {{data: any, loading: boolean, error: string | null, request: Function}}
  */
-export const useApi = (onSuccess, onError) => {
-    const [data, setData] = useState(null);
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(false);
+const useApi = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const { showToast } = useContext(ToastContext);
 
-    const request = useCallback(async (method, ...args) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const response = await api[method](...args);
-            setData(response.data);
-            if (onSuccess) onSuccess(response.data);
-            return response.data; // Devuelve los datos para poder encadenar promesas si es necesario
-        } catch (err) {
-            // Extraemos el mensaje de error más relevante
-            const errorMessage = err.response?.data?.message || err.message || 'Ocurrió un error inesperado.';
-            setError(errorMessage);
-            if (onError) onError(errorMessage);
-            console.error("Error en la llamada API:", err);
-            throw err; // Re-lanzamos el error para que el componente que llama pueda manejarlo si es necesario
-        } finally {
-            setLoading(false);
-        }
-    }, [onSuccess, onError]);
+  const request = useCallback(async (method, url, body = null, successMessage = null) => {
+    setLoading(true);
+    setError(null);
 
-    return { data, error, loading, request };
+    try {
+      const response = await apiService[method](url, body);
+      setData(response.data);
+      
+      // Muestra una notificación de éxito si se proporciona un mensaje
+      if (successMessage) {
+        showToast('success', 'Éxito', successMessage);
+      }
+
+      return response.data;
+    } catch (err) {
+      // Extrae el mensaje de error de la respuesta de la API
+      const errorMessage = err.response?.data?.message || 'Ocurrió un error inesperado.';
+      setError(errorMessage);
+      
+      // Muestra una notificación de error
+      showToast('error', 'Error', errorMessage);
+      
+      // Propagamos el error para que el componente que llama pueda reaccionar si es necesario
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  return { data, loading, error, request };
 };
 
 export default useApi;
