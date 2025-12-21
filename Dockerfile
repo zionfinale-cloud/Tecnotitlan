@@ -7,9 +7,12 @@ WORKDIR /app
 # Evita que Puppeteer descargue su propia versión de Chromium.
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
+# Instala OpenSSL (necesario para Prisma Client en Debian Slim)
+RUN apt-get update -y && apt-get install -y openssl
+
 # Copia los archivos de dependencias y el esquema de Prisma.
 COPY package*.json ./
-COPY backend/prisma ./prisma/
+COPY backend/prisma ./backend/prisma/
 
 # Instala las dependencias.
 RUN npm install --force
