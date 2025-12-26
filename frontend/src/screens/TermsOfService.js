@@ -1,3 +1,4 @@
+// Ruta: d:\Tecnotitlan\frontend\src\screens\TermsOfService.js
 import React, { useEffect, useState } from 'react';
 import { Container, Spinner, Alert } from 'react-bootstrap';
 import useApi from '../hooks/useApi';
@@ -16,13 +17,13 @@ const TermsOfService = () => {
         acc[setting.key] = setting.value;
         return acc;
       }, {});
-      setContent(settingsMap.page_terms_of_service || '<p>No hay términos de servicio definidos aún.</p>');
+      setContent(settingsMap.page_terms_of_service || '<p>No hay términos de servicio definidos aún para Tecnotitlan.</p>');
     }
   }, [data]);
 
   return (
     <Container className="py-5">
-      <h1 className="mb-4">Términos de Servicio</h1>
+      <h1 className="mb-4">Términos de Servicio - Tecnotitlan</h1>
       {loading ? (
         <div className="text-center py-5">
           <Spinner animation="border" role="status">

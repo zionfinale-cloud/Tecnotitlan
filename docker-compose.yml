@@ -27,24 +27,8 @@ services:
     networks:
       - tecnotitlan-net
 
-  db:
-    image: postgres:15-alpine
-    container_name: tecnotitlan_db
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: tecnotitlan
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - tecnotitlan-net
-
 networks: # Define la red compartida
   tecnotitlan-net:
 
 volumes: # Define el volumen para persistir los datos de n8n
   n8n_data:
-  postgres_data:

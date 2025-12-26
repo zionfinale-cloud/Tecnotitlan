@@ -15,9 +15,9 @@ const Header = () => {
   const { settings, loading: settingsLoading } = useContext(SettingsContext);
 
   useEffect(() => {
-    if (settings?.accentColor) {
-      document.documentElement.style.setProperty('--cta-color', settings.accentColor);
-    }
+    // Fallback seguro: Si no hay configuración (API caída), usa verde neón.
+    const accentColor = settings?.accentColor || '#00E676';
+    document.documentElement.style.setProperty('--cta-color', accentColor);
   }, [settings]);
 
   const logoutHandler = () => {

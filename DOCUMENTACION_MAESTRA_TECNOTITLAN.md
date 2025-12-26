@@ -32,7 +32,7 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ## 2. Estado Actual y Próximos Pasos (Continuidad del Proyecto)
 
-**Última Actualización:** 21 de Diciembre, 2025
+**Última Actualización:** 21 de Diciembre, 2025 (Noche)
 
 Esta sección sirve como punto de control para dar continuidad al desarrollo. **El sistema está actualmente en línea y estable.**
 
@@ -44,40 +44,34 @@ Esta sección sirve como punto de control para dar continuidad al desarrollo. **
 
 ### En qué nos quedamos (Resumen de la Jornada):
 
-1.  **Estabilización del Despliegue (Backend & Frontend):**
-    -   **Backend (Lightsail):** Se solucionaron los errores `500 Internal Server Error` (falta de variables `DATABASE_URL`/`DIRECT_URL`) y `403 Forbidden` (ruta de `/api/settings` protegida incorrectamente). Ahora la API responde públicamente a la configuración visual.
-    -   **Variables de Entorno:** Se aseguró la presencia de `CLIENT_URL_PRIMARY` en el `.env` de producción, requerida por `env.js` para CORS.
-    -   **Frontend (Render):** Se corrigió el error de construcción `Module not found` reorganizando la estructura de carpetas (moviendo páginas legales de `src/pages/` a `src/screens/`) y ajustando `App.js`.
-    -   **Routing en Producción:** Se configuró la regla de reescritura (Rewrite Rule) en Render para solucionar el error `404 Not Found` al recargar en rutas como `/login`.
-
-2.  **Corrección de Bugs Críticos:**
-    -   **Login Loop:** Se blindó el interceptor de `apiService.js` para manejar y limpiar automáticamente el error `SyntaxError: "undefined" is not valid JSON` en `localStorage`.
-    -   **Docker Local:** Se actualizó `docker-compose.yml` para incluir el servicio de base de datos (`db`), permitiendo un entorno de desarrollo local 100% autocontenido.
-
-3.  **Infraestructura:**
-    -   La base de datos en Supabase está migrada y sembrada con datos iniciales.
-    -   **Scripts:** Se corrigió el `package.json` para incluir el script `seed:import` y la ruta correcta del esquema de Prisma.
-    -   El backend en Lightsail se reconstruyó correctamente con las nuevas variables de entorno.
+1.  **Estabilización del Despliegue (Backend & Git):**
+    -   **Git History:** Se solucionó un problema crítico que impedía subir el código a GitHub (`remote rejected`). El historial de Git contenía archivos pesados de `node_modules` que superaban el límite de 100MB. Se limpió el historial local con `git reset --soft` para poder subir los cambios.
+    -   **Backend (Lightsail - Docker Build):** Se corrigió un error en el `Dockerfile` que impedía construir la imagen del backend.
+        -   Se instaló la dependencia `openssl`, requerida por Prisma en el entorno `node:18-slim`.
+        -   Se ajustó la ruta de la carpeta `prisma` para que el comando `prisma generate` se ejecutara correctamente.
+    -   **Backend (Lightsail - DB Connection):** Se solucionó el error `500 Internal Server Error` definitivo que ocurría al intentar conectar con la base de datos de Supabase.
+        -   Se añadió el parámetro `?pgbouncer=true` a la variable `DATABASE_URL` en el archivo `.env` de producción. Este parámetro es **crítico** para usar el Connection Pooler de Supabase.
+    -   **Backend (API):** Se verificó que la ruta `GET /api/settings` ya no está protegida por autenticación, permitiendo que el frontend público consuma la configuración visual (tema, logo, etc.) sin errores.
 
 ### Estado Actual:
 
 *   ✅ **Frontend:** Desplegado, carga sin errores, consume la configuración visual del backend y permite la navegación.
 *   ✅ **Backend:** Operativo, conectado a Supabase y sirviendo endpoints públicos y privados.
-*   ✅ **Entorno Local:** Funcional con `docker-compose up --build`.
+*   ✅ **Base de Datos:** Migrada y sembrada con datos iniciales en Supabase.
+*   ✅ **Entorno Local:** Funcional con `docker-compose up --build` (usando la base de datos de desarrollo de Supabase).
 
 ### Próximos Pasos (Para la siguiente sesión):
 
 1.  **Prioridad #1: Prueba de Flujo Completo (End-to-End):**
     -   Iniciar sesión con el usuario administrador en producción.
     -   Verificar acceso al Dashboard y navegación por las secciones del admin.
+    -   **Objetivo:** Confirmar que la autenticación y las rutas protegidas funcionan correctamente.
 2.  **Prioridad #2: Contenido de Páginas Legales:**
     -   Ingresar al panel de admin -> Configuración -> Páginas Legales.
     -   Redactar y guardar el contenido para "Política de Privacidad" y "Términos de Servicio".
     -   Verificar que se refleje en el frontend público.
 3.  **Mantenimiento:**
     -   Atender vulnerabilidades de `npm audit`.
-
-
 
 ## 2. Pila Tecnológica
 
@@ -422,6 +416,8 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
         - `d:/Tecnotitlan/frontend/src/screens/HomeScreen.js`
         - `d:/Tecnotitlan/frontend/src/screens/ProductDetailScreen.js`
         - `d:/Tecnotitlan/frontend/src/screens/CartScreen.js`
+        - `d:/Tecnotitlan/frontend/src/screens/TermsOfService.js`
+        - `d:/Tecnotitlan/frontend/src/screens/PrivacyPolicy.js`
     -   **Panel de Administración:**
 -   `d:/Tecnotitlan/frontend/src/pages/admin/AdminLayout.js`: Layout principal del panel.
 -   `d:/Tecnotitlan/frontend/src/pages/admin/SubMenu.js`

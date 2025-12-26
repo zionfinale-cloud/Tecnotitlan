@@ -42,7 +42,7 @@ const LoginScreen = () => {
 
     return (
         // El Container centrado y con max-width para formularios
-        <div className={styles.pageContainer}>
+        <div className={`${styles.pageContainer} d-flex justify-content-center align-items-center`} style={{ minHeight: '80vh' }}>
             <Card className={styles.loginCard}>
                 <Card.Body>
                     <h1 className={styles.title}>Iniciar Sesión</h1>

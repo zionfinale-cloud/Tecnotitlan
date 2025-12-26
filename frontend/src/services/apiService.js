@@ -68,6 +68,10 @@ api.interceptors.response.use(
             // a veces es necesario forzar la redirección para el Admin Layout, pero lo evitamos
             // para no crear un ciclo de dependencia. Dejamos que AuthContext maneje el estado.
         }
+        // Agregamos log para Error 500 (Error interno del servidor)
+        if (error.response && error.response.status === 500) {
+            console.error("🔥 ERROR CRÍTICO (500): El backend falló. Verifica la conexión a la Base de Datos o las variables de entorno en el servidor.");
+        }
         return Promise.reject(error);
     }
 );
