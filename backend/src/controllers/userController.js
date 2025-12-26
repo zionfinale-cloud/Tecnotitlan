@@ -109,6 +109,8 @@ const registerUser = asyncHandler(async (req, res, next) => {
 const loginUser = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
 
+  console.log(`[LOGIN DEBUG] Intento de login para: ${email}`);
+
   // La validación de campos (email, password) ahora la hace el middleware.
   // 1. Buscar usuario por email.
   const user = await prisma.user.findUnique({
@@ -121,10 +123,19 @@ const loginUser = asyncHandler(async (req, res, next) => {
     },
   });
 
+  if (!user) {
+    console.log(`[LOGIN DEBUG] Usuario NO encontrado en la base de datos.`);
+  } else {
+    console.log(`[LOGIN DEBUG] Usuario encontrado (ID: ${user.id}). Verificando contraseña...`);
+  }
+
   // 2. Si el usuario no existe o la contraseña no coincide, lanzar error.
   if (!user || !(await bcrypt.compare(password, user.password))) {
+    console.log(`[LOGIN DEBUG] Contraseña incorrecta o usuario no existe.`);
     return next(new UnauthorizedError('Email o contraseña inválidos.'));
   }
+
+  console.log(`[LOGIN DEBUG] Credenciales válidas. Generando token y respondiendo...`);
 
   res.status(200).json({
     status: 'success',
