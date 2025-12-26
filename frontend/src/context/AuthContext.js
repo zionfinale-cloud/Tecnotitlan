@@ -55,6 +55,8 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
         try {
             const { data } = await api.post('/users/login', { email, password });
+            console.log('🔍 DEBUG FRONTEND - Respuesta del Server:', data); // Ver qué llega
+            console.log('🔍 DEBUG FRONTEND - Datos a guardar:', data.data); // Ver qué guardamos
             setUserInfo(data.data); // FIX: El objeto de usuario está en data.data
             localStorage.setItem('userInfo', JSON.stringify(data.data));
             return data.data;

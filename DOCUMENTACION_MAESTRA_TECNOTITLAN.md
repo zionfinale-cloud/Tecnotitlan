@@ -61,15 +61,14 @@ Esta sección sirve como punto de control para dar continuidad al desarrollo. **
 *   ✅ **Base de Datos:** Migrada y sembrada con datos iniciales en Supabase.
 *   ✅ **Entorno Local:** Funcional con `docker-compose up --build` (usando la base de datos de desarrollo de Supabase).
 *   ✅ **Acceso Admin:** Verificado. El usuario administrador puede ingresar al Dashboard.
-*   ✅ **Páginas Legales:** Contenido configurado en el admin y disponible públicamente.
+*   ✅ **Páginas Legales:** Contenido configurado en el admin.
+*   ✅ **Autenticación:** Flujo de registro y login completamente funcional y verificado.
 
 ### Próximos Pasos (Para la siguiente sesión):
 
-1.  **Prioridad #1: Prueba de Compra (Checkout):**
+1.  **Prioridad #1: Prueba de Flujo de Compra (Checkout):**
     -   Simular una compra completa usando un usuario de prueba.
     -   Verificar que el pedido se registre en Supabase y aparezca en el Admin.
-2.  **Mantenimiento:**
-    -   Atender vulnerabilidades de `npm audit`.
 
 ## 2. Pila Tecnológica
 
