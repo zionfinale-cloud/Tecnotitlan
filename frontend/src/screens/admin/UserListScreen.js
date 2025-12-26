@@ -1,13 +1,96 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Table, Button, Badge } from 'react-bootstrap';
+import { LinkContainer } from 'react-router-bootstrap';
+import Message from '../../components/Message';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import api from '../../services/apiService';
+import styles from './UserListScreen.module.css'; // Importar CSS Module
 
 const UserListScreen = () => {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const { data } = await api.get('/users');
+      setUsers(data.data.users);
+      setLoading(false);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const deleteHandler = async (id) => {
+    if (window.confirm('¿Estás seguro de eliminar este usuario?')) {
+      try {
+        await api.delete(`/users/${id}`);
+        fetchUsers(); // Recargar la lista
+      } catch (err) {
+        alert(err.response?.data?.message || err.message);
+      }
+    }
+  };
+
   return (
     <>
-      <h1 className="text-3xl font-bold mb-4">Gestión de Usuarios</h1>
-      <p className="text-gray-600">Aquí se mostrará la lista de usuarios y se podrán asignar roles y permisos.</p>
-      <div className="mt-5 p-4 bg-blue-50 rounded-lg border border-dashed border-blue-300 text-center text-blue-800">
-          <p className="mb-0">Tabla de usuarios y asignación de roles irán aquí.</p>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h1 className={styles.title}>Usuarios</h1>
       </div>
+
+      {loading ? (
+        <LoadingSpinner />
+      ) : error ? (
+        <Message variant="danger">{error}</Message>
+      ) : (
+        <Table striped bordered hover responsive className={`table-sm ${styles.userTable}`}>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>NOMBRE</th>
+              <th>EMAIL</th>
+              <th>ROL</th>
+              <th className={styles.actionsCell}>ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id}>
+                {/* Recortamos el ID visualmente y mostramos el completo en el tooltip */}
+                <td title={user.id}>{user.id.substring(0, 10)}...</td>
+                <td>{user.firstName} {user.lastName}</td>
+                <td><a href={`mailto:${user.email}`}>{user.email}</a></td>
+                <td>
+                    <Badge bg={user.role?.name === 'SUPER_ADMIN' ? 'danger' : 'primary'} className={styles.badge}>
+                        {user.role?.name || 'USER'}
+                    </Badge>
+                </td>
+                <td className={styles.actionsCell}>
+                  <LinkContainer to={`/admin/user/${user.id}/edit`}>
+                    <Button variant="light" className="btn-sm mx-1">
+                      <i className="fas fa-edit"></i>
+                    </Button>
+                  </LinkContainer>
+                  <Button
+                    variant="danger"
+                    className="btn-sm mx-1"
+                    onClick={() => deleteHandler(user.id)}
+                    disabled={user.role?.name === 'SUPER_ADMIN'}
+                  >
+                    <i className="fas fa-trash"></i>
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
     </>
   );
 };

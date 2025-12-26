@@ -1,25 +1,21 @@
 .title {
-    font-size: 1.875rem; /* text-3xl */
+    font-size: 1.75rem; /* Similar a text-2xl */
     font-weight: 700; /* font-bold */
-    margin-bottom: 1rem; /* mb-4 */
-    color: #1e293b; /* text-slate-800 */
 }
 
-.subtitle {
-    color: #4b5563; /* text-gray-600 */
-    margin-bottom: 1.25rem; /* mb-5 */
+/* Estilos para la tabla para que se vea moderna */
+.userTable th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
 }
 
-.placeholderBox {
-    margin-top: 1.25rem; /* mt-5 */
-    padding: 1rem; /* p-4 */
-    background-color: #eff6ff; /* bg-blue-50 */
-    border-radius: 0.5rem; /* rounded-lg */
-    border: 1px dashed #93c5fd; /* border-dashed border-blue-300 */
-    text-align: center;
-    color: #1e40af; /* text-blue-800 */
+.badge {
+    font-size: 0.8rem;
+    padding: 0.4em 0.7em;
 }
 
-.placeholderText {
-    margin-bottom: 0;
+.actionsCell {
+    white-space: nowrap;
+    width: 1%;
 }
