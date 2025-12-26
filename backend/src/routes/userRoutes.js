@@ -15,11 +15,11 @@ import { checkPermission } from '../middleware/permissionMiddleware.js';
 const router = express.Router();
 
 // Rutas para /api/users
-router.route('/')
-  .post(registerUser)
-  .get(protect, checkPermission('user:read'), getUsers);
-
+router.post('/register', registerUser); // FIX: Ruta explícita para que coincida con el frontend
 router.post('/login', loginUser);
+
+router.route('/')
+  .get(protect, checkPermission('user:read'), getUsers);
 
 // Ruta para el perfil del usuario (protegida)
 router.route('/profile')

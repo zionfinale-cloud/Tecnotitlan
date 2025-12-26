@@ -26,7 +26,13 @@ api.interceptors.request.use(
         // Obtenemos la información de sesión del almacenamiento local
         const userInfo = localStorage.getItem(AUTH_STORAGE_KEY); // No change here, just for context
         // Verificamos que userInfo exista y no sea la cadena "undefined" (error común)
-        if (userInfo && userInfo !== 'undefined') {
+        if (userInfo) {
+            if (userInfo === 'undefined') {
+                // FIX: Si detectamos la cadena "undefined", limpiamos inmediatamente para evitar crash
+                localStorage.removeItem(AUTH_STORAGE_KEY);
+                return config;
+            }
+
             try {
                 const { token } = JSON.parse(userInfo);
                 if (token) {

@@ -32,7 +32,7 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ## 2. Estado Actual y Próximos Pasos (Continuidad del Proyecto)
 
-**Última Actualización:** 21 de Diciembre, 2025 (Noche)
+**Última Actualización:** 26 de Diciembre, 2025
 
 Esta sección sirve como punto de control para dar continuidad al desarrollo. **El sistema está actualmente en línea y estable.**
 
@@ -52,25 +52,23 @@ Esta sección sirve como punto de control para dar continuidad al desarrollo. **
     -   **Backend (Lightsail - DB Connection):** Se solucionó el error `500 Internal Server Error` definitivo que ocurría al intentar conectar con la base de datos de Supabase.
         -   Se añadió el parámetro `?pgbouncer=true` a la variable `DATABASE_URL` en el archivo `.env` de producción. Este parámetro es **crítico** para usar el Connection Pooler de Supabase.
     -   **Backend (API):** Se verificó que la ruta `GET /api/settings` ya no está protegida por autenticación, permitiendo que el frontend público consuma la configuración visual (tema, logo, etc.) sin errores.
+    -   **Base de Datos (Sincronización):** Se resolvió el error `P2022` (falta de columna `type`) y la desincronización del esquema ejecutando `npx prisma db push` directamente en el VPS. Esto forzó la actualización de la estructura de la base de datos en Supabase.
 
 ### Estado Actual:
 
 *   ✅ **Frontend:** Desplegado, carga sin errores, consume la configuración visual del backend y permite la navegación.
-*   ✅ **Backend:** Operativo, conectado a Supabase y sirviendo endpoints públicos y privados.
+*   ✅ **Backend:** Operativo y estable. Logs verificados (`Server running in production mode`).
 *   ✅ **Base de Datos:** Migrada y sembrada con datos iniciales en Supabase.
 *   ✅ **Entorno Local:** Funcional con `docker-compose up --build` (usando la base de datos de desarrollo de Supabase).
+*   ✅ **Acceso Admin:** Verificado. El usuario administrador puede ingresar al Dashboard.
+*   ✅ **Páginas Legales:** Contenido configurado en el admin y disponible públicamente.
 
 ### Próximos Pasos (Para la siguiente sesión):
 
-1.  **Prioridad #1: Prueba de Flujo Completo (End-to-End):**
-    -   Iniciar sesión con el usuario administrador en producción.
-    -   Verificar acceso al Dashboard y navegación por las secciones del admin.
-    -   **Objetivo:** Confirmar que la autenticación y las rutas protegidas funcionan correctamente.
-2.  **Prioridad #2: Contenido de Páginas Legales:**
-    -   Ingresar al panel de admin -> Configuración -> Páginas Legales.
-    -   Redactar y guardar el contenido para "Política de Privacidad" y "Términos de Servicio".
-    -   Verificar que se refleje en el frontend público.
-3.  **Mantenimiento:**
+1.  **Prioridad #1: Prueba de Compra (Checkout):**
+    -   Simular una compra completa usando un usuario de prueba.
+    -   Verificar que el pedido se registre en Supabase y aparezca en el Admin.
+2.  **Mantenimiento:**
     -   Atender vulnerabilidades de `npm audit`.
 
 ## 2. Pila Tecnológica
@@ -113,6 +111,9 @@ Esta sección sirve como punto de control para dar continuidad al desarrollo. **
 - **Lógica de Precios Segura:** El cálculo de precios y totales se realiza exclusivamente en el backend (`orderController.js`) para prevenir manipulaciones desde el cliente.
 - **Transacciones Atómicas en la Base de Datos:** Se utilizan las **transacciones interactivas de Prisma** (`$transaction`) para garantizar que operaciones complejas (como crear un pedido y descontar stock) se completen con éxito o fallen juntas, manteniendo la consistencia de los datos.
 - **Componentes Modulares y Reutilizables:** Se ha adoptado un enfoque de componentización para la UI. La lógica de la interfaz se divide en componentes pequeños y enfocados, como `ProductGrid.js` (para mostrar productos en una cuadrícula) y `SmartwatchShowcase.js` (una sección destacada configurable), lo que mejora la legibilidad y facilita la reutilización de código.
+- **Estrategia de Conexión a Base de Datos (Supabase):** Se utiliza una configuración dual para optimizar la conexión con Supabase en entornos Serverless/Docker:
+    - **Transaction Pooler (Puerto 6543):** Utilizado por la aplicación en producción (`DATABASE_URL`) para gestionar eficientemente las conexiones y evitar el agotamiento de límites. Requiere el parámetro `?pgbouncer=true`.
+    - **Conexión Directa (Puerto 5432):** Utilizada exclusivamente para migraciones de esquema (`DIRECT_URL`), ya que Prisma necesita control total sobre la conexión para cambios estructurales.
 - **Estrategia de Subida de Archivos Flexible:** El sistema de subida de imágenes (`uploadController.js`) es dinámico y configurable mediante una variable de entorno (`UPLOAD_STRATEGY`), permitiendo cambiar entre almacenamiento local y Cloudinary sin modificar el código.
 - **Estandarización de Respuestas API:** Todas las respuestas del backend siguen un formato consistente (`{ status: 'success', data: {...} }` o `{ status: 'error', message: '...' }`), lo que simplifica la lógica del frontend.
 - **Seguridad del Backend:** Se implementan medidas de seguridad estándar como `helmet` para cabeceras HTTP, `cors` para control de origen y `express-rate-limit` para prevenir ataques de fuerza bruta en endpoints de autenticación.
@@ -773,4 +774,54 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 ### Componentes Clave
 - **Backend:** El servicio `whatsappService.js` y los endpoints de control en `index.js` gestionan la inicialización y el estado de la conexión mediante **Socket.IO**.
 - **Frontend:** La pantalla `WhatsappSettingsScreen.js` se conecta vía WebSockets para mostrar el código QR y el estado de la conexión en tiempo real.
+# Aviso de Privacidad Integral
+
+**Última actualización:** Diciembre 2025
+
+En cumplimiento con la **Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP)** de México, **TECNOTITLÁN** (en adelante "El Sitio"), pone a su disposición el presente Aviso de Privacidad.
+
+## 1. Identidad y Domicilio del Responsable
+El responsable del tratamiento de sus datos personales es la administración de **TECNOTITLÁN**. Para efectos de este aviso, señalamos como medio de contacto nuestro formulario de atención al cliente y el correo electrónico de soporte visible en el sitio.
+
+## 2. Datos Personales Recabados
+Para procesar sus pedidos y brindarle servicio, recabamos los siguientes datos:
+*   **Datos de Identificación:** Nombre completo.
+*   **Datos de Contacto:** Correo electrónico, número de teléfono móvil, dirección de envío y facturación.
+*   **Datos Financieros:** Información de pago procesada de forma encriptada a través de pasarelas seguras (PayPal, Stripe, Mercado Pago). **El Sitio NO almacena números completos de tarjetas de crédito.**
+
+## 3. Finalidades del Tratamiento
+Sus datos serán utilizados para las siguientes finalidades:
+*   **Primarias (Necesarias):** Procesamiento, envío y entrega de pedidos; facturación; contacto para aclaraciones sobre el servicio.
+*   **Secundarias:** Envío de promociones, boletines informativos y encuestas de calidad (puede darse de baja en cualquier momento).
+
+## 4. Transferencia de Datos (Dropshipping)
+Le informamos que, debido a nuestro modelo de operación logística, sus datos de envío (Nombre, Dirección, Teléfono) pueden ser compartidos con:
+*   Proveedores logísticos y de paquetería (DHL, FedEx, Estafeta, etc.).
+*   Almacenes y socios comerciales encargados del despacho de mercancía.
+
+## 5. Derechos ARCO
+Usted tiene derecho a **A**cceder, **R**ectificar, **C**ancelar u **O**ponerse al tratamiento de sus datos. Para ejercer estos derechos, envíe una solicitud a nuestro correo de soporte.
+# Términos y Condiciones de Uso
+
+**Bienvenido a TECNOTITLÁN.**
+
+Al acceder y utilizar este sitio web, usted acepta estar sujeto a los siguientes términos y condiciones.
+
+## 1. Generalidades
+Este sitio es operado por **TECNOTITLÁN**. Nos reservamos el derecho de rechazar la prestación de servicio a cualquier persona, por cualquier motivo y en cualquier momento.
+
+## 2. Productos y Servicios
+*   **Disponibilidad:** Ciertos productos pueden estar disponibles exclusivamente en línea y tener cantidades limitadas.
+*   **Precios:** Los precios de nuestros productos están sujetos a cambios sin previo aviso.
+
+## 3. Envíos y Tiempos de Entrega (Modelo Dropshipping)
+*   **Logística:** Trabajamos con proveedores nacionales e internacionales. Al realizar una compra, usted acepta que su pedido puede ser procesado y enviado directamente desde los almacenes de nuestros socios.
+*   **Tiempos:** Los tiempos de envío son estimados y pueden variar según la ubicación y la temporada. El tiempo promedio de entrega es de **5 a 15 días hábiles**.
+
+## 4. Política de Devoluciones
+Nuestra política tiene una duración de **30 días** a partir de la recepción del producto. Para ser elegible, el artículo debe estar sin usar y en las mismas condiciones en que lo recibió.
+
+## 5. Ley Aplicable
+Estos Términos del Servicio se regirán e interpretarán de acuerdo con las leyes de **México**.
+
 ```

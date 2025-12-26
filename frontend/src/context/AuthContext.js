@@ -21,8 +21,13 @@ export const AuthProvider = ({ children }) => {
             try {
                 // Leer del almacenamiento local al inicio
                 const storedUserInfo = localStorage.getItem('userInfo');
-                if (storedUserInfo) {
+                
+                // FIX: Verificar que no sea la cadena "undefined" que rompe el JSON.parse
+                if (storedUserInfo && storedUserInfo !== 'undefined') {
                     setUserInfo(JSON.parse(storedUserInfo));
+                } else if (storedUserInfo === 'undefined') {
+                    // Si es basura, limpiamos
+                    localStorage.removeItem('userInfo');
                 }
             } catch (error) {
                 console.error("Error parsing user info from storage:", error);

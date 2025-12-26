@@ -23,3 +23,6 @@ echo "🧹  Limpiando imágenes de Docker antiguas..."
 sudo docker image prune -f
 
 echo "✅  ¡Despliegue completado con éxito!"
+
+echo "🔍  Verificando estado del backend (últimos logs):"
+sudo docker logs tecnotitlan_backend --tail 20
