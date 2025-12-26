@@ -8,6 +8,7 @@ import {
   getUserById,
   updateUser,
   deleteUser,
+  logoutUser,
 } from '../controllers/userController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
@@ -17,6 +18,7 @@ const router = express.Router();
 // Rutas para /api/users
 router.post('/register', registerUser); // FIX: Ruta explícita para que coincida con el frontend
 router.post('/login', loginUser);
+router.post('/logout', logoutUser); // Nueva ruta para evitar el 404
 
 router.route('/')
   .get(protect, checkPermission('user:read'), getUsers);

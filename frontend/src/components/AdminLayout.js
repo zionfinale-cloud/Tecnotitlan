@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import styles from './AdminLayout.module.css'; // Importamos los estilos CSS Modules
 
 // Datos de navegación (Menú Lateral)
 const navLinks = [
@@ -15,49 +16,45 @@ const navLinks = [
 const AdminLayout = () => {
     return (
         // Fondo gris claro para el área del contenido principal
-        <div className="flex min-h-screen bg-gray-100">
+        <div className={styles.container}>
             {/* -----------------------
                 BARRA LATERAL (SIDEBAR)
                 Estilo Oscuro con acentos Neon
                ----------------------- */}
-            <aside className="w-64 bg-[#1a202c] text-white flex-shrink-0 hidden md:block shadow-xl">
-                <div className="p-6 sticky top-0">
-                    <h2 className="text-2xl font-bold text-[#00A56E] mb-8 tracking-wide border-b border-gray-700 pb-4">
+            <aside className={`${styles.sidebar} d-none d-md-block`}>
+                <div className={styles.sidebarHeader}>
+                    <h2 className={styles.sidebarTitle}>
                         Panel Admin
                     </h2>
+                </div>
                     <nav>
-                        <ul className="space-y-3">
+                        <ul className={styles.nav}>
                             {navLinks.map((item, index) => (
-                                <li key={index}>
+                                <li key={index} className={styles.navItem}>
                                     <NavLink 
                                         to={item.to} 
                                         className={({ isActive }) => 
-                                            `flex items-center p-3 rounded-lg transition-all duration-200 group no-underline
-                                            ${isActive 
-                                                ? 'bg-[#00A56E] text-white shadow-md translate-x-1' 
-                                                : 'text-gray-400 hover:bg-gray-800 hover:text-white hover:translate-x-1'
-                                            }`
+                                            `${styles.navLink} ${isActive ? styles.activeLink : ''}`
                                         }
                                     >
-                                        <div className="w-8 text-center">
-                                            <i className={`fas ${item.icon} text-lg group-hover:scale-110 transition-transform`}></i>
+                                        <div className={styles.iconContainer}>
+                                            <i className={`fas ${item.icon}`}></i>
                                         </div>
-                                        <span className="font-medium text-sm">{item.text}</span>
+                                        <span>{item.text}</span>
                                     </NavLink>
                                 </li>
                             ))}
                         </ul>
                     </nav>
-                </div>
             </aside>
             
             {/* -----------------------
                 CONTENIDO PRINCIPAL
                ----------------------- */}
-            <main className="flex-grow p-6 overflow-auto">
-                <div className="max-w-7xl mx-auto">
+            <main className={styles.mainContent}>
+                <div>
                     {/* Contenedor Blanco tipo Tarjeta para las páginas hijas */}
-                    <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 min-h-[85vh]">
+                    <div className={styles.contentCard}>
                         <Outlet />
                     </div>
                 </div>

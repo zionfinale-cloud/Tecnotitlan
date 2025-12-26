@@ -1,0 +1,84 @@
+.container {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f8f9fa; /* Gris muy claro */
+}
+
+/* Sidebar (Barra Lateral) */
+.sidebar {
+  width: 260px;
+  background-color: #1a202c; /* Oscuro */
+  color: white;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+}
+
+.sidebarHeader {
+  padding: 1.5rem;
+  border-bottom: 1px solid #2d3748;
+}
+
+.sidebarTitle {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--cta-color); /* Verde Neón */
+  margin: 0;
+  letter-spacing: 0.05em;
+}
+
+.nav {
+  padding: 1rem;
+  list-style: none;
+  margin: 0;
+}
+
+.navItem {
+  margin-bottom: 0.5rem;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  color: #a0aec0; /* Gris texto */
+  text-decoration: none;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.navLink:hover {
+  background-color: #2d3748;
+  color: white;
+  transform: translateX(5px);
+}
+
+.activeLink {
+  background-color: var(--cta-color) !important;
+  color: #1a202c !important; /* Texto oscuro sobre verde */
+  font-weight: bold;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.iconContainer {
+  width: 24px;
+  text-align: center;
+  margin-right: 12px;
+}
+
+/* Contenido Principal */
+.mainContent {
+  flex-grow: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.contentCard {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  min-height: 85vh;
+  border: 1px solid #e2e8f0;
+}

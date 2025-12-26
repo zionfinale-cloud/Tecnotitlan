@@ -331,6 +331,15 @@ const deleteUser = asyncHandler(async (req, res, next) => {
   }
 });
 
+// @desc    Cerrar sesión (Logout)
+// @route   POST /api/users/logout
+// @access  Public
+const logoutUser = asyncHandler(async (req, res) => {
+  // Al ser JWT en localStorage, el backend principalmente confirma la acción.
+  // Si usáramos cookies HTTP-Only, aquí las limpiaríamos: res.clearCookie('jwt');
+  res.status(200).json({ status: 'success', message: 'Sesión cerrada correctamente' });
+});
+
 export {
   registerUser,
   loginUser,
@@ -340,4 +349,5 @@ export {
   getUserById,
   updateUser,
   deleteUser,
+  logoutUser,
 };
