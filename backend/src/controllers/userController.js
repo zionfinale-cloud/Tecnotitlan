@@ -17,7 +17,7 @@ const generateToken = (id) => {
 // @access  Public
 const registerUser = asyncHandler(async (req, res, next) => {
   // Se extraen los campos del body. Se ignora 'role' por seguridad.
-  const {
+  let {
     firstName,
     lastName,
     secondLastName,
@@ -29,8 +29,20 @@ const registerUser = asyncHandler(async (req, res, next) => {
     neighborhood,
     city,
     state,
-    postalCode
+    postalCode,
+    name // Agregamos soporte para el campo 'name' unificado del frontend
   } = req.body;
+
+  // FIX: Compatibilidad con frontend que envía 'name' completo
+  if (!firstName && name) {
+    const parts = name.trim().split(/\s+/);
+    firstName = parts[0];
+    lastName = parts.slice(1).join(' ') || '.'; // Apellido por defecto si no existe
+  }
+
+  if (!email) {
+    return next(new BadRequestError('El email es obligatorio.'));
+  }
 
   // La validación de campos (name, email, password) ahora la hace el middleware.
   // 1. Verificar si el email ya existe.
