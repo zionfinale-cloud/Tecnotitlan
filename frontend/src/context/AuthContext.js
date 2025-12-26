@@ -55,9 +55,9 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
         try {
             const { data } = await api.post('/users/login', { email, password });
-            setUserInfo(data.data.user); // Usar data.data.user por el formato de respuesta del backend
-            localStorage.setItem('userInfo', JSON.stringify(data.data.user));
-            return data.data.user;
+            setUserInfo(data.data); // FIX: El objeto de usuario está en data.data
+            localStorage.setItem('userInfo', JSON.stringify(data.data));
+            return data.data;
         } finally {
             setLoading(false);
         }
@@ -67,9 +67,9 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
         try {
             const { data } = await api.post('/users/register', { name, email, password });
-            setUserInfo(data.data.user);
-            localStorage.setItem('userInfo', JSON.stringify(data.data.user));
-            return data.data.user;
+            setUserInfo(data.data); // FIX: El objeto de usuario está en data.data
+            localStorage.setItem('userInfo', JSON.stringify(data.data));
+            return data.data;
         } finally {
             setLoading(false);
         }
