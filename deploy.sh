@@ -15,7 +15,8 @@ git pull origin main
 
 # 2. Reconstruir y reiniciar los contenedores de Docker en segundo plano.
 echo "🐳  Reconstruyendo y reiniciando los servicios con Docker Compose..."
-sudo docker compose up --build -d
+# Usamos --remove-orphans para eliminar contenedores de servicios que ya no existen en el yml (como 'db').
+sudo docker compose up --build -d --remove-orphans
 
 # 3. (Opcional pero recomendado) Limpiar imágenes de Docker no utilizadas para liberar espacio.
 echo "🧹  Limpiando imágenes de Docker antiguas..."
