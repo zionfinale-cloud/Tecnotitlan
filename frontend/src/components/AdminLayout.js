@@ -1,6 +1,7 @@
-import React from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import React, { useContext } from 'react';
+import { NavLink, Outlet, Link } from 'react-router-dom';
 import styles from './AdminLayout.module.css'; // Importamos los estilos CSS Modules
+import { SettingsContext } from '../context/SettingsContext';
 
 // Datos de navegación (Menú Lateral)
 const navLinks = [
@@ -14,6 +15,8 @@ const navLinks = [
 ];
 
 const AdminLayout = () => {
+    const { settings } = useContext(SettingsContext);
+
     return (
         // Fondo gris claro para el área del contenido principal
         <div className={styles.container}>
@@ -23,9 +26,17 @@ const AdminLayout = () => {
                ----------------------- */}
             <aside className={`${styles.sidebar} d-none d-md-block`}>
                 <div className={styles.sidebarHeader}>
-                    <h2 className={styles.sidebarTitle}>
-                        Panel Admin
-                    </h2>
+                    {/* Enlace para volver a la tienda */}
+                    <Link to="/" className="text-decoration-none d-block text-center">
+                        {settings?.logoUrl ? (
+                            <img src={settings.logoUrl} alt="Logo" style={{ maxHeight: '50px', maxWidth: '100%' }} />
+                        ) : (
+                            <h2 className={styles.sidebarTitle}>
+                                {settings?.siteName || 'TECNOTITLÁN'}
+                            </h2>
+                        )}
+                        <small className="text-muted d-block mt-2" style={{ fontSize: '0.7rem' }}>VOLVER A LA TIENDA</small>
+                    </Link>
                 </div>
                     <nav>
                         <ul className={styles.nav}>

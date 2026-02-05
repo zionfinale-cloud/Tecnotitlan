@@ -1,46 +1,75 @@
-.container {
-    min-height: 80vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.pageContainer {
+    background-color: #f4f6f8;
+    width: 100%;
 }
 
-.authCard {
+.loginCard {
+    width: 100%;
+    max-width: 450px;
     border: none;
     border-radius: 1rem;
     box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-    background-color: #FFFFFF;
+    background-color: white;
+    overflow: hidden;
 }
 
-.inputField {
+.title {
+    text-align: center;
+    font-weight: 800;
+    color: #1a202c;
+    margin-bottom: 1.5rem;
+    font-size: 1.75rem;
+}
+
+.label {
+    font-weight: 600;
+    color: #4a5568;
+    font-size: 0.9rem;
+}
+
+.input {
+    padding: 0.75rem;
     border-radius: 0.5rem;
-    padding: 0.75rem 1rem;
     border: 1px solid #e2e8f0;
 }
 
-.inputField:focus {
+.input:focus {
     border-color: var(--cta-color);
-    box-shadow: 0 0 0 2px rgba(var(--cta-color-rgb), 0.2);
+    box-shadow: 0 0 0 3px rgba(0, 230, 118, 0.2);
 }
 
 .submitButton {
-    background-color: var(--brand-dark);
-    border: none;
-    font-weight: 600;
-    transition: all 0.3s ease;
+    width: 100%;
+    padding: 0.8rem;
+    font-weight: bold;
+    font-size: 1rem;
+    border-radius: 0.5rem;
+    background-color: var(--cta-color) !important; /* Forzamos el verde */
+    border: none !important;
+    color: #1a202c !important; /* Texto oscuro para contraste con verde neón */
+    transition: all 0.2s ease;
+    margin-top: 1rem;
 }
 
 .submitButton:hover {
-    background-color: var(--cta-color);
-    color: var(--brand-dark);
+    transform: translateY(-2px);
+    filter: brightness(0.95);
+    box-shadow: 0 4px 12px rgba(0, 230, 118, 0.3);
 }
 
-.link {
+.linkRow {
+    text-align: center;
+    margin-top: 1.5rem;
+    font-size: 0.9rem;
+    color: #718096;
+}
+
+.registerLink {
     color: var(--cta-color);
+    font-weight: bold;
     text-decoration: none;
-    font-weight: 600;
 }
 
-.link:hover {
+.registerLink:hover {
     text-decoration: underline;
 }

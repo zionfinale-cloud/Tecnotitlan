@@ -8,7 +8,8 @@ export const AuthContext = createContext({
     loading: true, // Indica si la verificación inicial de Auth ha terminado
     login: () => {},
     logout: () => {},
-    register: () => {}
+    register: () => {},
+    verifyAccount: () => {}
 });
 
 export const AuthProvider = ({ children }) => {
@@ -55,8 +56,6 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
         try {
             const { data } = await api.post('/users/login', { email, password });
-            console.log('🔍 DEBUG FRONTEND - Respuesta del Server:', data); // Ver qué llega
-            console.log('🔍 DEBUG FRONTEND - Datos a guardar:', data.data); // Ver qué guardamos
             setUserInfo(data.data); // FIX: El objeto de usuario está en data.data
             localStorage.setItem('userInfo', JSON.stringify(data.data));
             return data.data;
@@ -65,13 +64,29 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const register = async (name, email, password) => {
+    const register = async (name, email, password, captchaToken) => {
         setLoading(true);
         try {
-            const { data } = await api.post('/users/register', { name, email, password });
-            setUserInfo(data.data); // FIX: El objeto de usuario está en data.data
-            localStorage.setItem('userInfo', JSON.stringify(data.data));
-            return data.data;
+            const { data } = await api.post('/users/register', { name, email, password, captchaToken });
+            
+            // Si requiere activación, el backend no devuelve el usuario logueado inmediatamente
+            if (data.status === 'success' && !data.data?.user) {
+                return { success: true, requireActivation: true, message: data.message };
+            }
+
+            setUserInfo(data.data.user);
+            localStorage.setItem('userInfo', JSON.stringify(data.data.user));
+            return { success: true, user: data.data.user };
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const verifyAccount = async (token) => {
+        setLoading(true);
+        try {
+            const { data } = await api.get(`/users/confirm/${token}`);
+            return data;
         } finally {
             setLoading(false);
         }
@@ -97,7 +112,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     return (
-        <AuthContext.Provider value={{ userInfo, loading, login, logout, register, updateProfile }}>
+        <AuthContext.Provider value={{ userInfo, loading, login, logout, register, updateProfile, verifyAccount }}>
             {children}
         </AuthContext.Provider>
     );

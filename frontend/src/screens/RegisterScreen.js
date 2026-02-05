@@ -1,6 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Form, Button, Row, Col, Card, Container } from 'react-bootstrap';
+import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 // Importamos los contextos necesarios
 import { AuthContext } from '../context/AuthContext';
 import { NotificationContext } from '../context/NotificationContext';
@@ -8,7 +9,8 @@ import { NotificationContext } from '../context/NotificationContext';
 import styles from './RegisterScreen.module.css'; // Importar los estilos
 import LoadingSpinner from '../components/LoadingSpinner'; 
 
-const RegisterScreen = () => {
+// Componente interno que usa el hook de Captcha
+const RegisterFormContent = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -20,6 +22,9 @@ const RegisterScreen = () => {
     // Consumimos los contextos
     const { userInfo, register, loading } = useContext(AuthContext);
     const { showNotification } = useContext(NotificationContext);
+    
+    // Hook de reCAPTCHA
+    const { executeRecaptcha } = useGoogleReCaptcha();
 
     // Redirigir a la raíz si está logueado
     const redirect = location.state?.from?.pathname || '/';
@@ -40,7 +45,14 @@ const RegisterScreen = () => {
         }
 
         try {
-            await register(name, email, password);
+            if (!executeRecaptcha) {
+                showNotification('El sistema de seguridad no está listo. Recarga la página.', 'warning');
+                return;
+            }
+
+            // Generar token de reCAPTCHA (acción: 'register')
+            const token = await executeRecaptcha('register');
+            await register(name, email, password, token);
             // Si el registro es exitoso, el useEffect se encargará de la redirección
         } catch (error) {
             // Mostrar error de la API
@@ -131,6 +143,15 @@ const RegisterScreen = () => {
                 </Card.Body>
             </Card>
         </div>
+    );
+};
+
+// Componente contenedor que provee el contexto de reCAPTCHA
+const RegisterScreen = () => {
+    return (
+        <GoogleReCaptchaProvider reCaptchaKey={process.env.REACT_APP_RECAPTCHA_SITE_KEY}>
+            <RegisterFormContent />
+        </GoogleReCaptchaProvider>
     );
 };
 
