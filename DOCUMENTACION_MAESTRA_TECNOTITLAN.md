@@ -8,8 +8,8 @@ Este documento es la guía técnica central y única fuente de verdad para el pr
 - **Omnicanal:** Sistema centralizado que se integra con múltiples canales de venta, incluyendo redes sociales (Facebook, Instagram, TikTok Shop) y marketplaces (Mercado Libre, Amazon).
 - **Comunicación Automatizada:**
 
-    - **Bot de WhatsApp:** Conectado a través de `whatsapp-web.js` (baileys), gestionado y configurable desde el panel de administración para notificaciones de pedidos y atención al cliente.
-    - **Chatbot Web:** Sincronizado con el sistema para ofrecer soporte en tiempo real en la tienda.
+    - **Bot de WhatsApp:** Conectado a través de **Baileys** (librería ligera de WebSockets), gestionado y configurable desde el panel de administración. Se reemplazó `whatsapp-web.js` para eliminar la dependencia de Chromium y asegurar compatibilidad con cPanel.
+    - **Chatbot Web:** Sincronizado con el sistema para ofrecer soporte en tiempo real.
 - **UI/UX:** Interfaz limpia, moderna y premium.
 
 ---
@@ -30,47 +30,35 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ---
 
-## 2. Estado Actual y Próximos Pasos (Continuidad del Proyecto)
+## 2. Bitácora de Vuelo: Continuidad del Proyecto
 
-**Última Actualización:** 26 de Diciembre, 2025
+**Última Actualización:** 4 de Febrero, 2026
 
-Esta sección sirve como punto de control para dar continuidad al desarrollo. **El sistema está actualmente en línea y estable.**
+Esta sección define la trayectoria del proyecto para asegurar que no perdamos el contexto entre sesiones de trabajo. **Backend y Frontend ONLINE. Fase de verificación.**
 
 **Dominios:**
-- `https://www.tecnotitlan.com.mx` (Frontend en Render)
-- `https://api.tecnotitlan.com.mx` (Backend en Lightsail)
-- tecnotitlan.shop
-- tecnotitlan.online
+- `https://www.tecnotitlan.com.mx` (Frontend - ✅ ONLINE)
+- `https://api.tecnotitlan.com.mx` (Backend - ✅ ONLINE)
+- `https://tecnotitlan.shop` (Frontend - ✅ ONLINE)
+- `https://tecnotitlan.online` (Frontend - ✅ ONLINE)
 
-### En qué nos quedamos (Resumen de la Jornada):
+### 2.1. De dónde venimos (Contexto Histórico)
+El proyecto inició como una migración crítica de un backend legacy a una arquitectura moderna **PERN**.
+- **Infraestructura:** Backend migrado de AWS Lightsail a **cPanel de Alto Rendimiento**.
+- **Incidente Reciente:** Tuvimos un bloqueo ("crash") durante la implementación del registro de usuarios. Nos quedamos en la **verificación de registro**, la cual ya está funcionando, pero falta robustecer la seguridad.
+- **Estado Anterior:** Backend en AWS Lightsail y Frontend en Render (funcionalidad limitada).
 
-1.  **Estabilización del Despliegue (Backend & Git):**
-    -   **Git History:** Se solucionó un problema crítico que impedía subir el código a GitHub (`remote rejected`). El historial de Git contenía archivos pesados de `node_modules` que superaban el límite de 100MB. Se limpió el historial local con `git reset --soft` para poder subir los cambios.
-    -   **Backend (Lightsail - Docker Build):** Se corrigió un error en el `Dockerfile` que impedía construir la imagen del backend.
-        -   Se instaló la dependencia `openssl`, requerida por Prisma en el entorno `node:18-slim`.
-        -   Se ajustó la ruta de la carpeta `prisma` para que el comando `prisma generate` se ejecutara correctamente.
-    -   **Backend (Lightsail - DB Connection):** Se solucionó el error `500 Internal Server Error` definitivo que ocurría al intentar conectar con la base de datos de Supabase.
-        -   Se añadió el parámetro `?pgbouncer=true` a la variable `DATABASE_URL` en el archivo `.env` de producción. Este parámetro es **crítico** para usar el Connection Pooler de Supabase.
-    -   **Backend (API):** Se verificó que la ruta `GET /api/settings` ya no está protegida por autenticación, permitiendo que el frontend público consuma la configuración visual (tema, logo, etc.) sin errores.
-    -   **Base de Datos (Sincronización):** Se resolvió el error `P2022` (falta de columna `type`) y la desincronización del esquema ejecutando `npx prisma db push` directamente en el VPS. Esto forzó la actualización de la estructura de la base de datos en Supabase.
+### 2.2. Dónde estamos (Estado Actual)
+-   ✅ **BACKEND 100% ESTABLE:** La API en cPanel está en línea, sin errores de arranque y conectada a la base de datos.
+-   ✅ **FRONTEND MULTI-DOMINIO:** Desplegado y funcional en `.com.mx`, `.online` y `.shop`.
+-   ✅ **INFRAESTRUCTURA:** Servidor cPanel (6 Núcleos, 6 GB RAM) configurado con Node 18 y `loader.cjs`.
+-   ✅ **ADAPTACIÓN A CPANEL:** Baileys y Prisma (`pgbouncer`) configurados y funcionando.
 
-### Estado Actual:
+### 2.3. A dónde vamos (Hoja de Ruta Inmediata)
+1.  **PRUEBA DE FLUJO:** Realizar un registro de usuario y un pedido de prueba para validar la conexión API.
+2.  **SEGURIDAD:** Activar reCAPTCHA v3 en el registro.
 
-*   ✅ **Frontend:** Desplegado, carga sin errores, consume la configuración visual del backend y permite la navegación.
-*   ✅ **Backend:** Operativo y estable. Logs verificados (`Server running in production mode`).
-*   ✅ **Base de Datos:** Migrada y sembrada con datos iniciales en Supabase.
-*   ✅ **Entorno Local:** Funcional con `docker-compose up --build` (usando la base de datos de desarrollo de Supabase).
-*   ✅ **Acceso Admin:** Verificado. El usuario administrador puede ingresar al Dashboard.
-*   ✅ **Páginas Legales:** Contenido configurado en el admin.
-*   ✅ **Autenticación:** Flujo de registro y login completamente funcional y verificado.
-
-### Próximos Pasos (Para la siguiente sesión):
-
-1.  **Prioridad #1: Prueba de Flujo de Compra (Checkout):**
-    -   Simular una compra completa usando un usuario de prueba.
-    -   Verificar que el pedido se registre en Supabase y aparezca en el Admin.
-
-## 2. Pila Tecnológica
+## 2.4. Pila Tecnológica
 
 - **Backend:** Node.js, Express.js
 - **Base de Datos:** PostgreSQL con **Prisma** (ORM moderno y type-safe)
@@ -80,8 +68,8 @@ Esta sección sirve como punto de control para dar continuidad al desarrollo. **
 - **Peticiones API:** Axios
 - **Pruebas (Backend):** Jest, Supertest.
 - **Pruebas (Frontend):** React Testing Library, Jest
-- **Automatización:** n8n (self-hosted con Docker).
-- **Contenerización:** Docker, Docker Compose.
+- **Automatización:** n8n (self-hosted en cPanel).
+- **Contenerización:** Docker (Suspendido temporalmente). Todo el desarrollo se realiza directamente en producción (cPanel) con Node.js nativo.
 
 ---
 > **⚠️ NOTA DE ARQUITECTURA (ACTUALIZACIÓN CRÍTICA):**
@@ -236,11 +224,6 @@ FROM node:18-slim AS final
 
 WORKDIR /app
 
-# Instala las dependencias de sistema necesarias para Puppeteer/whatsapp-web.js en Debian.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copia solo los artefactos necesarios del backend desde la etapa 'builder'.
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
@@ -295,26 +278,27 @@ volumes: # Define el volumen para persistir los datos de n8n
 ```shellscript
 #!/bin/bash
 
-# deploy.sh - Script para automatizar el despliegue de Tecnotitlan en el VPS.
-# Este script simplifica las actualizaciones al obtener el código más reciente
-# y reconstruir los servicios de Docker.
+# deploy.sh - Script para automatizar el despliegue de Tecnotitlan en cPanel.
+# Este script actualiza el código y reinicia la aplicación Node.js.
 
 # Salir inmediatamente si un comando falla para evitar un estado inconsistente.
 set -e
 
-echo "🚀  Iniciando el despliegue de Tecnotitlan..."
+echo "🚀  Iniciando el despliegue de Tecnotitlan en cPanel..."
 
 # 1. Obtener los últimos cambios desde el repositorio de Git.
 echo "🔄  Actualizando el código desde la rama 'main'..."
 git pull origin main
 
-# 2. Reconstruir y reiniciar los contenedores de Docker en segundo plano.
-echo "🐳  Reconstruyendo y reiniciando los servicios con Docker Compose..."
-sudo docker compose up --build -d
+# 2. Instalar dependencias (si hubo cambios en package.json)
+echo "📦  Instalando dependencias..."
+cd backend
+npm install --production
 
-# 3. (Opcional pero recomendado) Limpiar imágenes de Docker no utilizadas para liberar espacio.
-echo "🧹  Limpiando imágenes de Docker antiguas..."
-sudo docker image prune -f
+# 3. Reiniciar la aplicación Node.js (Phusion Passenger)
+echo "🔄  Reiniciando servidor..."
+mkdir -p tmp
+touch tmp/restart.txt
 
 echo "✅  ¡Despliegue completado con éxito!"
 ```
@@ -350,6 +334,7 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 -   `d:/Tecnotitlan/backend/src/routes/mercadoLibreRoutes.js`
 -   `d:/Tecnotitlan/backend/src/routes/uploadRoutes.js`
 -   `d:/Tecnotitlan/backend/src/routes/roleRoutes.js`
+-   `d:/Tecnotitlan/backend/src/routes/whatsappRoutes.js`
 -   **Middlewares:**
 -   `d:/Tecnotitlan/backend/src/middleware/authMiddleware.js`
 -   `d:/Tecnotitlan/backend/src/middleware/permissionMiddleware.js`
@@ -359,6 +344,9 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 -   `d:/Tecnotitlan/backend/src/services/whatsappService.js`
 -   `d:/Tecnotitlan/backend/src/services/configService.js`
 -   `d:/Tecnotitlan/backend/src/services/mercadoLibreService.js`
+-   `d:/Tecnotitlan/backend/src/services/emailService.js`
+-   `d:/Tecnotitlan/backend/src/services/captchaService.js`
+-   `d:/Tecnotitlan/backend/src/services/captchaService.js`
 
 ### 7.2. Frontend (`/frontend`)
 
@@ -391,6 +379,7 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 -   `d:/Tecnotitlan/frontend/src/components/Header.js`
 -   `d:/Tecnotitlan/frontend/src/components/Footer.js`
 -   `d:/Tecnotitlan/frontend/src/components/ProtectedRoute.js`
+-   `d:/Tecnotitlan/frontend/src/components/HeroSection.js`
 -   `d:/Tecnotitlan/frontend/src/components/LoadingSpinner.js`
 -   `d:/Tecnotitlan/frontend/src/components/Notification.js`
 -   `d:/Tecnotitlan/frontend/src/components/SessionManager.js`
@@ -412,6 +401,7 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
     -   **Cliente (Screens):**
         - `d:/Tecnotitlan/frontend/src/screens/LoginScreen.js`
         - `d:/Tecnotitlan/frontend/src/screens/RegisterScreen.js`
+        - `d:/Tecnotitlan/frontend/src/screens/VerifyAccountScreen.js`
         - `d:/Tecnotitlan/frontend/src/screens/ProfileScreen.js`
         - `d:/Tecnotitlan/frontend/src/screens/HomeScreen.js`
         - `d:/Tecnotitlan/frontend/src/screens/ProductDetailScreen.js`
@@ -427,7 +417,8 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 -   `/admin/products/edit/:sku`: `d:/Tecnotitlan/frontend/src/pages/admin/ProductEditScreen.js`
 -   `/admin/orderlist`: `d:/Tecnotitlan/frontend/src/pages/admin/OrderListScreen.js`
 -   `/admin/categories`: `d:/Tecnotitlan/frontend/src/pages/admin/CategoryListScreen.js`
--   `/admin/userlist`: `d:/Tecnotitlan/frontend/src/pages/admin/UserListScreen.js`
+-   `/admin/userlist`: `d:/Tecnotitlan/frontend/src/screens/admin/UserListScreen.js`
+-   `d:/Tecnotitlan/frontend/src/screens/admin/UserListScreen.module.css`
 -   `/admin/user/:id/edit`: `d:/Tecnotitlan/frontend/src/pages/admin/UserEditScreen.js`
 -   `/admin/roles`: `d:/Tecnotitlan/frontend/src/pages/admin/RoleListScreen.js` (Para listar roles)
 -   `/admin/role/:id/edit`: `d:/Tecnotitlan/frontend/src/pages/admin/RoleEditScreen.js` (Para crear/editar roles)
@@ -462,36 +453,14 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 
 ## 8. Guía de Instalación y Despliegue
 
-### 8.1. Instalación en Entorno Local
+### 8.1. Configuración de Variables de Entorno (.env)
 
-Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
+Para la estrategia de **"Desarrollo en Vivo"**, estas variables deben configurarse en el panel de cPanel ("Setup Node.js App" > Environment Variables) o en el archivo `.env` en la raíz del backend.
 
-#### Prerrequisitos
-- Node.js (v18 o superior)
-- Docker y Docker Compose
-- Git
-
-#### Pasos
-
-1.  **Clonar el repositorio:**
-    ```bash
-    git clone https://github.com/zionfinale-cloud/Tecnotitlan.git
-    cd tecnotitlan # Asegúrate de que la carpeta del proyecto se llame así
-    ```
-
-2.  **Instalar dependencias:**
-    Desde la raíz, instala las dependencias del backend y del frontend.
-    ```bash
-    # Nota: El flag --force es necesario temporalmente para resolver conflictos de dependencias.
-    npm install --force
-    cd frontend && npm install && cd ..
-    ```
-
-3.  **Configurar variables de entorno:**
-    Crea un archivo `.env` en la raíz y añade las siguientes variables:
+#### Plantilla de Producción
     ```env
     # CONFIGURACIÓN GENERAL
-    NODE_ENV=development
+    NODE_ENV=production
     PORT=5000
     JWT_SECRET=tu_secreto_super_secreto_aqui
     
@@ -501,8 +470,8 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
     # Opción 1: Usar una base de datos local con Docker (requiere configuración en docker-compose.yml)
     # DATABASE_URL="postgresql://postgres:password@localhost:5432/tecnotitlan?schema=public"
     # Opción 2: Usar la base de datos de Supabase (recomendado para un entorno de desarrollo consistente)
-    DATABASE_URL="postgresql://postgres.ecfbrxohxvvpwrhqzpwk:ze200785@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true" # URL con Pooler para la app (IMPORTANTE: ?pgbouncer=true)
-    DIRECT_URL="postgresql://postgres:ze200785@db.ecfbrxohxvvpwrhqzpwk.supabase.co:5432/postgres" # URL directa para migraciones de Prisma
+    DATABASE_URL="postgresql://postgres.[PROJECT_ID]:[PASSWORD]@[HOST]:6543/postgres?pgbouncer=true" # URL con Pooler para la app (IMPORTANTE: ?pgbouncer=true)
+    DIRECT_URL="postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres" # URL directa para migraciones de Prisma
     
     # =================================
     # SUBIDA DE ARCHIVOS ('local' o 'cloudinary')
@@ -528,34 +497,10 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
     # =================================
     MERCADOLIBRE_APP_ID=tu_app_id_de_meli
     MERCADOLIBRE_CLIENT_SECRET=tu_client_secret_de_meli
-    MERCADOLIBRE_REDIRECT_URI=http://localhost:3000/admin/settings/mercado-libre/callback
-    CLIENT_URL_PRIMARY=http://localhost:3000 # URL del Frontend (necesario para CORS)
+    MERCADOLIBRE_REDIRECT_URI=https://api.tecnotitlan.com.mx/admin/settings/mercado-libre/callback
+    CLIENT_URL_PRIMARY=https://www.tecnotitlan.com.mx # URL del Frontend (necesario para CORS)
+    RECAPTCHA_SECRET_KEY=tu_clave_secreta_de_google_recaptcha
     ```
-
-4.  **Preparar la Base de Datos (Migraciones y Seeding):**
-    Estos comandos crearán la estructura de tu base de datos y la llenarán con datos iniciales.
-    
-    ```bash
-    # 1. Aplicar migraciones existentes para crear las tablas
-    npx prisma migrate deploy
-    
-    # 2. (Opcional pero recomendado) Insertar los datos iniciales (admin, roles, etc.)
-    npm run seed:import
-    ```
-    *Nota: Para eliminar todos los datos de la base de datos, puedes usar `npm run seed:destroy`.*
-
-4.  **Iniciar los servicios:**
-    Usa Docker Compose para levantar la base de datos (si la tienes configurada en `docker-compose.yml`) y otros servicios.
-    ```bash
-    docker-compose up -d
-    ```
-
-5.  **Ejecutar la aplicación:**
-    Puedes ejecutar el backend y el frontend simultáneamente desde la raíz.
-    ```bash
-    npm run dev
-    ```
-    La aplicación estará disponible en `http://localhost:3000` y la API en `http://localhost:5000`.
 
 ### 8.2. Scripts Disponibles
 
@@ -566,86 +511,128 @@ Sigue estos pasos para configurar y ejecutar el proyecto en tu máquina.
 - `npm run seed:import`: Puebla la base de datos con datos de prueba.
 - `npm run seed:destroy`: Elimina los datos de la base de datos.
 
-### 8.3. Arquitectura de Despliegue (Estrategia "Free-to-Paid")
+### 8.3. Arquitectura de Despliegue (Estrategia cPanel de Alto Rendimiento)
 
-El proyecto sigue una filosofía de bajo costo inicial, alineando la inversión con el crecimiento.
+**Actualización (Febrero 2026):** Se ha migrado la infraestructura a un entorno **cPanel de Alto Rendimiento** (6 vCPU, 6GB RAM, 100GB SSD).
 
--   **Base de Datos (PostgreSQL):**
-    -   **Fase Gratuita:** **Supabase** (Free Tier, 500MB).
-    -   **Fase de Pago:** Escalar a un plan Pro cuando se supere el límite.
--   **Frontend (Tienda Web):**
-    -   **Fase Gratuita:** **Render** o **Vercel** (Free Tier), usando **Uptime Robot** para evitar que el servicio se "duerma".
-    -   **Fase de Pago:** Escalar solo si la latencia se vuelve un problema.
+-   **Base de Datos:** PostgreSQL (Supabase o Local en cPanel si está disponible).
+-   **Backend:** Ejecutándose como aplicación Node.js nativa en cPanel.
+-   **WhatsApp:** Integrado mediante **Baileys** (Socket) dentro del backend.
+-   **Automatización (n8n):** Ejecutándose en el mismo servidor cPanel (vía Node.js).
 
--   **Backend y n8n (Automatización):**
-    -   **Fase de Pago (Bajo Costo):** Ambos servicios se ejecutan 24/7 en un **VPS de ~$5 USD/mes** (ej. AWS Lightsail) usando Docker.
+#### 8.3.1. Guía de Despliegue en Producción (Frontend en cPanel)
 
--   **Servicios API (WhatsApp, Gemini):**
-    -   **Fase Gratuita:** Aprovechar las capas gratuitas de las APIs.
-    -   **Fase de Pago:** Modelo **Pay-As-You-Go** al superar los límites.
+El frontend se despliega como un **Sitio Estático** directamente en el hosting compartido, eliminando la dependencia de servicios externos como Render.
 
-### 8.3.1. Guía de Despliegue en Producción (Frontend en Render)
+> **⚠️ ADVERTENCIA:** No intentes usar la herramienta "Setup Node.js App" de cPanel para el frontend. El proceso `npm run build` consume demasiada memoria y fallará. El frontend **no es una aplicación de Node.js**, es un conjunto de archivos estáticos que se sirven directamente.
 
-El frontend, al ser una aplicación de React (Create React App), se despliega como un **Sitio Estático**.
+**Estrategia: Build Local -> Subida FTP/File Manager**
 
-1.  **Crear Nuevo Servicio en Render:**
-    -   Ir al Dashboard y seleccionar **New +** > **Static Site**.
-    -   Conectar el repositorio de GitHub.
-
-2.  **Configuración del Servicio:**
-    -   **Name:** `tecnotitlan-frontend` (o similar).
-    -   **Root Directory:** `frontend` (Importante para monorepo).
-    -   **Build Command:** `npm install && npm run build`
-    -   **Publish Directory:** `build` (Esta es la carpeta que genera el build).
-    -   **Environment Variables:**
-        -   `REACT_APP_API_URL`: `https://api.tecnotitlan.com.mx` (La URL segura de nuestro backend en Lightsail).
-
-
-### 8.4. Guía de Despliegue en Producción (VPS para Backend y n8n)
-
-#### 8.4.1. Detalles de Infraestructura (AWS Lightsail)
-
--   **Nombre de la Instancia:** `Ubuntu-1`
--   **Nombre de la IP Estática:** `tecnotitlan-static`
--   **IP Estática Pública:** `3.148.78.23`
--   **Región:** Ohio, us-east-2
--   **Especificaciones:** 512 MB RAM, 2 vCPUs, 20 GB SSD
--   **Sistema Operativo:** Ubuntu
-
-Esta instancia será el servidor principal para alojar el **backend de Node.js** y el motor de automatización **n8n**, ambos gestionados a través de Docker.
-
----
-
-#### 8.4.2. Pasos de Despliegue
-
-1.  **Preparar el VPS:**
-    Conéctate por SSH y actualiza el sistema.
+1.  **Generar Build Local:**
+    En tu máquina de desarrollo (no en el servidor), ejecuta:
     ```bash
-    sudo apt update && sudo apt upgrade -y
+    cd frontend
+    # Asegúrate de que .env tenga: REACT_APP_API_URL=https://api.tecnotitlan.com.mx
+    npm install
+    npm run build
     ```
 
-2.  **Instalar Docker y Docker Compose:**
-    ```bash
-    sudo apt install docker.io docker-compose -y
-    sudo systemctl start docker && sudo systemctl enable docker
-    sudo usermod -aG docker  # Requiere reiniciar sesión SSH
+2.  **Subir Archivos:**
+    -   Se generará una carpeta `build`.
+    -   Sube **el contenido** de esa carpeta (index.html, static/, etc.) a la carpeta `public_html` (o el subdominio correspondiente) en cPanel.
+
+3.  **Configuración de Rutas (.htaccess):**
+    Para que el enrutamiento de React funcione (evitar error 404 al recargar páginas internas), crea o edita el archivo `.htaccess` en la carpeta donde subiste el frontend:
+
+    ```apache
+    <IfModule mod_rewrite.c>
+      RewriteEngine On
+      RewriteBase /
+      RewriteRule ^index\.html$ - [L]
+      RewriteCond %{REQUEST_FILENAME} !-f
+      RewriteCond %{REQUEST_FILENAME} !-d
+      RewriteCond %{REQUEST_FILENAME} !-l
+      RewriteRule . /index.html [L]
+    </IfModule>
     ```
 
-3.  **Clonar el Repositorio y Configurar `.env`:**
-    ```bash
-    git clone https://github.com/zionfinale-cloud/Tecnotitlan.git
-    cd Tecnotitlan
-    nano .env # Crea y edita el archivo con tus variables de producción
+    > **Nota:** Al ser archivos estáticos, **no es necesario reiniciar el servidor** en cPanel. Los cambios son inmediatos (si no los ves, limpia la caché de tu navegador).
+
+#### 8.3.2. Guía de Despliegue en Producción (Backend en cPanel)
+
+El backend se ejecuta utilizando la herramienta **"Setup Node.js App"** de cPanel.
+
+#### Prerrequisito: Whitelist de IP en Supabase
+Antes del primer despliegue, es **crítico** añadir la dirección IP de tu servidor cPanel a la lista de redes permitidas en Supabase para evitar errores de conexión (P1001).
+1.  Obtén la IP de tu servidor (puedes usar `curl ifconfig.me` en la terminal SSH).
+2.  En tu proyecto de Supabase, ve a `Project Settings` > `Database` > `Network Restrictions` y añade la IP.
+
+1.  **Preparación en cPanel:**
+    -   Acceder a "Setup Node.js App".
+    -   Crear una nueva aplicación.
+    -   **Node.js Version:** **18.x** (Recomendado por estabilidad con Prisma).
+    -   **Application Mode:** Production.
+    -   **Application root:** `repositories/Tecnotitlan/backend` (o la ruta donde clones el repo).
+    -   **Application URL:** `api.tecnotitlan.com.mx`.
+    -   **Application startup file:** `loader.cjs` (CRÍTICO: No usar `src/index.js` directamente).
+
+2.  **Instalación de Dependencias:**
+    -   Acceder vía SSH al servidor.
+    -   Navegar a la carpeta del backend.
+    -   Ejecutar `npm install`.
+
+3.  **Variables de Entorno:**
+    -   Configurar las variables del archivo `.env` directamente en la interfaz de cPanel o crear el archivo `.env` en la raíz de la aplicación.
+
+4.  **Despliegue Automático (Script):**
+    Utiliza el siguiente script `deploy.sh` adaptado para cPanel (requiere acceso SSH):
+
+    ```shellscript
+    #!/bin/bash
+    # deploy.sh - Despliegue en cPanel
+    
+    # IMPORTANTE: Asegúrate de estar ejecutando este script dentro del entorno virtual de Node correcto (v18).
+    # source /home/usuario/nodevenv/ruta/18/bin/activate
+    
+    set -e
+    
+    # Configuración crítica para estabilidad en cPanel: Usar motor binario
+    export PRISMA_CLIENT_ENGINE_TYPE=binary
+    
+    echo "🚀 Iniciando despliegue en cPanel..."
+    
+    # 1. Actualizar código
+    echo "🚫 Saltando actualización de Git (Modo Desarrollo en Vivo)..."
+    
+    # 2. Instalar dependencias del backend
+    echo "📦 Instalando dependencias..."
+    npm install --production
+    
+    # 2.1. Generar cliente de Prisma
+    echo "💎 Generando cliente de Prisma..."
+    npx prisma generate
+    
+    # 3. Reiniciar la aplicación Node.js (Método estándar cPanel)
+    # Esto le indica a Phusion Passenger que reinicie la app
+    if [ ! -d "tmp" ]; then
+      mkdir tmp
+    fi
+    touch tmp/restart.txt
+    
+    echo "✅ Despliegue completado."
     ```
 
-4.  **Ejecutar el Script de Despliegue:**
-    El script `deploy.sh` se encarga de todo: actualiza el código, reconstruye las imágenes y levanta los servicios definidos en `docker-compose.yml`.
+5.  **Verificación:**
+    En cPanel (Phusion Passenger), la aplicación no siempre escucha en `localhost:5000`. Para verificar si está corriendo:
     ```bash
-    ./deploy.sh
+    # Opción 1: Consultar el dominio público
+    curl -I https://api.tecnotitlan.com.mx
+    
+    # Opción 2: Revisar logs de errores si no responde (archivo generado por cPanel en la raíz de la app)
+    cat stderr.log
     ```
 
-4.  **Configurar Reverse Proxy y SSL (Crítico):**
-    Es **indispensable** configurar un reverse proxy (como Nginx o Caddy) para usar tu dominio y añadir un certificado SSL (HTTPS).
+> **Nota sobre WhatsApp:** Se utiliza **Baileys** por su ligereza y compatibilidad nativa con cPanel. Si en el futuro se requiere una API externa más robusta y se dispone de soporte Docker completo, se recomienda evaluar **EvolutionAPI**.
 
 ---
 
@@ -683,17 +670,17 @@ A continuación se describe la arquitectura completa del pipeline de automatizac
 
 ### Componentes de Costo Fijo Bajo (Fase de Producción)
 1.  **Dominio:** `Tecnotitlan.mx` (~-2/mes anualizado).
-2.  **Motor de Automatización (n8n):** VPS en AWS Lightsail (Trial/~ USD/mes) con Docker.
-3.  **Base de Datos:** Supabase (Free Tier).
-4.  **Frontend:** Render/Vercel (Free Tier) + Uptime Robot (para evitar que el servicio se "duerma").
+2.  **Motor de Automatización (n8n):** Servidor cPanel (Infraestructura propia de alto rendimiento).
+3.  **Base de Datos:** Supabase (Free Tier) o PostgreSQL local en cPanel.
+4.  **Frontend:** Hospedado en cPanel (Archivos estáticos en `public_html`). Sin costos extra.
 
 > **Aclaración sobre la Licencia de n8n:**
-> n8n opera con un modelo "source-available". La versión que se utiliza en este proyecto es **self-hosted** (auto-alojada) a través de Docker. Esta modalidad de uso es **gratuita**. Los planes de pago de n8n corresponden a su servicio en la nube (n8n Cloud), donde ellos gestionan la infraestructura. Al nosotros gestionar nuestro propio servidor (VPS), solo pagamos por el costo del servidor, no por la licencia del software n8n.
+> n8n opera con un modelo "source-available". La versión que se utiliza en este proyecto es **self-hosted** (auto-alojada) ejecutándose como servicio Node.js. Esta modalidad de uso es **gratuita**. Los planes de pago de n8n corresponden a su servicio en la nube (n8n Cloud), donde ellos gestionan la infraestructura. Al nosotros gestionar nuestro propio servidor (cPanel), solo pagamos por el costo del hosting, no por la licencia del software n8n.
 
 ### Flujo de Trabajo Completo (Pipeline)
 
-#### ➡️ ETAPA 1: Ingreso del Pedido (Render -> Supabase)
-1.  **FRONTEND (RENDER):** El cliente completa el checkout en la tienda web.
+#### ➡️ ETAPA 1: Ingreso del Pedido (Frontend cPanel -> Supabase)
+1.  **FRONTEND (CPANEL):** El cliente completa el checkout en la tienda web.
 2.  **ACCIÓN:** El código de la tienda (Frontend) realiza una inserción (`INSERT`) directa a la tabla `orders` en la base de datos de Supabase.
 
 #### ➡️ ETAPA 2: Activación del Motor (Supabase Trigger -> n8n Webhook)
@@ -701,7 +688,7 @@ A continuación se describe la arquitectura completa del pipeline de automatizac
 4.  **PUENTE:** La función del Trigger llama a un **Webhook de n8n** alojado en el VPS.
     -   *URL del Webhook a configurar en Supabase:* `https://n8n.tecnotitlan.mx/webhook/TU_WEBHOOK_ID_SECRETO`
 
-#### ➡️ ETAPA 3: Automatización (n8n en VPS)
+#### ➡️ ETAPA 3: Automatización (n8n en cPanel)
 5.  **WEBHOOK (n8n):** Recibe el ID del pedido y **ACTIVA** el Workflow.
 6.  **SUPABASE:** Consulta la DB para obtener todos los detalles del pedido (productos, dirección, etc.).
 7.  **MARKETPLACE/PROVEEDOR:** Nodo "HTTP Request" para enviar la orden de compra (dropshipping) a la API del proveedor.
@@ -713,15 +700,15 @@ A continuación se describe la arquitectura completa del pipeline de automatizac
 
 La gran ventaja de esta arquitectura es la forma en que se utiliza Node.js.
 
-#### ⚙️ El Node.js Ejecutado es n8n
+#### ⚙️ El Node.js Ejecutado es n8n (cPanel)
 
-El código Node.js que necesita ejecutarse de forma continua (24/7) es el motor de **n8n**, ya que n8n es una aplicación desarrollada en Node.js. Al instalarlo con Docker en la instancia de Lightsail, se está ejecutando una instancia persistente de Node.js que gestionará todos los workflows, notificaciones de WhatsApp y la sincronización con los marketplaces.
+El código Node.js que necesita ejecutarse de forma continua (24/7) es el motor de **n8n**, ya que n8n es una aplicación desarrollada en Node.js. Al instalarlo en el servidor cPanel (aprovechando los 6 núcleos y 6GB de RAM), se está ejecutando una instancia persistente de Node.js que gestionará todos los workflows.
 
 #### La División de la Lógica
 
--   **Node.js en el Frontend (Render):** El frontend de la tienda (React, Next.js, etc.) puede usar un entorno Node.js para el renderizado. Este código es el que se "despierta y duerme", y su única función crítica en este pipeline es guardar el pedido inicial en Supabase.
+-   **Frontend (Estático en cPanel):** El frontend es una SPA (Single Page Application) servida como archivos estáticos. Se ejecuta en el navegador del cliente y su función crítica es guardar el pedido inicial en Supabase.
 
--   **Node.js en el Backend (Lightsail/n8n):** La instancia de n8n está siempre activa en Lightsail. Esta instancia ejecuta el código Node.js necesario para:
+-   **Node.js en el Backend (cPanel/n8n):** La instancia de n8n está siempre activa en el servidor. Esta instancia ejecuta el código Node.js necesario para:
     - Escuchar el Webhook de Supabase.
     - Conectarse a la base de datos para obtener detalles.
     - Enviar solicitudes a las APIs de los proveedores.
@@ -729,28 +716,30 @@ El código Node.js que necesita ejecutarse de forma continua (24/7) es el motor 
 
 ### Estrategia de Desarrollo del Pipeline (n8n Local)
 
+> **⚠️ NOTA:** Estrategia suspendida temporalmente. Se prioriza la configuración directa en el servidor de producción ("Desarrollo en Vivo").
+
 Para construir y probar los workflows de n8n de forma segura y sin costo antes del despliegue, se utiliza un entorno de desarrollo local completamente integrado gracias a Docker.
 
 #### 1. Ambiente Local (Tu PC)
 -   **Software a Usar:** El archivo `docker-compose.yml` orquesta todos los servicios necesarios: el backend, la base de datos PostgreSQL y el motor de n8n.
--   **Costo:**  USD (solo el consumo de recursos de tu equipo).
+-   **Costo:** $0 USD (solo el consumo de recursos de tu equipo).
 -   **Función:** Construir y probar la lógica: conectar el nodo de Supabase, dar formato a los mensajes de WhatsApp y mapear el envío al proveedor.
 -   **Limitación:** Los Webhooks no funcionarán, ya que tu IP local no es pública. Se debe usar el botón **"Execute Workflow"** manualmente para las pruebas.
 
 #### 2. Conexión a Base de Datos Local (Persistencia)
 -   **Acción:** La instancia de n8n que corre en Docker se conecta a la misma base de datos PostgreSQL (`tecnotitlan_postgres`) que utiliza el backend.
--   **Ventaja:** Todos los workflows y credenciales que crees se guardan en la base de datos local. Esto permite un desarrollo y prueba de integraciones completamente aislado y consistente, ya que tanto el backend como n8n operan sobre los mismos datos.
+-   **Ventaja:** Todos los workflows y credenciales que crees se guardan en la base de datos local. Esto permite un desarrollo y prueba de integraciones completamente aislado.
 
 #### Secuencia Recomendada
 1.  **Instalar n8n Localmente:** Sigue la guía oficial para instalar la versión Desktop (la más fácil).
 1.  **Levantar el Entorno Docker:** Ejecuta `docker-compose up` en la raíz del proyecto. Esto iniciará el backend, la base de datos y n8n.
 2.  **Construir Workflows:** Accede a n8n en `http://localhost:5678` y crea todos los flujos necesarios (Pedido a WhatsApp, Actualización de Stock, etc.).
 3.  **Verificar Lógica:** Ejecuta manualmente cada flujo para confirmar que se conecta a la base de datos local y procesa los datos correctamente.
-4.  **Desplegar a Producción:** Solo cuando toda la lógica esté lista y probada, puedes exportar los workflows (como JSON) y desplegarlos en una instancia de producción (ej. en un VPS) que ya se conectará a la base de datos de producción (Supabase).
+4.  **Desplegar a Producción:** Solo cuando toda la lógica esté lista y probada, puedes exportar los workflows (como JSON) y desplegarlos en la instancia de producción (cPanel) que ya se conectará a la base de datos de producción (Supabase).
 
 ---
 
-> **💡 NOTA CLAVE:** El motor de **n8n en el VPS** es el único componente de pago fijo (~/mes) que garantiza la ejecución 24/7 de la lógica crítica del negocio, mientras que los demás componentes (Base de Datos, Frontend) escalan desde sus capas gratuitas.
+> **💡 NOTA CLAVE:** El motor de **n8n en cPanel** es el componente central que garantiza la ejecución 24/7 de la lógica crítica del negocio, aprovechando la velocidad superior del servidor.
 
 ---
 
@@ -772,7 +761,28 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 
 ### Componentes Clave
 - **Backend:** El servicio `whatsappService.js` y los endpoints de control en `index.js` gestionan la inicialización y el estado de la conexión mediante **Socket.IO**.
-- **Frontend:** La pantalla `WhatsappSettingsScreen.js` se conecta vía WebSockets para mostrar el código QR y el estado de la conexión en tiempo real.
+- **Inicialización:** Al arrancar el servidor (`npm start`), `index.js` inicializa `whatsappService` y le pasa la instancia de `io` (Socket.IO) para permitir la comunicación en tiempo real con el frontend (QR, estados).
+- **Frontend:** La pantalla `WhatsappSettingsScreen.js` escucha estos eventos de WebSockets para mostrar el código QR y el estado de la conexión sin necesidad de recargar la página.
+
+---
+
+## 14. Troubleshooting
+
+### No puedo iniciar sesión como administrador (Error 401)
+
+Si después de un despliegue nuevo no puedes iniciar sesión y recibes un error `401 Unauthorized` en la consola del navegador, las causas más probables son:
+
+1.  **La base de datos está vacía:** La causa más común es que la base de datos de producción (Supabase) no tiene ningún usuario. La migración a cPanel implicó crear una base de datos nueva, y los usuarios no se migran automáticamente.
+    -   **Solución:** Ejecuta el script de "seeding" para crear el usuario administrador por defecto y otros datos iniciales. Conéctate al servidor por SSH y ejecuta:
+        ```bash
+        # Dentro de la carpeta del backend, con el entorno de Node activado
+        npm run seed:import
+        ```
+    -   Verifica las credenciales por defecto en el archivo `d:/Tecnotitlan/backend/prisma/seed.js`.
+
+2.  **Conflicto con reCAPTCHA:** Si en la consola del navegador ves un aviso de `recaptcha key not provided`, puede que el backend esté requiriendo la validación pero el frontend no la esté enviando.
+    -   **Solución a Largo Plazo:** Asegúrate de que las variables `REACT_APP_RECAPTCHA_SITE_KEY` (en el frontend) y `RECAPTCHA_SECRET_KEY` (en el backend) estén configuradas correctamente.
+    -   **Prueba de Diagnóstico Rápida:** Para descartar que este sea el problema, puedes comentar temporalmente el middleware de `verifyCaptcha` en la ruta de login (`/api/users/login`) dentro del archivo `d:/Tecnotitlan/backend/src/routes/userRoutes.js`.
 # Aviso de Privacidad Integral
 
 **Última actualización:** Diciembre 2025

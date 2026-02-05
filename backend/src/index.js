@@ -1,3 +1,5 @@
+import 'dotenv/config'; // Carga las variables de entorno inmediatamente, antes de otros imports
+
 import path from 'path';
 import express from 'express';
 import http from 'http';
@@ -23,7 +25,7 @@ import reportRoutes from './routes/reportRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
 import roleRoutes from './routes/roleRoutes.js';
 import mercadoLibreRoutes from './routes/mercadoLibreRoutes.js';
-import whatsappRoutes from './routes/whatsappRoutes.js'; // Importar nuevas rutas
+import whatsappRoutes from './routes/whatsappRoutes.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
@@ -37,14 +39,28 @@ let serverReadyPromise;
 const startServer = async () => {
   try {
     // Conexión a Prisma usando la instancia importada
-    await prisma.$connect();
-    logger.info('Successfully connected to the database with Prisma.');
+    // Implementamos un mecanismo de reintento para manejar inestabilidades transitorias en cPanel
+    let connected = false;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 5;
 
+    while (!connected && attempts < MAX_ATTEMPTS) {
+      try {
+        await prisma.$connect();
+        connected = true;
+        logger.info('Successfully connected to the database with Prisma.');
+      } catch (err) {
+        attempts++;
+        logger.error(`Database connection attempt ${attempts} failed: ${err.message}. Retrying in 2s...`);
+        if (attempts >= MAX_ATTEMPTS) throw err;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
     await initializeConfig();
     logger.info('Configuration loaded from DB.');
 
-    // Pasar la instancia de Socket.IO al servicio de WhatsApp
-    whatsappService.setSocketIO(io);
+    // Pasar la instancia de Socket.IO al servicio de WhatsApp
+    whatsappService.setSocketIO(io);
 
     app.use(express.json());
     app.use(cors());
@@ -109,7 +125,7 @@ const startServer = async () => {
     app.use('/api/settings', settingRoutes); // Unificado
     app.use('/api/roles', roleRoutes);
     app.use('/api/mercadolibre', mercadoLibreRoutes);
-    app.use('/api/integrations/whatsapp', whatsappRoutes); // Usar nuevas rutas
+    app.use('/api/integrations/whatsapp', whatsappRoutes);
 
     const __dirname = path.resolve();
     app.use('/uploads', express.static(path.join(__dirname, '/uploads')));

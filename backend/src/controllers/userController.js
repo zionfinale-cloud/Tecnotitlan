@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
 import { AppError, BadRequestError, NotFoundError, UnauthorizedError } from '../utils/errorUtils.js';
+import { verifyCaptcha } from '../services/captchaService.js';
 
 // Función para generar un token JWT
 const generateToken = (id) => {
@@ -30,7 +31,8 @@ const registerUser = asyncHandler(async (req, res, next) => {
     city,
     state,
     postalCode,
-    name // Agregamos soporte para el campo 'name' unificado del frontend
+    name, // Agregamos soporte para el campo 'name' unificado del frontend
+    captchaToken // Token recibido del frontend
   } = req.body;
 
   // FIX: Compatibilidad con frontend que envía 'name' completo
@@ -42,6 +44,24 @@ const registerUser = asyncHandler(async (req, res, next) => {
 
   if (!email) {
     return next(new BadRequestError('El email es obligatorio.'));
+  }
+
+  // VALIDACIÓN DE CAPTCHA (Seguridad Anti-Bot)
+  const isHuman = await verifyCaptcha(captchaToken);
+  if (!isHuman) {
+    return next(new BadRequestError('Error de seguridad: Actividad sospechosa detectada (Captcha).'));
+  }
+
+  // VALIDACIÓN DE SEGURIDAD
+  // 1. Validar formato de email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return next(new BadRequestError('El formato del correo electrónico no es válido.'));
+  }
+
+  // 2. Validar seguridad de contraseña (mínimo 8 caracteres)
+  if (!password || password.length < 8) {
+    return next(new BadRequestError('La contraseña debe tener al menos 8 caracteres para ser segura.'));
   }
 
   // La validación de campos (name, email, password) ahora la hace el middleware.

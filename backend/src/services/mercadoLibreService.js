@@ -1,10 +1,9 @@
 import axios from 'axios';
 import { URLSearchParams } from 'url';
-import { PrismaClient } from '@prisma/client';
 import logger from '../utils/logger.js';
 import { getConfig } from './configService.js';
+import prisma from '../config/prisma.js';
 
-const prisma = new PrismaClient();
 
 /**
  * Refresca un access token de Mercado Libre que ha expirado.

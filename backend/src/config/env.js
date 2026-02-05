@@ -1,8 +1,3 @@
-import dotenv from 'dotenv';
-
-// Carga las variables de entorno desde el archivo .env en la raíz del proyecto
-dotenv.config();
-
 // Lista de variables de entorno críticas para el funcionamiento de la aplicación.
 const requiredEnvVars = [
   'DATABASE_URL',
@@ -23,6 +18,7 @@ export const config = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: process.env.PORT || 5000,
   DATABASE_URL: process.env.DATABASE_URL,
+  DIRECT_URL: process.env.DIRECT_URL,
   JWT_SECRET: process.env.JWT_SECRET,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '30d',
   PAYPAL_CLIENT_ID: process.env.PAYPAL_CLIENT_ID,

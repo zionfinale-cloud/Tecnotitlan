@@ -43,6 +43,8 @@ export const loadConfigFromDB = async () => {
  * Esta función se llama una vez desde `index.js`.
  */
 export const initializeConfig = async () => {
+  // DEBUG: Log para verificar la URL de la base de datos que está usando el proceso.
+  logger.debug('Verificando DATABASE_URL en uso:', { url: process.env.DATABASE_URL });
   logger.info('Configuración inicializada.');
   await loadConfigFromDB();
 };

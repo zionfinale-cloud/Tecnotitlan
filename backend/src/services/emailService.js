@@ -151,7 +151,49 @@ const sendOrderShippedNotification = async (order, shippingGuide) => {
   }
 };
 
+/**
+ * Envía un correo de activación de cuenta al usuario.
+ * @param {string} name - Nombre del usuario.
+ * @param {string} email - Correo electrónico del usuario.
+ * @param {string} token - Token de activación generado.
+ */
+const sendActivationEmail = async (name, email, token) => {
+  const config = getConfig();
+  // Usamos FRONTEND_URL si existe en config, si no, asumimos el dominio de producción o localhost
+  const frontendUrl = config.FRONTEND_URL || 'https://tecnotitlan.mx';
+  const activationLink = `${frontendUrl}/verify/${token}`;
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;">
+      <h1 style="color: #00DC82;">¡Bienvenido a Tecnotitlan!</h1>
+      <p>Hola ${name},</p>
+      <p>Gracias por registrarte. Para activar tu cuenta y comenzar a comprar, por favor confirma tu correo:</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${activationLink}" style="background-color: #00DC82; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">Activar mi Cuenta</a>
+      </div>
+      
+      <p style="font-size: 0.9em; color: #666;">Si el botón no funciona, copia este enlace en tu navegador: <br> <a href="${activationLink}">${activationLink}</a></p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: `"Tecnotitlan" <${config.EMAIL_USER}>`, // Usamos el mismo sender autenticado
+    to: email,
+    subject: 'Activa tu cuenta en Tecnotitlan',
+    html: htmlContent,
+  };
+
+  try {
+    const info = await getTransporter().sendMail(mailOptions);
+    logger.info(`Correo de activación enviado a ${email}: ${info.messageId}`);
+  } catch (error) {
+    logger.error(`Error al enviar correo de activación a ${email}:`, error);
+  }
+};
+
 module.exports = {
   sendOrderConfirmation,
   sendOrderShippedNotification,
+  sendActivationEmail,
 };

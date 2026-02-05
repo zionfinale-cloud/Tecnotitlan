@@ -5,10 +5,8 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "npx prisma generate && node src/index.js",
     "server": "nodemon src/index.js",
-    "debug": "node src/debug.js",
-    "debug:granular": "node src/debug-granular.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "echo 'Skipping automatic prisma generate. Run manually if needed.'",
     "prisma:deploy": "npx prisma migrate deploy --schema=./prisma/schema.prisma",
@@ -16,6 +14,7 @@
     "seed:destroy": "node prisma/destroy.js"
   },
   "prisma": {
+    "schema": "prisma/schema.prisma",
     "seed": "npm run seed:import"
   },
   "dependencies": {
