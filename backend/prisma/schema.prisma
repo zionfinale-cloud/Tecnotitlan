@@ -28,6 +28,8 @@ model User {
   city           String?
   state          String?
   postalCode     String?  @map("postal_code")
+  isVerified     Boolean  @default(false) @map("is_verified")
+  verificationToken String? @map("verification_token")
   role       Role      @relation(fields: [roleId], references: [id])
   roleId     String
   createdAt  DateTime  @default(now())

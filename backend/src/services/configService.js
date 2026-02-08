@@ -44,7 +44,8 @@ export const loadConfigFromDB = async () => {
  */
 export const initializeConfig = async () => {
   // DEBUG: Log para verificar la URL de la base de datos que está usando el proceso.
-  logger.debug('Verificando DATABASE_URL en uso:', { url: process.env.DATABASE_URL });
+  const safeUrl = process.env.DATABASE_URL?.replace(/:([^:@]+)@/, ':****@');
+  logger.debug('Verificando DATABASE_URL en uso:', { url: safeUrl });
   logger.info('Configuración inicializada.');
   await loadConfigFromDB();
 };

@@ -1,10 +1,12 @@
 // backend/src/controllers/userController.js @userController.js
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
 import { AppError, BadRequestError, NotFoundError, UnauthorizedError } from '../utils/errorUtils.js';
 import { verifyCaptcha } from '../services/captchaService.js';
+import { sendVerificationEmail } from '../services/emailService.js';
 
 // Función para generar un token JWT
 const generateToken = (id) => {
@@ -75,6 +77,9 @@ const registerUser = asyncHandler(async (req, res, next) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
+  // 2.5 Generar token de verificación criptográfico
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+
   // 3. Buscar el rol 'USER' por defecto, incluyendo sus permisos (aunque esté vacío).
   const defaultRole = await prisma.role.findUnique({ where: { name: 'USER' }, include: { permissions: { select: { name: true } } } });
   if (!defaultRole) {
@@ -99,28 +104,51 @@ const registerUser = asyncHandler(async (req, res, next) => {
       postalCode,
       // Asignar el ID del rol encontrado. Ignoramos cualquier 'role' que venga del body por seguridad.
       roleId: defaultRole.id,
+      verificationToken,
+      isVerified: false, // El usuario nace inactivo
     },
   });
 
   if (user) {
+    // Enviar correo con el Link Mágico
+    await sendVerificationEmail(user.email, verificationToken);
+
     res.status(201).json({
       status: 'success',
-      data: {
-        id: user.id,
-        name: `${user.firstName} ${user.lastName}`, // Devolvemos un nombre completo
-        email: user.email,
-        countryCode: user.countryCode,
-        phone: user.phone,
-        // No devolvemos la dirección completa en la respuesta del login/registro por brevedad
-        role: defaultRole.name,
-        permissions: defaultRole.permissions.map(p => p.name), // Devolver permisos para consistencia
-        token: generateToken(user.id), // Generar y enviar token
-      },
+      message: 'Registro exitoso. Por favor revisa tu correo para activar tu cuenta.',
     });
   } else {
     // Este caso es menos probable con asyncHandler, pero es bueno tenerlo
     return next(new BadRequestError('No se pudo crear el usuario.'));
   }
+});
+
+// @desc    Verificar correo electrónico del usuario
+// @route   GET /api/users/confirm/:token
+// @access  Public
+const verifyEmail = asyncHandler(async (req, res, next) => {
+  const { token } = req.params;
+
+  const user = await prisma.user.findFirst({
+    where: { verificationToken: token },
+  });
+
+  if (!user) {
+    return next(new BadRequestError('Token de verificación inválido o expirado.'));
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      isVerified: true,
+      verificationToken: null, // Consumir el token
+    },
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Cuenta verificada exitosamente. Ya puedes iniciar sesión.',
+  });
 });
 
 // @desc    Autenticar (iniciar sesión) un usuario
@@ -140,6 +168,11 @@ const loginUser = asyncHandler(async (req, res, next) => {
       },
     },
   });
+
+  // 1.5 Verificar si el usuario ha confirmado su correo
+  if (user && !user.isVerified) {
+    return next(new UnauthorizedError('Por favor verifica tu correo electrónico antes de iniciar sesión.'));
+  }
 
   // 2. Si el usuario no existe o la contraseña no coincide, lanzar error.
   if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -362,6 +395,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 
 export {
   registerUser,
+  verifyEmail,
   loginUser,
   getUserProfile,
   updateUserProfile,

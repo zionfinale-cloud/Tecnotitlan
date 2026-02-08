@@ -1,7 +1,7 @@
-const axios = require('axios');
-const { getConfig } = require('./configService'); // Usando la configuración centralizada con CommonJS
-const { UnauthorizedError, NotFoundError } = require('../utils/errorUtils');
-const logger = require('../utils/logger');
+import axios from 'axios';
+import { getConfig } from './configService.js';
+import { UnauthorizedError, NotFoundError } from '../utils/errorUtils.js';
+import logger from '../utils/logger.js';
 
 const getPayPalApiBase = () => {
   const config = getConfig();
@@ -91,6 +91,4 @@ const verifyPayPalPayment = async (paypalOrderID, expectedAmount) => {
   }
 };
 
-module.exports = {
-  verifyPayPalPayment,
-};
+export { verifyPayPalPayment };

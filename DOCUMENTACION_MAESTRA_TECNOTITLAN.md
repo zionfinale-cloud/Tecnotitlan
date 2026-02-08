@@ -32,31 +32,32 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ## 2. Bitácora de Vuelo: Continuidad del Proyecto
 
-**Última Actualización:** 4 de Febrero, 2026
+**Última Actualización:** 6 de Febrero, 2026 (Cierre de Sesión - Madrugada)
 
-Esta sección define la trayectoria del proyecto para asegurar que no perdamos el contexto entre sesiones de trabajo. **Backend y Frontend ONLINE. Fase de verificación.**
+Esta sección define la trayectoria del proyecto para asegurar que no perdamos el contexto entre sesiones de trabajo. **Fase de Estabilización en Producción.**
 
 **Dominios:**
 - `https://www.tecnotitlan.com.mx` (Frontend - ✅ ONLINE)
 - `https://api.tecnotitlan.com.mx` (Backend - ✅ ONLINE)
-- `https://tecnotitlan.shop` (Frontend - ✅ ONLINE)
-- `https://tecnotitlan.online` (Frontend - ✅ ONLINE)
 
-### 2.1. De dónde venimos (Contexto Histórico)
-El proyecto inició como una migración crítica de un backend legacy a una arquitectura moderna **PERN**.
-- **Infraestructura:** Backend migrado de AWS Lightsail a **cPanel de Alto Rendimiento**.
-- **Incidente Reciente:** Tuvimos un bloqueo ("crash") durante la implementación del registro de usuarios. Nos quedamos en la **verificación de registro**, la cual ya está funcionando, pero falta robustecer la seguridad.
-- **Estado Anterior:** Backend en AWS Lightsail y Frontend en Render (funcionalidad limitada).
+### 2.1. De dónde venimos (Logros de la Sesión)
+Venimos de una sesión intensiva de despliegue y configuración de infraestructura en cPanel:
+- **Backend Desplegado:** Logramos que Node.js corra nativamente en cPanel, superando el error `P1001` de Supabase (bloqueo de IP) y los problemas de carga de variables de entorno (`dotenv` con rutas absolutas).
+- **Frontend Migrado:** Movimos el frontend de Render a cPanel (hosting estático). Solucionamos los errores 404 de rutas con `.htaccess`.
+- **Conectividad:** Verificamos que el backend responde públicamente y se conecta a la base de datos sin errores.
 
-### 2.2. Dónde estamos (Estado Actual)
--   ✅ **BACKEND 100% ESTABLE:** La API en cPanel está en línea, sin errores de arranque y conectada a la base de datos.
--   ✅ **FRONTEND MULTI-DOMINIO:** Desplegado y funcional en `.com.mx`, `.online` y `.shop`.
--   ✅ **INFRAESTRUCTURA:** Servidor cPanel (6 Núcleos, 6 GB RAM) configurado con Node 18 y `loader.cjs`.
--   ✅ **ADAPTACIÓN A CPANEL:** Baileys y Prisma (`pgbouncer`) configurados y funcionando.
+### 2.2. Dónde estamos (Bloqueo Actual)
+El sistema está desplegado, pero **el registro de usuarios falló** en la última prueba.
 
-### 2.3. A dónde vamos (Hoja de Ruta Inmediata)
-1.  **PRUEBA DE FLUJO:** Realizar un registro de usuario y un pedido de prueba para validar la conexión API.
-2.  **SEGURIDAD:** Activar reCAPTCHA v3 en el registro.
+*   **Error Crítico:** `<GoogleReCaptchaProvider /> recaptcha key not provided` en la consola del navegador.
+*   **Diagnóstico:** Aunque corregimos el archivo `.env` localmente (`REACT_APP_RECAPTCHA_SITE_KEY`), es probable que el **build** de React no se haya regenerado o subido correctamente, por lo que la aplicación en producción sigue sin tener la clave pública de reCAPTCHA incrustada.
+*   **Estado:** El backend está listo y esperando peticiones, pero el frontend está bloqueado por esta configuración faltante.
+
+### 2.3. A dónde vamos (Próximos Pasos al Retomar)
+1.  **Reconstrucción Limpia:** Ejecutar `npm run build` en local asegurando que el `.env` sea leído correctamente.
+2.  **Redespliegue Frontend:** Subir la nueva carpeta `build` a `public_html` en cPanel.
+3.  **Prueba Final de Registro:** Validar que el Captcha cargue y el usuario se cree en la base de datos.
+4.  **Verificación de Email:** Confirmar que el correo de bienvenida llega a la bandeja de entrada.
 
 ## 2.4. Pila Tecnológica
 
@@ -345,7 +346,6 @@ Para facilitar la navegación y el análisis futuro del código, a continuación
 -   `d:/Tecnotitlan/backend/src/services/configService.js`
 -   `d:/Tecnotitlan/backend/src/services/mercadoLibreService.js`
 -   `d:/Tecnotitlan/backend/src/services/emailService.js`
--   `d:/Tecnotitlan/backend/src/services/captchaService.js`
 -   `d:/Tecnotitlan/backend/src/services/captchaService.js`
 
 ### 7.2. Frontend (`/frontend`)
