@@ -288,8 +288,8 @@ set -e
 echo "🚀  Iniciando el despliegue de Tecnotitlan en cPanel..."
 
 # 1. Obtener los últimos cambios desde el repositorio de Git.
-echo "🔄  Actualizando el código desde la rama 'main'..."
-git pull origin main
+echo "  Saltando actualización de Git (Modo Desarrollo en Vivo)..."
+# git pull origin main
 
 # 2. Instalar dependencias (si hubo cambios en package.json)
 echo "📦  Instalando dependencias..."
@@ -532,7 +532,9 @@ El frontend se despliega como un **Sitio Estático** directamente en el hosting 
     En tu máquina de desarrollo (no en el servidor), ejecuta:
     ```bash
     cd frontend
-    # Asegúrate de que .env tenga: REACT_APP_API_URL=https://api.tecnotitlan.com.mx
+    # Asegúrate de que .env tenga las variables críticas:
+    # REACT_APP_API_URL=https://api.tecnotitlan.com.mx
+    # REACT_APP_RECAPTCHA_SITE_KEY=tu_clave_publica_de_recaptcha
     npm install
     npm run build
     ```
@@ -654,7 +656,7 @@ Este pipeline asegura que el código nuevo no rompa la funcionalidad existente.
 
 1.  **Fortalecer Pruebas en el Frontend:**
     -   **Base Establecida:** Pruebas unitarias y de integración con **React Testing Library**.
-    -   **Próximo Paso (Pruebas End-to-End):** Implementar **Cypress** o **Playwright** para automatizar flujos críticos de usuario.
+    -   **En Progreso (Pruebas End-to-End):** Se ha configurado el workflow de **Cypress** (`frontend-e2e.yml`) y existen pruebas iniciales (`checkout.cy.js`).
 
 2.  **Funcionalidades Futuras:**
     -   Completar la integración con **Mercado Libre**.
