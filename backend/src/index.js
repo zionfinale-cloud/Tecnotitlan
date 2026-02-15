@@ -140,6 +140,23 @@ const startServer = async () => {
         `);
       });
 
+    // --- RUTA DE DEPURACIÓN DE EMERGENCIA ---
+    // Permite verificar desde el navegador si el backend cargó bien las variables de entorno.
+    // Visita: https://api.tecnotitlan.com.mx/api/debug/env
+    app.get('/api/debug/env', (req, res) => {
+      res.status(200).json({
+        status: 'success',
+        message: 'Variables de entorno del backend (solo valores no sensibles).',
+        data: {
+          NODE_ENV: process.env.NODE_ENV,
+          PORT: process.env.PORT,
+          UPLOAD_STRATEGY: process.env.UPLOAD_STRATEGY,
+          // Esto confirma que la clave secreta del captcha está siendo leída por el backend.
+          RECAPTCHA_SECRET_KEY_IS_SET: !!process.env.RECAPTCHA_SECRET_KEY,
+        }
+      });
+    });
+
     app.use(notFound);
     app.use(errorHandler);
 
@@ -159,10 +176,26 @@ const startServer = async () => {
 
 serverReadyPromise = startServer();
 
-process.on('beforeExit', async () => {
-  // Este evento puede ser ruidoso. Es mejor manejar la desconexión en el cierre del servidor.
-  // await prisma.$disconnect();
-  // logger.info('Prisma client disconnected.');
-}); 
+// --- MANEJO DE CIERRE (Graceful Shutdown) ---
+// Vital para cPanel: Asegura que los procesos viejos mueran realmente al reiniciar.
+const gracefulShutdown = async (signal) => {
+  logger.info(`${signal} recibido. Cerrando servidor ordenadamente...`);
+  
+  if (server) {
+    server.close(() => {
+      logger.info('Servidor HTTP cerrado.');
+    });
+  }
+
+  // Desconectar Prisma para liberar la conexión a la BD
+  await prisma.$disconnect();
+  logger.info('Cliente Prisma desconectado.');
+  
+  process.exit(0);
+};
+
+// Escuchar señales de terminación de cPanel/Passenger
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export { app, serverReadyPromise as ready };

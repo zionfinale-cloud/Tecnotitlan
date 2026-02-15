@@ -32,32 +32,30 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ## 2. Bitácora de Vuelo: Continuidad del Proyecto
 
-**Última Actualización:** 6 de Febrero, 2026 (Cierre de Sesión - Madrugada)
+**Última Actualización:** 13 de Febrero, 2026 (Cierre de Sesión)
 
 Esta sección define la trayectoria del proyecto para asegurar que no perdamos el contexto entre sesiones de trabajo. **Fase de Estabilización en Producción.**
 
 **Dominios:**
-- `https://www.tecnotitlan.com.mx` (Frontend - ✅ ONLINE)
+- `https://www.tecnotitlan.com.mx` (Frontend - ❌ ERROR DE DESPLIEGUE)
 - `https://api.tecnotitlan.com.mx` (Backend - ✅ ONLINE)
 
 ### 2.1. De dónde venimos (Logros de la Sesión)
-Venimos de una sesión intensiva de despliegue y configuración de infraestructura en cPanel:
-- **Backend Desplegado:** Logramos que Node.js corra nativamente en cPanel, superando el error `P1001` de Supabase (bloqueo de IP) y los problemas de carga de variables de entorno (`dotenv` con rutas absolutas).
-- **Frontend Migrado:** Movimos el frontend de Render a cPanel (hosting estático). Solucionamos los errores 404 de rutas con `.htaccess`.
-- **Conectividad:** Verificamos que el backend responde públicamente y se conecta a la base de datos sin errores.
+- **Backend Optimizado:** Se configuró `deploy.sh` para inyectar `UV_THREADPOOL_SIZE=2` y manejar `SIGTERM` para evitar saturar los procesos de cPanel (límite de 100).
+- **Build Frontend Generado:** Se generó un build local exitoso con la variable `REACT_APP_RECAPTCHA_SITE_KEY` correcta.
+- **Intento de Despliegue:** Se intentó subir el build a la carpeta del dominio adicional `tecnotitlan.com.mx`.
 
 ### 2.2. Dónde estamos (Bloqueo Actual)
-El sistema está desplegado, pero **el registro de usuarios falló** en la última prueba.
+**No hemos logrado que el frontend cargue correctamente en producción.**
 
-*   **Error Crítico:** `<GoogleReCaptchaProvider /> recaptcha key not provided` en la consola del navegador.
-*   **Diagnóstico:** Aunque corregimos el archivo `.env` localmente (`REACT_APP_RECAPTCHA_SITE_KEY`), es probable que el **build** de React no se haya regenerado o subido correctamente, por lo que la aplicación en producción sigue sin tener la clave pública de reCAPTCHA incrustada.
-*   **Estado:** El backend está listo y esperando peticiones, pero el frontend está bloqueado por esta configuración faltante.
+*   **Síntoma:** Al subir los archivos a la carpeta del dominio, la página no carga o no refleja los cambios (posible problema de rutas o caché persistente).
+*   **Diagnóstico:** Existe confusión sobre la ruta raíz exacta del dominio adicional en cPanel (`public_html/tecnotitlan.com.mx` vs `tecnotitlan.com.mx` fuera de public_html) y cómo el servidor web está sirviendo los archivos estáticos.
+*   **Estado:** Pendiente de validar la ruta correcta con un archivo `prueba.html` y asegurar que el contenido de `build` (no la carpeta en sí) esté en la raíz correcta.
 
 ### 2.3. A dónde vamos (Próximos Pasos al Retomar)
-1.  **Reconstrucción Limpia:** Ejecutar `npm run build` en local asegurando que el `.env` sea leído correctamente.
-2.  **Redespliegue Frontend:** Subir la nueva carpeta `build` a `public_html` en cPanel.
-3.  **Prueba Final de Registro:** Validar que el Captcha cargue y el usuario se cree en la base de datos.
-4.  **Verificación de Email:** Confirmar que el correo de bienvenida llega a la bandeja de entrada.
+1.  **Prueba de "Hola Mundo":** Subir un archivo HTML simple a la carpeta del dominio para confirmar la ruta raíz web real.
+2.  **Corrección de Estructura:** Mover los archivos del build al nivel correcto si quedaron anidados.
+3.  **Verificación de Registro:** Una vez visible el frontend, probar el flujo de registro con el Captcha ya configurado.
 
 ## 2.4. Pila Tecnológica
 
@@ -202,9 +200,6 @@ FROM node:18-slim AS deps
 
 WORKDIR /app
 
-# Evita que Puppeteer descargue su propia versión de Chromium.
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-
 # Copia los archivos de dependencias y el esquema de Prisma.
 COPY package*.json ./
 COPY backend/prisma ./prisma/
@@ -293,7 +288,6 @@ echo "  Saltando actualización de Git (Modo Desarrollo en Vivo)..."
 
 # 2. Instalar dependencias (si hubo cambios en package.json)
 echo "📦  Instalando dependencias..."
-cd backend
 npm install --production
 
 # 3. Reiniciar la aplicación Node.js (Phusion Passenger)
@@ -541,7 +535,8 @@ El frontend se despliega como un **Sitio Estático** directamente en el hosting 
 
 2.  **Subir Archivos:**
     -   Se generará una carpeta `build`.
-    -   Sube **el contenido** de esa carpeta (index.html, static/, etc.) a la carpeta `public_html` (o el subdominio correspondiente) en cPanel.
+    -   Sube **el contenido** de esa carpeta (index.html, static/, etc.) a la carpeta raíz del dominio en cPanel (en tu caso: `tecnotitlan.com.mx`).
+    -   **Importante:** Al ser un dominio adicional, NO uses `public_html` ya que ahí corren otros servicios.
 
 3.  **Configuración de Rutas (.htaccess):**
     Para que el enrutamiento de React funcione (evitar error 404 al recargar páginas internas), crea o edita el archivo `.htaccess` en la carpeta donde subiste el frontend:

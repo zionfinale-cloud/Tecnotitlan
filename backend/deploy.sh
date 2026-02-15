@@ -9,6 +9,16 @@ set -e
 # Configuración crítica para estabilidad en cPanel: Usar motor binario
 export PRISMA_CLIENT_ENGINE_TYPE=binary
 
+# --- OPTIMIZACIÓN DE PROCESOS CPANEL ---
+# Inyectar límite de hilos en .env si no existe.
+# Esto reduce el consumo de procesos (LWP) de 4+ a ~2 por instancia.
+if ! grep -q "UV_THREADPOOL_SIZE" .env; then
+  echo "🔧 Optimizando UV_THREADPOOL_SIZE en .env para cPanel..."
+  echo "" >> .env
+  echo "# Optimización cPanel: Limitar hilos para no saturar procesos (100 max)" >> .env
+  echo "UV_THREADPOOL_SIZE=2" >> .env
+fi
+
 echo "🚀  Iniciando el despliegue de Tecnotitlan en cPanel..."
 
 # 1. Obtener los últimos cambios desde el repositorio de Git.
@@ -16,7 +26,7 @@ echo "🚫  Saltando actualización de Git (Modo Desarrollo en Vivo)..."
 
 # 2. Instalar dependencias (si hubo cambios en package.json)
 echo "📦  Instalando dependencias..."
-npm install --production
+npm install --production --no-audit --no-fund
 
 # 2.2. Generar cliente de Prisma (Manual para evitar crash en postinstall)
 echo "💎  Generando cliente de Prisma..."

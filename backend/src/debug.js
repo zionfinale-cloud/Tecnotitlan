@@ -25,12 +25,12 @@ async function runDebug() {
     app.get('/', (req, res) => res.send('OK'));
     logger.success('[DEBUG STEP 3/5] Express importado e inicializado correctamente.');
 
-    // --- Prueba de WhatsApp Service (Puppeteer) ---
-    // Este es el segundo sospechoso principal debido a su peso.
-    logger.info('[DEBUG STEP 4/5] Intentando importar el servicio de WhatsApp (esto carga Puppeteer)...');
+    // --- Prueba de WhatsApp Service (Baileys) ---
+    // Verificamos la carga de la librería de sockets (Baileys).
+    logger.info('[DEBUG STEP 4/5] Intentando importar el servicio de WhatsApp (esto carga Baileys)...');
     await import('./services/whatsappService.js');
-    // Solo importar el archivo es suficiente para detectar un crash en la inicialización de Puppeteer.
-    logger.success('[DEBUG STEP 4/5] El servicio de WhatsApp se importó correctamente (Puppeteer parece estable).');
+    // Solo importar el archivo es suficiente para detectar un crash en la inicialización de Baileys.
+    logger.success('[DEBUG STEP 4/5] El servicio de WhatsApp se importó correctamente (Baileys parece estable).');
 
     // --- Prueba de Arranque Completo ---
     // Si llegamos hasta aquí, intentamos el arranque completo del servidor.
