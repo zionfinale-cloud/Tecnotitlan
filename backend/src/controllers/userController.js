@@ -48,14 +48,16 @@ const registerUser = asyncHandler(async (req, res, next) => {
     return next(new BadRequestError('El email es obligatorio.'));
   }
 
-  // VALIDACIÓN DE CAPTCHA (Seguridad Anti-Bot)
-  // [DEBUG MODE] Bypass temporal: Permitimos el registro aunque falle el Captcha
-  // Esto es vital para probar si el flujo de base de datos y email funciona.
-  // const isHuman = await verifyCaptcha(captchaToken);
-  // if (!isHuman) {
-  //   return next(new BadRequestError('Error de seguridad: Actividad sospechosa detectada (Captcha).'));
-  // }
+  if (process.env.NODE_ENV === 'production' && !process.env.RECAPTCHA_SECRET_KEY) {
+    return next(new AppError('reCAPTCHA no esta configurado en el servidor.', 500));
+  }
 
+  if (process.env.RECAPTCHA_SECRET_KEY) {
+    const captchaResult = await verifyCaptcha(captchaToken);
+    if (!captchaResult.success) {
+      return next(new BadRequestError('No pudimos validar el reCAPTCHA. Intentalo nuevamente.'));
+    }
+  }
   // VALIDACIÓN DE SEGURIDAD
   // 1. Validar formato de email
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

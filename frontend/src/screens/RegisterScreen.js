@@ -148,8 +148,14 @@ const RegisterFormContent = () => {
 
 // Componente contenedor que provee el contexto de reCAPTCHA
 const RegisterScreen = () => {
+    const recaptchaKey = process.env.REACT_APP_RECAPTCHA_SITE_KEY;
+
+    if (!recaptchaKey) {
+        return <RegisterFormContent />;
+    }
+
     return (
-        <GoogleReCaptchaProvider reCaptchaKey={process.env.REACT_APP_RECAPTCHA_SITE_KEY}>
+        <GoogleReCaptchaProvider reCaptchaKey={recaptchaKey}>
             <RegisterFormContent />
         </GoogleReCaptchaProvider>
     );

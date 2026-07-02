@@ -1,25 +1,37 @@
 import axios from 'axios';
 import { config } from '../config/env.js';
 
-/**
- * Verifica el token de reCAPTCHA v3 con la API de Google.
- * @param {string} token - El token generado en el frontend.
- * @returns {Promise<boolean>} - True si es humano, False si es bot.
- */
+const MIN_RECAPTCHA_SCORE = 0.5;
+
 export const verifyCaptcha = async (token) => {
   if (!token) {
-    console.error('Captcha Service: No se proporcionó token.');
-    return false;
+    return { success: false, reason: 'missing-token' };
   }
 
-  const secretKey = config.RECAPTCHA_SECRET_KEY;
-  const url = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`;
+  if (!config.RECAPTCHA_SECRET_KEY) {
+    return { success: false, reason: 'missing-secret' };
+  }
 
   try {
-    const response = await axios.post(url);
-    return response.data.success && response.data.score >= 0.5;
-  } catch (error) {
-    console.error('Error verificando reCAPTCHA:', error);
-    return false;
+    const response = await axios.post(
+      'https://www.google.com/recaptcha/api/siteverify',
+      new URLSearchParams({
+        secret: config.RECAPTCHA_SECRET_KEY,
+        response: token,
+      }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+
+    const { success, score, action, 'error-codes': errorCodes } = response.data;
+
+    return {
+      success: Boolean(success && score >= MIN_RECAPTCHA_SCORE),
+      score,
+      action,
+      errorCodes,
+      reason: success ? 'low-score' : 'verification-failed',
+    };
+  } catch {
+    return { success: false, reason: 'request-failed' };
   }
 };
