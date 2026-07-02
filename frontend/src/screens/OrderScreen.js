@@ -1,20 +1,33 @@
-import React from 'react';
-import { Container, Alert } from 'react-bootstrap';
-import { useParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Container } from 'react-bootstrap';
+import { Link, useParams } from 'react-router-dom';
+import api from '../services/apiService';
+import styles from './OrderScreen.module.css';
 
 const OrderScreen = () => {
   const { id } = useParams();
-  
+  const [order, setOrder] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get(`/orders/${id}`)
+      .then(({ data }) => setOrder(data.data.order))
+      .catch(() => setError('No pudimos cargar este pedido.'));
+  }, [id]);
+
+  if (error) return <Container className={styles.page}><div className={styles.notice}>{error}</div></Container>;
+  if (!order) return <Container className={styles.page}><div className={styles.notice}>Consultando seguimiento...</div></Container>;
+
+  const trackingNumber = order.shippingInfo?.trackingNumber;
   return (
-    <Container className="py-5" style={{ minHeight: '80vh', backgroundColor: 'var(--secondary-bg-color)' }}>
-        <h1 className="text-4xl font-bold mb-4 border-b pb-2 text-slate-800">Detalles del Pedido</h1>
-        <div className="p-5 bg-white rounded-xl shadow-lg">
-            <h3 className="font-bold text-slate-800 mb-3">Pedido Número: <span style={{ color: 'var(--cta-color)' }}>{id}</span></h3>
-            <Alert variant="info" className="text-center fw-bold">
-                <i className="fas fa-truck me-2"></i> Detalles del envío, pago y artículos.
-            </Alert>
-            <p className="text-gray-600">Aquí se mostrarán los detalles completos de la orden.</p>
-        </div>
+    <Container className={styles.page}>
+      <Link to="/profile#orders" className={styles.back}>← Volver a mis pedidos</Link>
+      <header><span>Seguimiento del pedido</span><h1>{order.orderNumber}</h1><p>Estado actual: <strong>{order.status}</strong></p></header>
+      <div className={styles.grid}>
+        <section><h2>Envío</h2><p>{trackingNumber ? `Guía: ${trackingNumber}` : 'La guía aparecerá aquí cuando el pedido sea enviado.'}</p><p>{order.isDelivered ? 'Pedido entregado.' : 'Seguiremos actualizando esta sección durante el envío.'}</p></section>
+        <section><h2>Resumen</h2><p>Método de pago: {order.paymentMethod}</p><p>Total: <strong>${order.totalPrice.toFixed(2)}</strong></p></section>
+      </div>
+      <section className={styles.items}><h2>Productos</h2>{order.orderItems.map(item => <article key={item.id}><img src={item.image || '/images/sample.jpg'} alt="" /><span>{item.name}<small>{item.qty} × ${item.price.toFixed(2)}</small></span></article>)}</section>
     </Container>
   );
 };

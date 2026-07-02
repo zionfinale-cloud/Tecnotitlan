@@ -1,5 +1,10 @@
 # Documentación Maestra del Proyecto: Tecnotitlan
 
+> **Estado del documento (15 de junio de 2026):** Este archivo conserva contexto
+> histórico y funcional, pero contiene decisiones antiguas de Lightsail y cPanel
+> que ya no representan la arquitectura vigente. Para instalación, estructura y
+> despliegue actuales, comenzar por `README.md`.
+
 Este documento es la guía técnica central y única fuente de verdad para el proyecto de e-commerce **Tecnotitlan**. Cubre la visión, arquitectura, guías de instalación, despliegue y hoja de ruta.
 
 ## 1. Visión General y Objetivos

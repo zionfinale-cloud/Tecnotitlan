@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import styles from './AdminLayout.module.css'; // Importamos los estilos CSS Modules
 import { SettingsContext } from '../context/SettingsContext';
+import { AuthContext } from '../context/AuthContext';
 
 // Datos de navegación (Menú Lateral)
 const navLinks = [
@@ -11,11 +12,13 @@ const navLinks = [
     { to: '/admin/userlist', icon: 'fa-users', text: 'Usuarios' },
     { to: '/admin/categorylist', icon: 'fa-list-alt', text: 'Categorías' }, // Agregamos Categorías
     { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles' },
+    { to: '/admin/support', icon: 'fa-headset', text: 'Soporte', permission: 'support:read' },
     { to: '/admin/settings/legal', icon: 'fa-gavel', text: 'Páginas Legales' },
 ];
 
 const AdminLayout = () => {
     const { settings } = useContext(SettingsContext);
+    const { userInfo } = useContext(AuthContext);
 
     return (
         // Fondo gris claro para el área del contenido principal
@@ -40,7 +43,7 @@ const AdminLayout = () => {
                 </div>
                     <nav>
                         <ul className={styles.nav}>
-                            {navLinks.map((item, index) => (
+                            {navLinks.filter(item => !item.permission || userInfo?.permissions?.includes(item.permission)).map((item, index) => (
                                 <li key={index} className={styles.navItem}>
                                     <NavLink 
                                         to={item.to} 

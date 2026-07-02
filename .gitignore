@@ -1,1 +1,29 @@
-node_modules
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Environment files (keep only examples in Git)
+.env
+.env.*
+!.env.example
+!.env.vps.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Generated artifacts and local runtime data
+frontend/build/
+coverage/
+uploads/
+auth_info_baileys/
+backend/auth_info_baileys/
+backend/tmp/
+
+# Logs and operating system files
+*.log
+.DS_Store
+Thumbs.db

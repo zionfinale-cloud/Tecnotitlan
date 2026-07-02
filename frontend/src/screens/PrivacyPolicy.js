@@ -9,7 +9,7 @@ const PrivacyPolicy = () => {
 
   useEffect(() => {
     // Obtenemos la configuración pública
-    request('get', '/api/settings');
+    request('get', '/api/settings/public');
   }, [request]);
 
   useEffect(() => {

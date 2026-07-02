@@ -1,77 +1,70 @@
-import { useState, useEffect } from 'react';
-// import api from '../services/apiService';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import api from '../services/apiService';
 
-// --- MOCK DATA para que el frontend cargue ---
-const MOCK_CATEGORIES = [
-    { id: 1, name: 'Drones' },
-    { id: 2, name: 'Realidad Virtual' },
-    { id: 3, name: 'Smartwatches' },
-    { id: 4, name: 'Accesorios' },
-];
-
-const MOCK_PRODUCTS = [
-  { _id: '1', name: 'Deona Pexnnices (Smartwatch)', price: 199.99, sku: 'DRN001', rating: 4.5, numReviews: 12, countInStock: 5, image: 'https://placehold.co/400x300/F1F5F9/0F172A?text=WATCH' },
-  { _id: '2', name: 'Trps del Tib (VR Headset)', price: 299.99, sku: 'VR001', rating: 5, numReviews: 25, countInStock: 10, isOffer: true, image: 'https://placehold.co/400x300/F1F5F9/0F172A?text=VR+HEADSET' },
-  { _id: '3', name: 'Pnda de Tvler (Batería)', price: 49.99, sku: 'DRN002', rating: 3.5, numReviews: 8, countInStock: 0, image: 'https://placehold.co/400x300/F1F5F9/0F172A?text=BATTERY' },
-  { _id: '4', name: 'Datns eq Pcnitations (VR Glasses)', price: 129.99, sku: 'DRN003', rating: 4, numReviews: 15, countInStock: 3, image: 'https://placehold.co/400x300/F1F5F9/0F172A?text=VR+GLASSES' },
-  { _id: '5', name: 'Auriculares Inalámbricos', price: 79.50, sku: 'AUR005', rating: 4.2, numReviews: 20, countInStock: 8, image: 'https://placehold.co/400x300/F1F5F9/0F172A?text=AURICULARES' },
-];
-// --- FIN MOCK DATA ---
-
+const COLLECTIONS = {
+  offers: { title: 'Ofertas', endpoint: '/products', params: { sortBy: 'price_asc' } },
+  new: { title: 'Novedades', endpoint: '/products', params: { sortBy: 'createdAt_desc' } },
+  top: { title: 'Más vendidos', endpoint: '/products/top', params: {} },
+  all: { title: 'Todos los productos', endpoint: '/products', params: {} },
+};
 
 const useProductFilters = () => {
-    // Estado de la URL (simulación de router/query params)
-    const [page, setPage] = useState(1);
-    const [selectedCategory, setSelectedCategory] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [pages, setPages] = useState(1);
+  const page = Number(searchParams.get('page')) || 1;
+  const selectedCategory = searchParams.get('category') || '';
+  const collectionKey = searchParams.get('collection') || 'all';
+  const collection = COLLECTIONS[collectionKey] || COLLECTIONS.all;
 
-    // Estado de la data
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [pages, setPages] = useState(1); // Total de páginas
+  const updateParams = useCallback((updates) => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      Object.entries(updates).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key));
+      return next;
+    });
+  }, [setSearchParams]);
 
-    // Simulación de la llamada a la API
-    useEffect(() => {
-        setLoading(true);
-        setError(null);
-        
-        // Simular un retraso en la red (ej: 500ms)
-        const timer = setTimeout(() => {
-            let filtered = MOCK_PRODUCTS;
-            
-            // Simulación de filtrado por categoría
-            if (selectedCategory) {
-                filtered = MOCK_PRODUCTS.filter(p => 
-                    p.name.toLowerCase().includes(selectedCategory.toLowerCase()) 
-                );
-            }
+  useEffect(() => {
+    api.get('/categories')
+      .then(({ data }) => setCategories(data.data.categories || []))
+      .catch(() => setCategories([]));
+  }, []);
 
-            // Simulación de paginación (simplemente devolvemos los productos filtrados)
-            setProducts(filtered);
-            setPages(Math.ceil(filtered.length / 4)); // Simula 4 productos por página
-            setLoading(false);
-        }, 500); 
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    const params = { ...collection.params, pageNumber: page, pageSize: 12, ...(selectedCategory ? { category: selectedCategory } : {}) };
 
-        return () => clearTimeout(timer); 
-    }, [page, selectedCategory]);
+    api.get(collection.endpoint, { params })
+      .then(({ data }) => {
+        if (!active) return;
+        setProducts(data.data.products || []);
+        setPages(data.data.pages || 1);
+      })
+      .catch(() => {
+        if (!active) return;
+        setProducts([]);
+        setPages(1);
+        setError('No pudimos cargar el catálogo. Estamos revisando la conexión.');
+      })
+      .finally(() => active && setLoading(false));
 
-    const handleClearFilters = () => {
-        setSelectedCategory('');
-        setPage(1);
-    };
+    return () => { active = false; };
+  }, [collection, page, selectedCategory]);
 
-    return {
-        products,
-        loading,
-        error,
-        page,
-        setPage,
-        pages,
-        categories: MOCK_CATEGORIES,
-        selectedCategory,
-        setSelectedCategory,
-        handleClearFilters,
-    };
+  return {
+    products, loading, error, page, pages, categories, selectedCategory,
+    setPage: value => updateParams({ page: value > 1 ? String(value) : '' }),
+    setSelectedCategory: slug => updateParams({ category: slug, page: '', collection: slug ? 'all' : collectionKey }),
+    collectionTitle: selectedCategory ? categories.find(category => category.slug === selectedCategory)?.name || 'Categoría' : collection.title,
+    clearFilters: () => updateParams({ category: '', collection: 'all', page: '' }),
+  };
 };
 
 export default useProductFilters;

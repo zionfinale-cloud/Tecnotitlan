@@ -7,37 +7,38 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL") // Pooler para la app
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // Pooler para la app
   directUrl = env("DIRECT_URL") // Conexión directa para migraciones
 }
 
 // --- MODELOS DE LA APLICACIÓN ---
 
 model User {
-  id        String   @id @default(cuid())
-  firstName String   @map("first_name")
-  lastName  String   @map("last_name")
-  secondLastName String?  @map("second_last_name")
-  email     String   @unique
-  password  String
-  countryCode String?  @map("country_code")
-  phone     String?
-  street         String?
-  neighborhood   String?
-  city           String?
-  state          String?
-  postalCode     String?  @map("postal_code")
-  isVerified     Boolean  @default(false) @map("is_verified")
-  verificationToken String? @map("verification_token")
-  role       Role      @relation(fields: [roleId], references: [id])
-  roleId     String
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                String          @id @default(cuid())
+  firstName         String          @map("first_name")
+  lastName          String          @map("last_name")
+  secondLastName    String?         @map("second_last_name")
+  email             String          @unique
+  password          String
+  countryCode       String?         @map("country_code")
+  phone             String?
+  street            String?
+  neighborhood      String?
+  city              String?
+  state             String?
+  postalCode        String?         @map("postal_code")
+  isVerified        Boolean         @default(false) @map("is_verified")
+  verificationToken String?         @map("verification_token")
+  role              Role            @relation(fields: [roleId], references: [id])
+  roleId            String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   // Relaciones
-  products Product[]
-  orders   Order[]
-  reviews  Review[]
+  products          Product[]
+  orders            Order[]
+  reviews           Review[]
+  supportTickets    SupportTicket[]
 
   @@map("users")
 }
@@ -106,33 +107,33 @@ model Category {
   updatedAt DateTime @updatedAt
 
   // Relaciones jerárquicas
-  parent     Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  parentId   String?
-  children   Category[] @relation("CategoryHierarchy")
-  products   Product[]
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  parentId String?
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
 
   @@map("categories")
 }
 
 model Order {
-  id              String        @id @default(cuid())
-  orderNumber     String        @unique
+  id              String          @id @default(cuid())
+  orderNumber     String          @unique
   itemsPrice      Float
   shippingPrice   Float
   taxPrice        Float
   paymentFee      Float
   totalPrice      Float
-  isPaid          Boolean       @default(false)
+  isPaid          Boolean         @default(false)
   paidAt          DateTime?
   paymentMethod   String
-  isDelivered     Boolean       @default(false)
+  isDelivered     Boolean         @default(false)
   deliveredAt     DateTime?
-  status          OrderStatus   @default(PENDING_PAYMENT)
+  status          OrderStatus     @default(PENDING_PAYMENT)
   shippedAt       DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
   // Relaciones y JSON
-  user            User          @relation(fields: [userId], references: [id])
+  user            User            @relation(fields: [userId], references: [id])
   userId          String
   orderItems      OrderItem[]
   shippingAddress Json
@@ -218,16 +219,38 @@ model Characteristic {
 }
 
 model StatusHistory {
-  id      String    @id @default(cuid())
+  id      String   @id @default(cuid())
   status  String
-  date    DateTime  @default(now())
+  date    DateTime @default(now())
   notes   String?
-  order   Order     @relation(fields: [orderId], references: [id])
+  order   Order    @relation(fields: [orderId], references: [id])
   orderId String
 
   @@map("status_histories")
 }
 
+model SupportTicket {
+  id           String              @id @default(cuid())
+  ticketNumber String              @unique @map("ticket_number")
+  name         String
+  email        String
+  phone        String?
+  subject      String
+  message      String              @db.Text
+  source       SupportTicketSource @default(WEB)
+  status       SupportTicketStatus @default(OPEN)
+  priority     TicketPriority      @default(NORMAL)
+  assignedTo   String?             @map("assigned_to")
+  resolution   String?             @db.Text
+  user         User?               @relation(fields: [userId], references: [id])
+  userId       String?             @map("user_id")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([email])
+  @@map("support_tickets")
+}
 
 // --- ENUMS ---
 
@@ -248,4 +271,26 @@ enum OrderStatus {
 enum MediaType {
   IMAGE
   VIDEO
+}
+
+enum SupportTicketSource {
+  WEB
+  EMAIL
+  WHATSAPP
+  BOT_ESCALATION
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }

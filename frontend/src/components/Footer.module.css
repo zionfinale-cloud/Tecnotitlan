@@ -1,50 +1,15 @@
-.footer {
-  background-color: var(--brand-dark);
-  color: #e2e8f0; /* Color de texto base (slate-200) */
-  padding-top: 4rem;
-  padding-bottom: 2rem;
-  margin-top: auto;
-  box-shadow: inset 0 5px 15px rgba(0, 0, 0, 0.4);
-}
-
-.footerTitle {
-  font-weight: 700;
-  font-size: 1rem;
-  color: #FFFFFF;
-  margin-bottom: 1.25rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.footerText { color: #94a3b8; font-size: 0.9rem; }
-.socialIcons { display: flex; gap: 1rem; margin-top: 1rem; }
-.socialLink { color: #64748b; font-size: 1.25rem; transition: color 0.2s ease, transform 0.2s ease; }
-
-/* Estilo general de hover para los íconos sociales */
-.socialLink:hover {
-  transform: translateY(-3px) scale(1.1);
-}
-
-/* Colores de marca específicos para cada red social en hover */
-.socialLink.facebook:hover { color: #1877F2; }
-.socialLink.instagram:hover { color: #E4405F; }
-.socialLink.whatsapp:hover { color: #25D366; }
-.socialLink.tiktok:hover { color: #FFFFFF; } /* TikTok se ve mejor en blanco sobre fondo oscuro */
-.socialLink.youtube:hover { color: #FF0000; }
-
-/* Si no se especifica una clase de red social, el hover será blanco */
-.socialLink:not([class*=" "]):hover { color: #FFFFFF; }
-
-.footerNav { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
-.footerLink { color: #94a3b8; text-decoration: none; transition: color 0.2s ease; font-size: 0.9rem; }
+.footer { background: #050708; color: #d5dbd8; padding: 3rem 0 1.5rem; margin-top: auto; border-top: 1px solid #20272b; }
+.footerTitle { color: #fff; font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 1rem; }
+.footerText { color: #87918c; font-size: .78rem; }
+.socialIcons, .paymentIcons { display: flex; gap: .8rem; margin-top: 1rem; }
+.socialLink { color: var(--cta-color); font-size: 1.1rem; }
+.footerNav { list-style: none; padding: 0; display: flex; flex-direction: column; gap: .6rem; }
+.footerLink { color: #87918c; font-size: .75rem; text-decoration: none; }
 .footerLink:hover { color: var(--cta-color); }
+.paymentIcons { color: #7e8983; font-size: 1.8rem; }
+.copyright { border-top: 1px solid #20272b; padding-top: 1.25rem; color: #616a66; text-align: center; font-size: .68rem; }
 
-.paymentIcons { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 2.25rem; color: #64748b; }
-
-.copyright {
-  text-align: center;
-  font-size: 0.8rem;
-  color: #64748b; /* slate-500 */
-  padding-top: 2rem;
-  border-top: 1px solid #1e293b; /* slate-800 */
-}
+:global([data-theme="light"]) .footer { background: #fff; color: var(--heading); border-top-color: var(--line); }
+:global([data-theme="light"]) .footerTitle { color: var(--heading); }
+:global([data-theme="light"]) .footerText, :global([data-theme="light"]) .footerLink, :global([data-theme="light"]) .paymentIcons { color: var(--muted); }
+:global([data-theme="light"]) .copyright { border-top-color: var(--line); color: var(--muted); }

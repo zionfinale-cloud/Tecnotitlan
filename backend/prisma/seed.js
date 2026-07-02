@@ -36,6 +36,9 @@ const permissions = [
   // Integraciones
   { name: 'integration:read', description: 'Ver estado de integraciones' },
   { name: 'integration:update', description: 'Conectar/desconectar integraciones' },
+  { name: 'integration:delete', description: 'Desconectar integraciones' },
+  { name: 'support:read', description: 'Ver tickets de soporte' },
+  { name: 'support:update', description: 'Atender y actualizar tickets de soporte' },
 ];
 
 async function main() {
@@ -86,18 +89,20 @@ async function main() {
   console.log('USER role is set up.');
 
   // 4. Crear el usuario SUPER_ADMIN
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
-  const adminPassword = process.env.ADMIN_PASSWORD || '123456';
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
 
-  if (adminPassword.length < 6) {
-    console.error('Error: La contraseña de administrador debe tener al menos 6 caracteres. Por favor, configura la variable de entorno ADMIN_PASSWORD.');
-    return;
+  if (!adminEmail || !adminPassword || adminPassword.length < 12) {
+    throw new Error('Configura ADMIN_EMAIL y ADMIN_PASSWORD (minimo 12 caracteres) antes de ejecutar el seed.');
   }
 
   console.log(`Upserting SUPER_ADMIN user (${adminEmail})...`);
   await prisma.user.upsert({
     where: { email: adminEmail },
-    update: {},
+    update: {
+      roleId: superAdminRole.id,
+      isVerified: true,
+    },
     // Si no existe, lo crea
     create: {
       email: adminEmail,
@@ -107,6 +112,7 @@ async function main() {
       // ¡Asegúrate de que bcrypt esté instalado!
       password: await bcrypt.hash(adminPassword, 10),
       roleId: superAdminRole.id,
+      isVerified: true,
     },
   });
   console.log('SUPER_ADMIN user is set up.');

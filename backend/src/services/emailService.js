@@ -40,3 +40,23 @@ export const sendVerificationEmail = async (to, token) => {
     throw new Error('No se pudo enviar el correo de verificación.');
   }
 };
+
+export const sendSupportTicketNotification = async (ticket) => {
+  if (!config.SUPPORT_EMAIL) return;
+
+  await transporter.sendMail({
+    from: config.EMAIL_FROM,
+    to: config.SUPPORT_EMAIL,
+    replyTo: ticket.email,
+    subject: `[${ticket.ticketNumber}] ${ticket.subject}`,
+    text: [
+      `Nuevo ticket ${ticket.ticketNumber}`,
+      `Cliente: ${ticket.name}`,
+      `Email: ${ticket.email}`,
+      `Teléfono: ${ticket.phone || 'No proporcionado'}`,
+      `Origen: ${ticket.source}`,
+      '',
+      ticket.message,
+    ].join('\n'),
+  });
+};

@@ -1,6 +1,31 @@
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia Singleton
 
+const PUBLIC_SETTING_KEYS = [
+    'site_name',
+    'site_slogan',
+    'contact_email',
+    'social_facebook',
+    'social_instagram',
+    'social_tiktok',
+    'social_youtube',
+    'social_whatsapp',
+    'accent_color',
+    'primary_color',
+    'logo_url',
+    'currency_symbol',
+    'page_privacy_policy',
+    'page_terms_of_service',
+];
+
+const getPublicSettings = asyncHandler(async (req, res) => {
+    const settings = await prisma.setting.findMany({
+        where: { key: { in: PUBLIC_SETTING_KEYS } },
+        select: { key: true, value: true, type: true },
+    });
+    res.json({ status: 'success', data: settings });
+});
+
 // @desc    Obtener todas las configuraciones
 // @route   GET /api/settings
 // @access  Private/Admin
@@ -41,4 +66,4 @@ const updateSettings = asyncHandler(async (req, res) => {
     });
 });
 
-export { getSettings, updateSettings };
+export { getPublicSettings, getSettings, updateSettings };

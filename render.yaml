@@ -1,0 +1,89 @@
+services:
+  - type: web
+    name: tecnotitlan-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CLIENT_URL_PRIMARY
+        value: https://tecnotitlan-web.onrender.com
+      - key: CLIENT_URL_SECONDARY
+        sync: false
+      - key: UPLOAD_STRATEGY
+        value: cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        value: Tecnotitlan <noreply@tecnotitlan.com.mx>
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: MERCADOLIBRE_APP_ID
+        sync: false
+      - key: MERCADOLIBRE_CLIENT_SECRET
+        sync: false
+      - key: MERCADOLIBRE_REDIRECT_URI
+        value: https://tecnotitlan-api.onrender.com/api/mercadolibre/callback
+      - key: N8N_ORDER_WEBHOOK_URL
+        sync: false
+      - key: N8N_SUPPORT_WEBHOOK_URL
+        sync: false
+      - key: SUPPORT_EMAIL
+        value: soporte@tecnotitlan.com.mx
+
+  - type: web
+    name: tecnotitlan-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: build
+    plan: free
+    autoDeploy: false
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://tecnotitlan-api.onrender.com
+      - key: REACT_APP_PAYPAL_CLIENT_ID
+        sync: false
+      - key: REACT_APP_MERCADOLIBRE_APP_ID
+        sync: false
+      - key: REACT_APP_MERCADOLIBRE_REDIRECT_URI
+        value: https://tecnotitlan-api.onrender.com/api/mercadolibre/callback
+      - key: REACT_APP_RECAPTCHA_SITE_KEY
+        sync: false
+      - key: GENERATE_SOURCEMAP
+        value: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

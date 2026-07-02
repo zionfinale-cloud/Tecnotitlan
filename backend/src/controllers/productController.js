@@ -117,6 +117,7 @@ const getProducts = asyncHandler(async (req, res, next) => {
   const products = await prisma.product.findMany({
     where: filter,
     include: {
+      media: { take: 1, select: { url: true, altText: true } },
       category: { select: { name: true } }, // Poblar categoría
     },
     orderBy: sortOptions,
@@ -150,7 +151,7 @@ const getProductById = asyncHandler(async (req, res, next) => {
   const product = await prisma.product.findUnique({
     where: query,
     include: {
-      reviews: { include: { user: { select: { name: true } } } },
+      reviews: { include: { user: { select: { firstName: true, lastName: true } } } },
       category: { select: { name: true } },
     },
   });

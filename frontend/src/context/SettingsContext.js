@@ -27,10 +27,19 @@ export const SettingsProvider = ({ children }) => {
         const fetchSettings = async () => {
             try {
                 // Cargar configuración de la API (endpoint público)
-                const { data } = await api.get('/settings');
+                const { data } = await api.get('/settings/public');
                 
-                if (data.data.settings) {
-                    const newSettings = data.data.settings;
+                if (Array.isArray(data.data)) {
+                    const keyMap = {
+                        site_name: 'siteName',
+                        logo_url: 'logoUrl',
+                        accent_color: 'accentColor',
+                        currency_symbol: 'currencySymbol',
+                    };
+                    const newSettings = data.data.reduce((result, setting) => {
+                        result[keyMap[setting.key] || setting.key] = setting.value;
+                        return result;
+                    }, {});
                     setSettings(prev => ({ ...prev, ...newSettings }));
                     
                     // CRÍTICO: Aplicar el color de acento al CSS Root (index.css)

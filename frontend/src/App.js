@@ -42,6 +42,8 @@ import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-ru
 import LegalPagesScreen from './screens/admin/LegalPagesScreen';
 import PrivacyPolicy from './screens/PrivacyPolicy';
 import TermsOfService from './screens/TermsOfService';
+import ContactScreen from './screens/ContactScreen';
+import SupportTicketsScreen from './screens/admin/SupportTicketsScreen';
 
 // --- Configuración de PayPal ---
 const initialOptions = {
@@ -70,6 +72,7 @@ function App() {
                                                 <Route path="register" element={<RegisterScreen />} />
                                                 <Route path="privacy-policy" element={<PrivacyPolicy />} />
                                                 <Route path="terms-of-service" element={<TermsOfService />} />
+                                                <Route path="contact" element={<ContactScreen />} />
 
                                                 {/* --- Rutas Protegidas de Cliente --- */}
                                                 <Route element={<ProtectedRoute />}>
@@ -94,6 +97,7 @@ function App() {
                                                 <Route path="user/:id/edit" element={<UserEditScreen />} />
                                                 <Route path="categorylist" element={<CategoryListScreen />} />
                                                 <Route path="rolelist" element={<RoleListScreen />} />
+                                                <Route path="support" element={<SupportTicketsScreen />} />
                                                 
                                                 {/* Sub-rutas de Configuración */}
                                                 <Route path="settings" element={<SettingsPage />}>

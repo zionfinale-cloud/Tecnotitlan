@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Form, Button, Row, Col, Card, Container } from 'react-bootstrap';
+import { Form, Button, Card } from 'react-bootstrap';
 import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 // Importamos los contextos necesarios
 import { AuthContext } from '../context/AuthContext';

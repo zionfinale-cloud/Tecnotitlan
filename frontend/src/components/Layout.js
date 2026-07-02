@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 
 // SOLO importamos el Header
 import Header from './Header'; 
+import Footer from './Footer';
 // Se eliminan las importaciones de Footer, Notificaciones, etc., para aislar.
 
 const Layout = () => {
@@ -19,7 +20,7 @@ const Layout = () => {
       <main className="flex-grow"> 
         <Outlet /> 
       </main>
-      
+      <Footer />
     </div>
   );
 };

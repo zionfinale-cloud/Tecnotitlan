@@ -1,64 +1,9 @@
-/* frontend/src/components/SearchBox.module.css */
-
-/* Contenedor principal del formulario */
-.searchForm {
-  /* Usamos flex para alinear el icono, el input y el botón de limpiar */
-  display: flex;
-  align-items: center;
-  position: relative;
-  width: 100%;
-  max-width: 450px; /* Ancho máximo para que se vea como una pastilla en desktop */
-}
-
-/* Estilos del campo de input */
-.searchInput {
-  width: 100%;
-  height: 40px; /* Altura fija */
-  padding: 0 40px 0 40px; /* Padding ajustado para icono y botón de limpiar */
-  
-  /* CRÍTICO: Redondeo total para la forma de pastilla */
-  border-radius: 9999px; 
-  
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  
-  /* Colores */
-  background-color: #FFFFFF; /* Blanco, puedes cambiar a #F1F5F9 para gris claro */
-  color: var(--text-primary);
-  
-  /* Transición y Foco */
-  transition: all 0.2s ease-in-out;
-}
-
-/* Efecto de foco para el input */
-.searchInput:focus {
-  outline: none;
-  /* Anillo de foco (simulando focus:ring-2) */
-  box-shadow: 0 0 0 2px var(--cta-color); 
-  border-color: transparent;
-}
-
-/* Estilo para el icono de búsqueda */
-.searchIcon {
-  position: absolute;
-  left: 15px;
-  color: #64748B; /* Gris suave */
-  pointer-events: none; /* Asegura que el clic pase al input */
-  z-index: 2;
-}
-
-/* Estilo para los botones de acción (limpiar/spinner) */
-.actionButton {
-  position: absolute;
-  right: 15px;
-  background: none;
-  border: none;
-  color: #64748B; /* Gris suave */
-  cursor: pointer;
-  padding: 0;
-  z-index: 2;
-}
-
-.actionButton:hover {
-  color: var(--text-primary);
-}
+.searchForm { display: flex; align-items: center; position: relative; width: 100%; max-width: 500px; }
+.searchInput { width: 100%; height: 46px; padding: 0 46px 0 20px; border-radius: 14px; border: 1px solid var(--line); background: var(--input-bg-color); color: var(--heading); outline: none; transition: .2s ease; }
+.searchInput::placeholder { color: var(--muted); }
+.searchInput:focus { border-color: rgba(117,242,56,.55); box-shadow: 0 0 0 3px rgba(117,242,56,.08); }
+.searchIcon { position: absolute; right: 18px; color: var(--heading); pointer-events: none; z-index: 2; }
+.iconContainer { position: absolute; right: 45px; border: 0; background: transparent; color: #8d9792; }
+.clearButton { cursor: pointer; }
+.spinnerIcon { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

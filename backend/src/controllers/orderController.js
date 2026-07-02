@@ -144,11 +144,8 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
       return order;
     });
 
-    // -----------------------------------------------------------
-    // 🚨 CRÍTICO: DISPARAR EL WEBHOOK DE N8N (PRUEBA LOCAL)
-    // -----------------------------------------------------------
-    // USAMOS LA URL QUE ACABA DE FUNCIONAR EN TU LOG
-    const n8nWebhookUrl = 'http://localhost:5678/webhook-test/3e0cf8b7-aec5-48b5-8f5a-cd252cc2ea2a'; 
+    // Notificar a n8n solo cuando exista un webhook configurado.
+    const n8nWebhookUrl = config.N8N_ORDER_WEBHOOK_URL;
     
     // Payload solo con la data necesaria para n8n
     const payload = {
@@ -157,12 +154,11 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
         client_whatsapp: createdOrder.shippingAddress.phone || createdOrder.shippingAddress.whatsapp, 
     };
 
-    // Llamada asíncrona a n8n. No esperamos la respuesta.
-    axios.post(n8nWebhookUrl, payload)
-        .then(() => logger.info(`Webhook enviado a n8n para el pedido ${createdOrder.orderNumber}`))
-        .catch(error => logger.error(`Error al enviar webhook a n8n: ${error.message}`));
-    // -----------------------------------------------------------
-
+    if (n8nWebhookUrl) {
+      axios.post(n8nWebhookUrl, payload)
+          .then(() => logger.info(`Webhook enviado a n8n para el pedido ${createdOrder.orderNumber}`))
+          .catch(error => logger.error(`Error al enviar webhook a n8n: ${error.message}`));
+    }
     res.status(201).json({ status: 'success', data: { order: createdOrder } });
   } catch (error) {
     logger.error(`Error en transacción al crear pedido: ${error.message}`);
@@ -232,7 +228,7 @@ const getOrderById = asyncHandler(async (req, res, next) => {
 
   if (order) {
     // req.user.id viene del token JWT
-    if (req.user.role === 'SUPER_ADMIN' || order.userId === req.user.id) {
+    if (req.user.role.name === 'SUPER_ADMIN' || order.userId === req.user.id) {
       res.status(200).json({ status: 'success', data: { order } });
     } else {
       return next(new BadRequestError('No autorizado para ver este pedido', 403));

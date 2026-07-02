@@ -26,13 +26,29 @@ import settingRoutes from './routes/settingRoutes.js';
 import roleRoutes from './routes/roleRoutes.js';
 import mercadoLibreRoutes from './routes/mercadoLibreRoutes.js';
 import whatsappRoutes from './routes/whatsappRoutes.js';
+import supportTicketRoutes from './routes/supportTicketRoutes.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
 
 // --- Confianza en el Proxy ---
 app.set('trust proxy', 1);
-const io = new Server(server, { cors: { origin: '*' } }); // Inicializar Socket.IO
+const allowedOrigins = [
+  getConfig().CLIENT_URL_PRIMARY,
+  getConfig().CLIENT_URL_SECONDARY,
+].filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origen no permitido por CORS.'));
+  },
+  credentials: true,
+};
+
+const io = new Server(server, { cors: corsOptions });
 
 let serverReadyPromise;
 
@@ -63,7 +79,7 @@ const startServer = async () => {
     whatsappService.setSocketIO(io);
 
     app.use(express.json());
-    app.use(cors());
+    app.use(cors(corsOptions));
     app.use(helmet());
 
     // Middleware para añadir un delay en pruebas de Cypress
@@ -79,7 +95,7 @@ const startServer = async () => {
     // --- Configuración de Almacén de Sesiones Persistente ---
     const PGStore = pgSimple(session);
     const sessionStore = new PGStore({
-      prisma: prisma,
+      conString: process.env.DATABASE_URL,
       tableName: 'user_sessions', // Nombre de la tabla para las sesiones
       createTableIfMissing: true, // Crea la tabla automáticamente si no existe
     });
@@ -90,8 +106,12 @@ const startServer = async () => {
         store: sessionStore,
         secret: getConfig().JWT_SECRET,
         resave: false,
-        saveUninitialized: true,
-        cookie: { secure: getConfig().NODE_ENV === 'production' }, // Usar cookies seguras en producción
+        saveUninitialized: false,
+        cookie: {
+          secure: getConfig().NODE_ENV === 'production',
+          httpOnly: true,
+          sameSite: getConfig().NODE_ENV === 'production' ? 'none' : 'lax',
+        },
       })
     );
 
@@ -126,6 +146,7 @@ const startServer = async () => {
     app.use('/api/roles', roleRoutes);
     app.use('/api/mercadolibre', mercadoLibreRoutes);
     app.use('/api/integrations/whatsapp', whatsappRoutes);
+    app.use('/api/support/tickets', supportTicketRoutes);
 
     const __dirname = path.resolve();
     app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
@@ -139,23 +160,6 @@ const startServer = async () => {
           </div>
         `);
       });
-
-    // --- RUTA DE DEPURACIÓN DE EMERGENCIA ---
-    // Permite verificar desde el navegador si el backend cargó bien las variables de entorno.
-    // Visita: https://api.tecnotitlan.com.mx/api/debug/env
-    app.get('/api/debug/env', (req, res) => {
-      res.status(200).json({
-        status: 'success',
-        message: 'Variables de entorno del backend (solo valores no sensibles).',
-        data: {
-          NODE_ENV: process.env.NODE_ENV,
-          PORT: process.env.PORT,
-          UPLOAD_STRATEGY: process.env.UPLOAD_STRATEGY,
-          // Esto confirma que la clave secreta del captcha está siendo leída por el backend.
-          RECAPTCHA_SECRET_KEY_IS_SET: !!process.env.RECAPTCHA_SECRET_KEY,
-        }
-      });
-    });
 
     app.use(notFound);
     app.use(errorHandler);

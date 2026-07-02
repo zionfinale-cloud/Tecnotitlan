@@ -10,7 +10,7 @@ const router = express.Router();
 router.post(
   '/',
   protect,
-  checkPermission('product:create', 'settings:update'), // Permitir subidas para productos o configuración
+  checkPermission('product:create', 'setting:update'), // Permitir subidas para productos o configuración
   upload.single('image'), // El middleware se encarga de todo (local/cloudinary, logo/otro)
   uploadImage // El controlador solo responde con la ruta.
 );

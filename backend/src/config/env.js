@@ -7,32 +7,40 @@ const envPath = path.resolve(__dirname, '../../.env');
 const result = dotenv.config({ path: envPath, override: true });
 
 if (result.error) {
-  console.warn(`⚠️ [Config] No se pudo cargar el archivo .env en: ${envPath}`);
+  console.warn(`[Config] No se pudo cargar el archivo .env en: ${envPath}`);
 } else {
-  console.log(`✅ [Config] Variables cargadas desde: ${envPath}`);
+  console.log(`[Config] Variables cargadas desde: ${envPath}`);
 }
 
-// Lista de variables de entorno críticas para el funcionamiento de la aplicación.
 const requiredEnvVars = [
   'DATABASE_URL',
   'DIRECT_URL',
   'JWT_SECRET',
   'CLIENT_URL_PRIMARY',
+];
+
+const optionalIntegrationVars = [
   'RECAPTCHA_SECRET_KEY',
   'SMTP_HOST',
   'SMTP_PORT',
   'SMTP_USER',
   'SMTP_PASS',
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
 ];
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-  // Detiene la aplicación si faltan variables críticas
-  throw new Error(`Faltan variables de entorno requeridas: ${missingVars.join(', ')}. (Leído desde: ${envPath})`);
+  throw new Error(`Faltan variables de entorno requeridas: ${missingVars.join(', ')}. (Leido desde: ${envPath})`);
 }
 
-// Exporta un objeto de configuración limpio y validado.
+const missingOptionalVars = optionalIntegrationVars.filter(varName => !process.env[varName]);
+if (missingOptionalVars.length > 0) {
+  console.warn(`Variables opcionales/integraciones pendientes: ${missingOptionalVars.join(', ')}`);
+}
+
 export const config = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: process.env.PORT || 5000,
@@ -51,9 +59,12 @@ export const config = {
   SMTP_USER: process.env.SMTP_USER,
   SMTP_PASS: process.env.SMTP_PASS,
   EMAIL_FROM: process.env.EMAIL_FROM || '"Tecnotitlan" <noreply@tecnotitlan.com.mx>',
+  N8N_ORDER_WEBHOOK_URL: process.env.N8N_ORDER_WEBHOOK_URL,
+  N8N_SUPPORT_WEBHOOK_URL: process.env.N8N_SUPPORT_WEBHOOK_URL,
+  SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
 };
 
-
-// Este archivo sirve como la configuración base del entorno.
-// La lógica principal ahora está en `configService.js`.
 export default config;

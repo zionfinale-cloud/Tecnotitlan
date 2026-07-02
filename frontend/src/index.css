@@ -1,100 +1,48 @@
-/* Importar fuente Roboto para un look tecnológico limpio */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
-
-/* --- MODO CLARO (POR DEFECTO) --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 :root {
-  /* --- COLORES BASE DEL DISEÑO TECNOTITLÁN --- */
-  
-  /* Color Maestro (Header, Hero, Footer) - Negro Profundo para fusión */
-  --brand-dark: #020617; /* Slate 950 */
-
-  /* Color de Acento/CTA (Call to Action) - Verde Neón */
-  --cta-color: #00DC82; 
-  
-  /* Color de Fondo principal del CONTENIDO (Gris muy claro) */
-  --secondary-bg-color: #F1F5F9; /* Slate 100 */
-
-  /* Color de Fondo de Tarjetas (Filtros, Productos) */
-  --card-bg-color: #FFFFFF;
-  --card-bg-rgb: 255, 255, 255; /* Para efectos de transparencia */
-
-  /* Color de fondo para los inputs */
-  --input-bg-color: #F8FAFC; /* Slate 50 */
-
-  /* Color de los bordes */
-  --border-color: #E2E8F0; /* Slate 200 */
-
-  /* Texto */
-  --text-on-dark: #FFFFFF;
-  --text-primary: #0F172A; /* Slate 900 */
-  --text-secondary: #64748B;
+  --brand-dark: #020405;
+  --cta-color: #75f238;
+  --secondary-bg-color: #020405;
+  --card-bg-color: #111619;
+  --input-bg-color: #111619;
+  --border-color: #242c30;
+  --text-on-dark: #fff;
+  --text-primary: #f4f7f5;
+  --text-secondary: #929c97;
+  --page-bg: #020405;
+  --surface: #0d1214;
+  --surface-soft: #111619;
+  --surface-raised: #151b1e;
+  --heading: #f7f9f8;
+  --muted: #929c97;
+  --line: #242c30;
+  --header-bg: rgba(2, 4, 6, .97);
+  --shadow: 0 18px 45px rgba(0,0,0,.4);
 }
-
-/* --- MODO OSCURO --- */
-[data-theme='dark'] {
-  --secondary-bg-color: #0F172A; /* Slate 900 */
-  --card-bg-color: #1E293B; /* Slate 800 */
-  --card-bg-rgb: 30, 41, 59;
-  --input-bg-color: #334155; /* Slate 700 */
-  --border-color: #475569; /* Slate 600 */
-  --text-primary: #F1F5F9; /* Slate 100 */
-  --text-secondary: #94A3B8; /* Slate 400 */
+:root[data-theme="light"] {
+  --brand-dark: #071120;
+  --secondary-bg-color: #f8faf9;
+  --card-bg-color: #ffffff;
+  --input-bg-color: #f6f8f7;
+  --border-color: #dfe6e2;
+  --text-on-dark: #071120;
+  --text-primary: #071120;
+  --text-secondary: #63706a;
+  --page-bg: #fbfcfb;
+  --surface: #ffffff;
+  --surface-soft: #f5f8f6;
+  --surface-raised: #ffffff;
+  --heading: #071120;
+  --muted: #63706a;
+  --line: #dfe6e2;
+  --header-bg: rgba(255, 255, 255, .96);
+  --shadow: 0 14px 40px rgba(22, 39, 30, .08);
 }
-
-body {
-  margin: 0;
-  font-family: 'Roboto', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  /* El fondo ahora se controla con una variable para que cambie con el tema */
-  background-color: var(--secondary-bg-color); 
-  color: var(--text-primary);
-}
-
-#root {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
-
-h1, h2, h3, h4, h5, h6 { 
-  color: var(--text-primary); 
-  font-weight: 700;
-}
-
-/* Base de botones, usando clases de Tailwind/Bootstrap para apariencia moderna */
-.btn-primary {
-  background-color: var(--cta-color);
-  color: var(--brand-dark) !important;
-  font-weight: 700;
-  border: none;
-  transition: all 0.3s ease;
-  /* --- MEJORA PARA HOVER AVANZADO --- */
-  position: relative; /* Necesario para posicionar el pseudo-elemento */
-  overflow: hidden; /* Oculta el pseudo-elemento cuando está fuera del botón */
-  z-index: 1; /* Asegura que el texto del botón esté por encima del efecto */
-}
-
-/* Capa del efecto de barrido, oculta por defecto */
-.btn-primary::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(255, 255, 255, 0.2); /* Un brillo blanco semi-transparente */
-  transform: scaleX(0); /* Oculto por defecto */
-  transform-origin: left; /* La animación empieza desde la izquierda */
-  transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1); /* Transición suave */
-  z-index: -1; /* Se coloca detrás del texto del botón */
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0, 220, 130, 0.4);
-}
-
-/* Al hacer hover, se expande el pseudo-elemento */
-.btn-primary:hover::before {
-    transform: scaleX(1);
-}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; background: var(--page-bg); }
+body { margin: 0; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; background: var(--page-bg); color: var(--text-primary); transition: background .25s ease, color .25s ease; }
+#root { min-height: 100vh; display: flex; flex-direction: column; }
+h1,h2,h3,h4,h5,h6 { color: var(--text-primary); font-weight: 800; }
+button,input { font-family: inherit; }
+.btn-primary { background: var(--cta-color); border-color: var(--cta-color); color: #071006; font-weight: 800; }
+.btn-primary:hover { background: #8dff55; border-color: #8dff55; color: #071006; }

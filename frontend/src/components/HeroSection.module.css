@@ -1,66 +1,34 @@
-/* frontend/src/components/HeroSection.module.css */
+.hero { position: relative; overflow: hidden; border-bottom: 1px solid #1d2529; background: radial-gradient(circle at 72% 45%, rgba(20,92,55,.26), transparent 38%), #020405; }
+.hero::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(117,242,56,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(117,242,56,.025) 1px, transparent 1px); background-size: 44px 44px; mask-image: linear-gradient(to right, transparent, #000 55%, transparent); }
+.inner { min-height: 450px; display: grid; grid-template-columns: .9fr 1.2fr; align-items: center; position: relative; }
+.copy { z-index: 2; padding: 3.5rem 0 2.5rem; }
+.eyebrow { color: var(--cta-color); border: 1px solid rgba(117,242,56,.5); border-radius: 6px; padding: .5rem .75rem; text-transform: uppercase; font-size: .68rem; font-weight: 800; letter-spacing: .04em; }
+.copy h1 { color: #f7f9f8; font-size: clamp(2.7rem, 4.4vw, 4.4rem); line-height: 1.02; letter-spacing: -.065em; margin: 1.5rem 0 1rem; max-width: 700px; }
+.copy h1 em { color: var(--cta-color); font-style: normal; }
+.copy p { color: #aeb8b3; max-width: 510px; font-size: 1rem; line-height: 1.7; }
+.cta { display: inline-flex; align-items: center; gap: .8rem; padding: .9rem 1.35rem; background: linear-gradient(135deg, var(--cta-color), #54c628); color: #071006; font-size: .75rem; font-weight: 900; text-transform: uppercase; text-decoration: none; border-radius: 8px; margin-top: .6rem; box-shadow: 0 10px 30px rgba(117,242,56,.14); }
+.miniBenefits { display: flex; gap: 1.6rem; margin-top: 2rem; color: #9da7a2; font-size: .65rem; }
+.miniBenefits span { display: flex; align-items: center; gap: .45rem; }
+.miniBenefits i { color: var(--cta-color); font-size: .9rem; }
+.visual { height: 450px; position: relative; display: grid; place-items: center; }
+.visual img { width: min(680px, 115%); height: 100%; object-fit: cover; object-position: center; mask-image: radial-gradient(ellipse 68% 72% at center, #000 55%, transparent 100%); filter: saturate(1.08) contrast(1.04); }
+.glow { position: absolute; width: 420px; height: 240px; border-radius: 50%; background: rgba(70,255,126,.12); filter: blur(70px); }
 
-.hero {
-  /* Fondo principal */
-  background-color: var(--brand-dark); 
-  color: var(--text-on-dark); /* Texto Blanco */
-  padding: 0; 
-  position: relative;
-  overflow: hidden;
-  
-  /* --- ESTILOS CRÍTICOS DE LA IMAGEN DE FONDO --- */
-  background-size: cover; 
-  background-position: center center; 
-  background-repeat: no-repeat;
-  
-  /* Sombra interna ajustada para el tamaño más pequeño */
-  box-shadow: inset 0 0 100px 30px var(--brand-dark); 
+:global([data-theme="light"]) .hero { border-bottom-color: var(--line); background: radial-gradient(circle at 72% 45%, rgba(117,242,56,.12), transparent 39%), linear-gradient(135deg, #fff, #f6faf7); }
+:global([data-theme="light"]) .hero::before { opacity: .5; }
+:global([data-theme="light"]) .copy h1 { color: var(--heading); }
+:global([data-theme="light"]) .copy p, :global([data-theme="light"]) .miniBenefits { color: var(--muted); }
+:global([data-theme="light"]) .visual img { mix-blend-mode: multiply; filter: saturate(1.04) contrast(1.03); }
+:global([data-theme="light"]) .glow { background: rgba(117,242,56,.16); }
 
-  /* --- CONTROL DE LAYOUT (REDUCIDO) --- */
-  min-height: 400px; /* Reducido de 550px a 400px para ser más compacto */
-  display: flex;
-  align-items: center; 
-  
-  /* CRÍTICO: Redondeo inferior grande (Efecto 'Dark Tecnotitlán') */
-  border-bottom-left-radius: 1.5rem;
-  border-bottom-right-radius: 1.5rem;
+@media (max-width: 991px) {
+  .inner { min-height: 560px; grid-template-columns: 1fr; }
+  .copy { padding: 3rem 0 0; }
+  .visual { height: 280px; margin-top: -2rem; }
+  .miniBenefits { flex-wrap: wrap; }
 }
-
-/* Contenido dentro del Container de Bootstrap */
-.heroContent {
-  max-width: 550px; 
-  z-index: 10; 
-  position: relative;
-  /* Padding reducido de 4rem a 2rem */
-  padding: 2rem 0; 
-}
-
-.heroTitle {
-  /* Tamaño reducido de 3.5rem a 2.8rem */
-  font-size: 2.8rem; 
-  font-weight: 700;
-  line-height: 1.2;
-  margin-bottom: 0.75rem;
-  color: var(--text-on-dark) !important; 
-}
-
-.heroSubtitle {
-  font-size: 1.1rem;
-  opacity: 0.9;
-  margin-bottom: 1.5rem;
-  color: var(--text-on-dark) !important; 
-}
-
-.heroButton {
-  display: inline-block;
-  padding: 0.75rem 2rem;
-  border-radius: 8px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: all 0.2s ease-in-out;
-}
-
-.heroButton:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 220, 130, 0.3);
+@media (max-width: 575px) {
+  .copy h1 { font-size: 2.6rem; }
+  .miniBenefits { display: none; }
+  .visual { height: 230px; }
 }

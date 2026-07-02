@@ -19,7 +19,7 @@ import {
   exportProductsToCSV,
   bulkUpdateProducts,
 } from '../controllers/productController.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect, optionalProtect } from '../middleware/authMiddleware.js';
 import { validateProduct } from '../middleware/validationMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
 
@@ -52,7 +52,7 @@ router.put('/:id/stock', protect, checkPermission('product:update'), updateProdu
 
 // --- Ruta genérica por SKU (debe ir al final) ---
 router.route('/:sku')
-  .get(protect, getProductById) // Ahora es opcionalmente autenticada para ver archivados
+  .get(optionalProtect, getProductById)
   .put(protect, checkPermission('product:update'), validateProduct, updateProduct) // Admin
   .delete(protect, checkPermission('product:delete'), archiveProduct); // Admin - Ahora archiva en lugar de eliminar
 

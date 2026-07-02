@@ -27,8 +27,9 @@ const usePageContent = (pageKey) => {
       } else if (!settingsLoading) {
         // Si no está en el contexto, hace una llamada específica a la API.
         try {
-          const { data } = await apiService.get(`/api/settings/key/${pageKey}`);
-          setContent(data.value || '');
+          const { data } = await apiService.get('/api/settings/public');
+          const setting = data.data?.find(item => item.key === pageKey);
+          setContent(setting?.value || '');
         } catch (err) {
           setError(err.response?.data?.message || 'Error al cargar el contenido.');
         } finally {
