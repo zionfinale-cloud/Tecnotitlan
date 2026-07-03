@@ -153,6 +153,61 @@ const getMovements = asyncHandler(async (req, res) => {
   res.status(200).json({ status: 'success', data: { movements } });
 });
 
+const getInventoryOverview = asyncHandler(async (req, res) => {
+  const products = await prisma.product.findMany({
+    where: { isArchived: false },
+    include: {
+      category: { select: { name: true } },
+      marketplaceListings: {
+        where: { status: { not: 'ARCHIVED' } },
+        select: {
+          channel: true,
+          publishedStock: true,
+          stockBuffer: true,
+          price: true,
+          status: true,
+        },
+      },
+    },
+    orderBy: { sku: 'asc' },
+  });
+
+  const rows = products.map((product) => {
+    const channelStock = {
+      WEB: product.countInStock,
+      MERCADOLIBRE: 0,
+      TIKTOK_SHOP: 0,
+      AMAZON: 0,
+    };
+
+    const channelPrices = {};
+    const channelStatuses = {};
+
+    for (const listing of product.marketplaceListings) {
+      channelStock[listing.channel] = listing.publishedStock || 0;
+      channelPrices[listing.channel] = listing.price || null;
+      channelStatuses[listing.channel] = listing.status;
+    }
+
+    return {
+      productId: product.id,
+      sku: product.sku,
+      name: product.name,
+      brand: product.brand,
+      category: product.category?.name || null,
+      totalPhysicalStock: product.countInStock,
+      costPrice: product.costPrice || 0,
+      webPrice: product.price,
+      channelStock,
+      channelPrices,
+      channelStatuses,
+      reorderSuggested: product.countInStock <= 3,
+    };
+  });
+
+  res.status(200).json({ status: 'success', data: { inventory: rows } });
+});
+
 const getInventoryCut = asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;
   const createdAt = toDateRange(startDate, endDate);
@@ -175,6 +230,7 @@ const getInventoryCut = asyncHandler(async (req, res) => {
     grossProfit: 0,
     unitsPurchased: 0,
     unitsSold: 0,
+    salesByChannel: {},
     products: {},
     filters: { startDate: startDate || null, endDate: endDate || null },
   };
@@ -204,9 +260,17 @@ const getInventoryCut = asyncHandler(async (req, res) => {
 
     if (movement.type === 'SALE') {
       const revenue = movement.totalRevenue || 0;
+      const channel = movement.channel || 'WEB';
       summary.salesRevenue += revenue;
       summary.costOfGoodsSold += movement.totalCost;
       summary.unitsSold += movement.quantity;
+      if (!summary.salesByChannel[channel]) {
+        summary.salesByChannel[channel] = { channel, unitsSold: 0, revenue: 0, cost: 0, profit: 0 };
+      }
+      summary.salesByChannel[channel].unitsSold += movement.quantity;
+      summary.salesByChannel[channel].revenue += revenue;
+      summary.salesByChannel[channel].cost += movement.totalCost;
+      summary.salesByChannel[channel].profit += revenue - movement.totalCost;
       row.unitsSold += movement.quantity;
       row.revenue += revenue;
       row.cost += movement.totalCost;
@@ -220,6 +284,7 @@ const getInventoryCut = asyncHandler(async (req, res) => {
     status: 'success',
     data: {
       ...summary,
+      salesByChannel: Object.values(summary.salesByChannel),
       products: Object.values(summary.products),
     },
   });
@@ -227,6 +292,7 @@ const getInventoryCut = asyncHandler(async (req, res) => {
 
 export {
   getInvestments,
+  getInventoryOverview,
   createInvestment,
   createStockEntry,
   getMovements,

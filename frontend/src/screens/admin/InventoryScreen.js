@@ -19,6 +19,7 @@ const getWeekStart = () => {
 const InventoryScreen = () => {
   const [products, setProducts] = useState([]);
   const [investments, setInvestments] = useState([]);
+  const [inventoryOverview, setInventoryOverview] = useState([]);
   const [movements, setMovements] = useState([]);
   const [cut, setCut] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,15 +51,17 @@ const InventoryScreen = () => {
     setLoading(true);
     setError('');
     try {
-      const [productsResponse, investmentsResponse, movementsResponse, cutResponse] = await Promise.all([
+      const [productsResponse, investmentsResponse, overviewResponse, movementsResponse, cutResponse] = await Promise.all([
         api.get('/products', { params: { pageSize: 250 } }),
         api.get('/inventory/investments'),
+        api.get('/inventory/overview'),
         api.get('/inventory/movements', { params: { limit: 25 } }),
         api.get('/inventory/cut', { params: dateRange }),
       ]);
 
       setProducts(productsResponse.data.data.products || []);
       setInvestments(investmentsResponse.data.data.investments || []);
+      setInventoryOverview(overviewResponse.data.data.inventory || []);
       setMovements(movementsResponse.data.data.movements || []);
       setCut(cutResponse.data.data || null);
     } catch (err) {
@@ -124,9 +127,9 @@ const InventoryScreen = () => {
     <>
       <div className={styles.toolbar}>
         <div>
-          <h1 className={styles.title}>Inventario y cortes</h1>
+          <h1 className={styles.title}>Inversion, inventario y salidas</h1>
           <p className={styles.subtitle}>
-            Registra inversion, compras, salidas por venta y utilidad real por periodo.
+            La inversion es dinero. El inventario son piezas. Las salidas son ventas por canal.
           </p>
         </div>
       </div>
@@ -136,7 +139,7 @@ const InventoryScreen = () => {
 
       <div className={styles.formGrid}>
         <section className={styles.card}>
-          <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Nueva inversion</h2>
+          <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>1. Bolsa de inversion</h2>
           <form onSubmit={createInvestment}>
             <div className={styles.field}>
               <label className={styles.label}>Nombre</label>
@@ -177,7 +180,7 @@ const InventoryScreen = () => {
         </section>
 
         <section className={styles.card}>
-          <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Entrada de mercancia</h2>
+          <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>2. Compra / entrada de mercancia</h2>
           <form onSubmit={createStockEntry}>
             <div className={styles.field}>
               <label className={styles.label}>Producto</label>
@@ -196,7 +199,7 @@ const InventoryScreen = () => {
               </select>
             </div>
             <div className={styles.field} style={{ marginTop: '1rem' }}>
-              <label className={styles.label}>Inversion</label>
+              <label className={styles.label}>Pagar desde inversion</label>
               <select
                 className={styles.select}
                 value={entryForm.investmentId}
@@ -256,8 +259,58 @@ const InventoryScreen = () => {
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
         <div className={styles.toolbar}>
           <div>
-            <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>Corte</h2>
-            <p className={styles.subtitle} style={{ marginBottom: 0 }}>Ventas, costo y utilidad del periodo.</p>
+            <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>3. Inventario por producto y canal</h2>
+            <p className={styles.subtitle} style={{ marginBottom: 0 }}>
+              Existencia fisica y stock publicado por marketplace para evitar perder mercancia.
+            </p>
+          </div>
+        </div>
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Producto</th>
+                <th>Marca</th>
+                <th>Stock fisico</th>
+                <th>Web</th>
+                <th>Mercado Libre</th>
+                <th>TikTok Shop</th>
+                <th>Amazon</th>
+                <th>Costo prom.</th>
+                <th>Recompra</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inventoryOverview.map((item) => (
+                <tr key={item.productId}>
+                  <td>{item.sku}</td>
+                  <td>{item.name}</td>
+                  <td>{item.brand || '-'}</td>
+                  <td>{item.totalPhysicalStock}</td>
+                  <td>{item.channelStock?.WEB ?? 0}</td>
+                  <td>{item.channelStock?.MERCADOLIBRE ?? 0}</td>
+                  <td>{item.channelStock?.TIKTOK_SHOP ?? 0}</td>
+                  <td>{item.channelStock?.AMAZON ?? 0}</td>
+                  <td>{currency.format(item.costPrice || 0)}</td>
+                  <td>{item.reorderSuggested ? 'Revisar' : 'OK'}</td>
+                </tr>
+              ))}
+              {!loading && inventoryOverview.length === 0 && (
+                <tr>
+                  <td colSpan="10" className={styles.empty}>Aun no hay productos activos para inventario.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className={styles.card} style={{ marginTop: '1.25rem' }}>
+        <div className={styles.toolbar}>
+          <div>
+            <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>4. Corte de salidas / ventas</h2>
+            <p className={styles.subtitle} style={{ marginBottom: 0 }}>Donde se vendio, cuanto salio, cuanto entro y cuanto quedo.</p>
           </div>
           <form className={styles.toolbar} onSubmit={refreshCut}>
             <input
@@ -292,6 +345,38 @@ const InventoryScreen = () => {
         </div>
 
         <div className={styles.tableWrap} style={{ marginTop: '1rem' }}>
+          <h3 className={styles.title} style={{ fontSize: '1rem' }}>Ventas por canal</h3>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Canal</th>
+                <th>Unidades</th>
+                <th>Ventas</th>
+                <th>Costo</th>
+                <th>Utilidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(cut?.salesByChannel || []).map((channel) => (
+                <tr key={channel.channel}>
+                  <td>{channel.channel}</td>
+                  <td>{channel.unitsSold}</td>
+                  <td>{currency.format(channel.revenue || 0)}</td>
+                  <td>{currency.format(channel.cost || 0)}</td>
+                  <td>{currency.format(channel.profit || 0)}</td>
+                </tr>
+              ))}
+              {!loading && (cut?.salesByChannel || []).length === 0 && (
+                <tr>
+                  <td colSpan="5" className={styles.empty}>Aun no hay ventas por canal en este periodo.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className={styles.tableWrap} style={{ marginTop: '1rem' }}>
+          <h3 className={styles.title} style={{ fontSize: '1rem' }}>Ventas por producto</h3>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -325,7 +410,7 @@ const InventoryScreen = () => {
       </section>
 
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
-        <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Ultimos movimientos</h2>
+        <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Historial de compras y salidas</h2>
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
@@ -333,6 +418,7 @@ const InventoryScreen = () => {
                 <th>Fecha</th>
                 <th>Tipo</th>
                 <th>Producto</th>
+                <th>Canal</th>
                 <th>Cantidad</th>
                 <th>Costo</th>
                 <th>Venta</th>
@@ -345,6 +431,7 @@ const InventoryScreen = () => {
                   <td>{new Date(movement.createdAt).toLocaleString('es-MX')}</td>
                   <td>{movement.type}</td>
                   <td>{movement.product?.sku} - {movement.product?.name}</td>
+                  <td>{movement.channel || '-'}</td>
                   <td>{movement.quantity}</td>
                   <td>{currency.format(movement.totalCost || 0)}</td>
                   <td>{currency.format(movement.totalRevenue || 0)}</td>
@@ -353,7 +440,7 @@ const InventoryScreen = () => {
               ))}
               {!loading && movements.length === 0 && (
                 <tr>
-                  <td colSpan="7" className={styles.empty}>Aun no hay movimientos de inventario.</td>
+                  <td colSpan="8" className={styles.empty}>Aun no hay compras ni salidas registradas.</td>
                 </tr>
               )}
             </tbody>

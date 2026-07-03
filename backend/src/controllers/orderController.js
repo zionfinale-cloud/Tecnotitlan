@@ -150,6 +150,7 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
                       unitPrice: dbProduct.price,
                       totalCost: item.qty * (dbProduct.costPrice || 0),
                       totalRevenue: item.qty * dbProduct.price,
+                      channel: 'WEB',
                       stockBefore,
                       stockAfter,
                       referenceType: 'ORDER',

@@ -3,6 +3,7 @@ import {
   createInvestment,
   createStockEntry,
   getInventoryCut,
+  getInventoryOverview,
   getInvestments,
   getMovements,
 } from '../controllers/inventoryController.js';
@@ -25,6 +26,10 @@ router
 router
   .route('/movements')
   .get(checkPermission('report:read', 'product:read'), getMovements);
+
+router
+  .route('/overview')
+  .get(checkPermission('product:read', 'report:read'), getInventoryOverview);
 
 router
   .route('/cut')

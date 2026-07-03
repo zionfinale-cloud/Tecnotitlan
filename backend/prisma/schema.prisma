@@ -193,6 +193,7 @@ model InventoryMovement {
   unitPrice      Float?                @map("unit_price")
   totalCost      Float                 @default(0) @map("total_cost")
   totalRevenue   Float?                @map("total_revenue")
+  channel        SalesChannel?         @map("channel")
   stockBefore    Int                   @map("stock_before")
   stockAfter     Int                   @map("stock_after")
   referenceType  String?               @map("reference_type")
@@ -208,6 +209,7 @@ model InventoryMovement {
 
   @@index([productId, createdAt])
   @@index([type, createdAt])
+  @@index([channel, createdAt])
   @@index([investmentId])
   @@map("inventory_movements")
 }
