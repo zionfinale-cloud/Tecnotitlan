@@ -39,6 +39,8 @@ model User {
   orders            Order[]
   reviews           Review[]
   supportTickets    SupportTicket[]
+  inventoryInvestments InventoryInvestment[]
+  inventoryMovements   InventoryMovement[]
 
   @@map("users")
 }
@@ -95,6 +97,7 @@ model Product {
   characteristics    Characteristic[]
   reviews            Review[]
   orderItems         OrderItem[]
+  inventoryMovements InventoryMovement[]
 
   @@map("products")
 }
@@ -150,6 +153,7 @@ model OrderItem {
   qty       Int
   image     String?
   price     Float
+  unitCost  Float   @default(0) @map("unit_cost")
   // Relaciones
   order     Order   @relation(fields: [orderId], references: [id])
   orderId   String
@@ -157,6 +161,47 @@ model OrderItem {
   productId String
 
   @@map("order_items")
+}
+
+model InventoryInvestment {
+  id          String              @id @default(cuid())
+  name        String
+  amount      Float
+  notes       String?             @db.Text
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  createdBy   User?               @relation(fields: [createdById], references: [id])
+  createdById String?             @map("created_by_id")
+  movements   InventoryMovement[]
+
+  @@map("inventory_investments")
+}
+
+model InventoryMovement {
+  id             String                @id @default(cuid())
+  type           InventoryMovementType
+  quantity       Int
+  unitCost       Float                 @default(0) @map("unit_cost")
+  unitPrice      Float?                @map("unit_price")
+  totalCost      Float                 @default(0) @map("total_cost")
+  totalRevenue   Float?                @map("total_revenue")
+  stockBefore    Int                   @map("stock_before")
+  stockAfter     Int                   @map("stock_after")
+  referenceType  String?               @map("reference_type")
+  referenceId    String?               @map("reference_id")
+  notes          String?               @db.Text
+  createdAt      DateTime              @default(now()) @map("created_at")
+  product        Product               @relation(fields: [productId], references: [id])
+  productId      String                @map("product_id")
+  investment     InventoryInvestment?  @relation(fields: [investmentId], references: [id])
+  investmentId   String?               @map("investment_id")
+  createdBy      User?                 @relation(fields: [createdById], references: [id])
+  createdById    String?               @map("created_by_id")
+
+  @@index([productId, createdAt])
+  @@index([type, createdAt])
+  @@index([investmentId])
+  @@map("inventory_movements")
 }
 
 model Review {
@@ -257,6 +302,15 @@ model SupportTicket {
 enum ProductType {
   IN_HOUSE
   DROPSHIPPING
+}
+
+enum InventoryMovementType {
+  PURCHASE
+  SALE
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  RETURN_IN
+  RETURN_OUT
 }
 
 enum OrderStatus {

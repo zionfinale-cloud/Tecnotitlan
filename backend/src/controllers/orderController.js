@@ -123,6 +123,7 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
                 name: dbProduct.name,
                 qty: item.qty,
                 price: dbProduct.price,
+                unitCost: dbProduct.costPrice || 0,
                 image: dbProduct.media && dbProduct.media.length > 0 ? dbProduct.media[0].url : '/images/sample.jpg',
               };
             }),
@@ -134,11 +135,30 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
       for (const item of orderItems) {
         const dbProduct = productMap[item.product];
         if (dbProduct && dbProduct.productType === 'IN_HOUSE') {
-          await tx.product.update({
-            where: { id: dbProduct.id },
-            data: { countInStock: { decrement: item.qty } },
-          });
-        }
+                  const stockBefore = dbProduct.countInStock;
+                  const stockAfter = stockBefore - item.qty;
+                  await tx.product.update({
+                    where: { id: dbProduct.id },
+                    data: { countInStock: { decrement: item.qty } },
+                  });
+                  await tx.inventoryMovement.create({
+                    data: {
+                      type: 'SALE',
+                      productId: dbProduct.id,
+                      quantity: item.qty,
+                      unitCost: dbProduct.costPrice || 0,
+                      unitPrice: dbProduct.price,
+                      totalCost: item.qty * (dbProduct.costPrice || 0),
+                      totalRevenue: item.qty * dbProduct.price,
+                      stockBefore,
+                      stockAfter,
+                      referenceType: 'ORDER',
+                      referenceId: order.id,
+                      notes: `Venta en pedido ${order.orderNumber}`,
+                      createdById: req.user.id,
+                    },
+                  });
+                }
       }
 
       return order;
@@ -382,3 +402,4 @@ export {
   getAllOrders,
   updateOrderStatus,
 };
+

@@ -92,7 +92,7 @@ const createProduct = asyncHandler(async (req, res, next) => {
     const generatedSku = `${categoryPrefix}-${formattedSeq}`;
 
     // 5. Crear el producto
-    return tx.product.create({
+    const product = await tx.product.create({
       data: {
         userId: req.user.id,
         sku: generatedSku,
@@ -109,6 +109,28 @@ const createProduct = asyncHandler(async (req, res, next) => {
         // media y characteristics se manejan como relaciones separadas
       },
     });
+
+    const initialQuantity = parseInt(countInStock, 10) || 0;
+    const initialUnitCost = costPrice ? parseFloat(costPrice) : 0;
+    if (initialQuantity > 0) {
+      await tx.inventoryMovement.create({
+        data: {
+          type: 'PURCHASE',
+          productId: product.id,
+          quantity: initialQuantity,
+          unitCost: initialUnitCost,
+          totalCost: initialQuantity * initialUnitCost,
+          stockBefore: 0,
+          stockAfter: initialQuantity,
+          referenceType: 'PRODUCT_INITIAL_STOCK',
+          referenceId: product.id,
+          notes: 'Stock inicial al crear producto',
+          createdById: req.user.id,
+        },
+      });
+    }
+
+    return product;
   });
 
   res.status(201).json({ status: 'success', data: { product: createdProduct } });
@@ -318,9 +340,37 @@ const updateProductStock = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    const updatedProduct = await prisma.product.update({
-      where: { id: req.params.id },
-      data: { countInStock },
+    const updatedProduct = await prisma.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({ where: { id: req.params.id } });
+      if (!product) {
+        throw new NotFoundError('Producto no encontrado');
+      }
+
+      const difference = countInStock - product.countInStock;
+      const updated = await tx.product.update({
+        where: { id: req.params.id },
+        data: { countInStock },
+      });
+
+      if (difference !== 0) {
+        await tx.inventoryMovement.create({
+          data: {
+            type: difference > 0 ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT',
+            productId: product.id,
+            quantity: Math.abs(difference),
+            unitCost: product.costPrice || 0,
+            totalCost: Math.abs(difference) * (product.costPrice || 0),
+            stockBefore: product.countInStock,
+            stockAfter: countInStock,
+            referenceType: 'MANUAL_STOCK_ADJUSTMENT',
+            referenceId: product.id,
+            notes: 'Ajuste manual de inventario',
+            createdById: req.user?.id,
+          },
+        });
+      }
+
+      return updated;
     });
     res.status(200).json({ status: 'success', data: { product: updatedProduct } });
   } catch (error) {

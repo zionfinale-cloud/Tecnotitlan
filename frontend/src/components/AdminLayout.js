@@ -8,6 +8,7 @@ import { AuthContext } from '../context/AuthContext';
 const navLinks = [
     { to: '/admin/dashboard', icon: 'fa-tachometer-alt', text: 'Dashboard' },
     { to: '/admin/productlist', icon: 'fa-box-open', text: 'Productos' },
+    { to: '/admin/inventory', icon: 'fa-warehouse', text: 'Inventario' },
     { to: '/admin/orderlist', icon: 'fa-shipping-fast', text: 'Pedidos' },
     { to: '/admin/userlist', icon: 'fa-users', text: 'Usuarios' },
     { to: '/admin/categorylist', icon: 'fa-list-alt', text: 'Categorías' }, // Agregamos Categorías
