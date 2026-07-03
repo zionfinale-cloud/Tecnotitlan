@@ -1,10 +1,10 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 
-// SOLO importamos el Header
 import Header from './Header'; 
 import Footer from './Footer';
-// Se eliminan las importaciones de Footer, Notificaciones, etc., para aislar.
+import Notification from './Notification';
+import ToastNotification from './ToastNotification';
 
 const Layout = () => {
   return (
@@ -14,6 +14,7 @@ const Layout = () => {
       
       {/* 1. Header (Contiene el redondeo rounded-b-xl) */}
       <Header />
+      <Notification />
       
       {/* 2. Contenido principal (donde se renderiza HomeScreen) */}
       {/* Se elimina el fondo blanco de 'main'. Ahora es transparente. */}
@@ -21,6 +22,7 @@ const Layout = () => {
         <Outlet /> 
       </main>
       <Footer />
+      <ToastNotification />
     </div>
   );
 };
