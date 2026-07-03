@@ -93,6 +93,7 @@ function App() {
                                                 <Route path="productlist" element={<ProductListScreen />} />
                                                 <Route path="orderlist" element={<OrderListScreen />} />
                                                 <Route path="userlist" element={<UserListScreen />} />
+                                                <Route path="product/create" element={<ProductEditScreen />} />
                                                 <Route path="product/:id/edit" element={<ProductEditScreen />} />
                                                 <Route path="user/:id/edit" element={<UserEditScreen />} />
                                                 <Route path="categorylist" element={<CategoryListScreen />} />

@@ -148,11 +148,11 @@ const getProductById = asyncHandler(async (req, res, next) => {
     query.isArchived = false;
   }
 
-  const product = await prisma.product.findUnique({
+  const product = await prisma.product.findFirst({
     where: query,
     include: {
       reviews: { include: { user: { select: { firstName: true, lastName: true } } } },
-      category: { select: { name: true } },
+      category: { select: { id: true, name: true } },
     },
   });
 
@@ -168,7 +168,7 @@ const getProductById = asyncHandler(async (req, res, next) => {
 // @access  Private/Admin
 const updateProduct = asyncHandler(async (req, res, next) => {
   logger.info(`[ProductCtrl] Actualizando producto con SKU: ${req.params.sku}`);
-  const { name, description, price, countInStock, categoryId, media, costPrice, characteristics, youtubeUrl } = req.body;
+  const { name, description, price, countInStock, categoryId, costPrice, youtubeUrl, brand, productType, supplierInfo } = req.body;
   const product = await prisma.product.findUnique({ where: { sku: req.params.sku.toUpperCase() } });
 
   if (product) {
@@ -177,10 +177,13 @@ const updateProduct = asyncHandler(async (req, res, next) => {
       data: {
         name,
         description,
-        price,
-        countInStock,
+        price: parseFloat(price),
+        countInStock: parseInt(countInStock, 10),
         categoryId,
-        costPrice,
+        costPrice: costPrice === '' || costPrice === undefined || costPrice === null ? null : parseFloat(costPrice),
+        brand,
+        productType: productType || product.productType,
+        supplierInfo,
         youtubeUrl,
         // media y characteristics se actualizan por separado
       },

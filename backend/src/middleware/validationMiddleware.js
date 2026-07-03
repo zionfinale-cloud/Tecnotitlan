@@ -5,8 +5,7 @@ import { BadRequestError } from '../utils/errorUtils.js';
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    // Formateamos los errores para que sean más legibles y los pasamos al manejador de errores.
-    const errorMessages = errors.array().map(err => err.msg).join('. ');
+    const errorMessages = errors.array().map((err) => err.msg).join('. ');
     return next(new BadRequestError(errorMessages));
   }
   next();
@@ -33,39 +32,59 @@ const validateUserRegistration = [
   body('phone')
     .optional({ checkFalsy: true })
     .trim(),
-  body('street').notEmpty().withMessage('El domicilio es requerido.').trim(),
-  body('neighborhood').optional({ checkFalsy: true }).trim(),
-  body('city').notEmpty().withMessage('El municipio/ciudad es requerido.').trim(),
-  body('state').notEmpty().withMessage('El estado es requerido.').trim(),
-  body('postalCode').notEmpty().withMessage('El código postal es requerido.').isPostalCode('MX').withMessage('El código postal no es válido para México.'),
+  body('street')
+    .notEmpty().withMessage('El domicilio es requerido.')
+    .trim(),
+  body('neighborhood')
+    .optional({ checkFalsy: true })
+    .trim(),
+  body('city')
+    .notEmpty().withMessage('El municipio/ciudad es requerido.')
+    .trim(),
+  body('state')
+    .notEmpty().withMessage('El estado es requerido.')
+    .trim(),
+  body('postalCode')
+    .notEmpty().withMessage('El código postal es requerido.')
+    .isPostalCode('MX').withMessage('El código postal no es válido para México.'),
   handleValidationErrors,
 ];
 
 const validateUserLogin = [
-  body('email').isEmail().withMessage('Debe ser un email válido.').normalizeEmail(),
-  body('password').notEmpty().withMessage('La contraseña es obligatoria.'),
+  body('email')
+    .isEmail().withMessage('Debe ser un email válido.')
+    .normalizeEmail(),
+  body('password')
+    .notEmpty().withMessage('La contraseña es obligatoria.'),
   handleValidationErrors,
 ];
 
 const validateProduct = [
   body('name')
-    .trim().notEmpty().withMessage('El nombre del producto es obligatorio.'),
+    .trim()
+    .notEmpty().withMessage('El nombre del producto es obligatorio.'),
   body('description')
-    .trim().notEmpty().withMessage('La descripción es obligatoria.'),
+    .trim()
+    .notEmpty().withMessage('La descripción es obligatoria.'),
   body('price')
     .isFloat({ gt: 0 }).withMessage('El precio debe ser un número válido mayor que 0.'),
   body('costPrice')
-    .optional()
+    .optional({ checkFalsy: true })
     .isFloat({ gte: 0 }).withMessage('El precio de costo debe ser un número no negativo.'),
-  // Con Prisma, el ID es un string (cuid), por lo que solo validamos que no esté vacío.
-  body('categoryId', 'La categoría es obligatoria.').not().isEmpty().isString().withMessage('El ID de la categoría debe ser un string válido.'),
-  body('countInStock', 'El stock debe ser un número entero no negativo.').isInt({ min: 0 }),
+  body('categoryId', 'La categoría es obligatoria.')
+    .not()
+    .isEmpty()
+    .isString().withMessage('El ID de la categoría debe ser un string válido.'),
+  body('countInStock', 'El stock debe ser un número entero no negativo.')
+    .isInt({ min: 0 }),
   body('productType')
-    .optional().isIn(['In-House', 'Dropshipping']).withMessage('El tipo de producto no es válido.'),
+    .optional()
+    .isIn(['IN_HOUSE', 'DROPSHIPPING']).withMessage('El tipo de producto no es válido.'),
   body('supplierInfo')
-    .if(body('productType').equals('Dropshipping'))
+    .if(body('productType').equals('DROPSHIPPING'))
     .notEmpty().withMessage('La información del proveedor es obligatoria para productos de dropshipping.')
-    .trim().escape(),
+    .trim()
+    .escape(),
   handleValidationErrors,
 ];
 

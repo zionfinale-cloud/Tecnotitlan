@@ -23,3 +23,158 @@
 .placeholderText {
     margin-bottom: 0;
 }
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.button {
+    border: 0;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #00d084;
+    color: #06111f;
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.button:hover {
+    color: #06111f;
+    background: #24e09b;
+}
+
+.secondaryButton {
+    border: 1px solid #cbd5e1;
+    border-radius: 0.75rem;
+    padding: 0.6rem 0.9rem;
+    background: #fff;
+    color: #0f172a;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.dangerButton {
+    border: 1px solid #fecaca;
+    border-radius: 0.75rem;
+    padding: 0.6rem 0.9rem;
+    background: #fff1f2;
+    color: #be123c;
+    font-weight: 700;
+}
+
+.card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    padding: 1rem;
+}
+
+.tableWrap {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th,
+.table td {
+    padding: 0.9rem;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.table th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+}
+
+.empty {
+    padding: 2rem;
+    text-align: center;
+    color: #64748b;
+}
+
+.formGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.fieldFull {
+    grid-column: 1 / -1;
+}
+
+.label {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.input,
+.select,
+.textarea {
+    border: 1px solid #cbd5e1;
+    border-radius: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    width: 100%;
+}
+
+.textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1.25rem;
+}
+
+.muted {
+    color: #64748b;
+}
+
+.error {
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    color: #be123c;
+    border-radius: 0.75rem;
+    padding: 0.9rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.success {
+    background: #ecfdf5;
+    border: 1px solid #bbf7d0;
+    color: #047857;
+    border-radius: 0.75rem;
+    padding: 0.9rem 1rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 800px) {
+    .formGrid {
+        grid-template-columns: 1fr;
+    }
+}
