@@ -92,6 +92,13 @@ Esta sección define la trayectoria del proyecto para asegurar que no perdamos e
 
 ## 3. Arquitectura y Decisiones Clave
 - **Estructura PERN (PostgreSQL, Express, React, Node):** Se adopta una pila PERN para aprovechar la robustez de las bases de datos relacionales y el ecosistema moderno de Prisma.
+- **Arquitectura Omnicanal Vigente (julio 2026):** Tecnotitlan es el centro de control del negocio. El inventario, costos, margenes, productos y cortes viven primero en Tecnotitlan; los marketplaces son canales conectados, no fuentes de verdad. La prioridad de integracion sera:
+    1. **Web propia:** canal principal para validar catalogo, inventario, checkout, soporte y automatizaciones n8n.
+    2. **Mercado Libre:** primer marketplace externo por afinidad con Mexico, Mercado Envios y volumen comercial.
+    3. **TikTok Shop:** segundo marketplace externo, ideal para gadgets y ventas por contenido cuando el inventario ya este estable.
+    4. **Amazon:** tercer marketplace externo por complejidad operativa, comisiones, reglas de listing y SP-API.
+  Cada producto mantiene un SKU maestro interno (`AUR-001`, `BOS-001`, `WTC-001`, etc.) y puede tener publicaciones por canal con precio, stock publicado, comision estimada, ID externo y estado de sincronizacion propios. Ningun marketplace debe modificar inventario directo: las ventas externas se importan como ordenes externas y generan movimientos de inventario controlados por el backend.
+- **Guias y fulfillment por canal:** En la web propia se integrara un agregador logistico (preferentemente Envia.com o Skydropx) para cotizar y generar guias. En marketplaces se respetara la logistica nativa cuando aplique: Mercado Envios para Mercado Libre, fulfillment/logistica de TikTok Shop cuando este disponible y Amazon Seller/FBA segun la estrategia. Tecnotitlan guardara tracking, costo real, estado y evidencia, aunque la guia venga de una plataforma externa.
 - **API Centralizada (`apiService.js`):** Un único punto de entrada para todas las peticiones del frontend, utilizando interceptores de Axios para:
     - Adjuntar automáticamente tokens de autenticación.
     - Estandarizar el manejo de respuestas y errores.

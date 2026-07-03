@@ -98,6 +98,7 @@ model Product {
   reviews            Review[]
   orderItems         OrderItem[]
   inventoryMovements InventoryMovement[]
+  marketplaceListings MarketplaceListing[]
 
   @@map("products")
 }
@@ -139,6 +140,7 @@ model Order {
   user            User            @relation(fields: [userId], references: [id])
   userId          String
   orderItems      OrderItem[]
+  externalOrders  ExternalOrder[]
   shippingAddress Json
   paymentResult   Json?
   shippingInfo    Json?
@@ -202,6 +204,55 @@ model InventoryMovement {
   @@index([type, createdAt])
   @@index([investmentId])
   @@map("inventory_movements")
+}
+
+model MarketplaceListing {
+  id                   String                   @id @default(cuid())
+  channel              SalesChannel
+  externalProductId    String?                  @map("external_product_id")
+  externalSku          String?                  @map("external_sku")
+  title                String?
+  price                Float?
+  publishedStock       Int?                     @map("published_stock")
+  stockBuffer          Int                      @default(0) @map("stock_buffer")
+  commissionRate       Float?                   @map("commission_rate")
+  shippingCostEstimate Float?                   @map("shipping_cost_estimate")
+  status               MarketplaceListingStatus @default(DRAFT)
+  syncStatus           String?                  @map("sync_status")
+  lastSyncedAt         DateTime?                @map("last_synced_at")
+  notes                String?                  @db.Text
+  rawData              Json?                    @map("raw_data")
+  createdAt            DateTime                 @default(now()) @map("created_at")
+  updatedAt            DateTime                 @updatedAt @map("updated_at")
+  product              Product                  @relation(fields: [productId], references: [id])
+  productId            String                   @map("product_id")
+
+  @@unique([productId, channel])
+  @@index([channel, status])
+  @@index([externalProductId])
+  @@map("marketplace_listings")
+}
+
+model ExternalOrder {
+  id              String       @id @default(cuid())
+  channel         SalesChannel
+  externalOrderId String       @map("external_order_id")
+  externalStatus  String?      @map("external_status")
+  customerName    String?      @map("customer_name")
+  totalPrice      Float        @default(0) @map("total_price")
+  shippingPrice   Float        @default(0) @map("shipping_price")
+  feesEstimated   Float        @default(0) @map("fees_estimated")
+  netRevenue      Float        @default(0) @map("net_revenue")
+  orderedAt       DateTime?    @map("ordered_at")
+  importedAt      DateTime     @default(now()) @map("imported_at")
+  rawData         Json?        @map("raw_data")
+  order           Order?       @relation(fields: [orderId], references: [id])
+  orderId         String?      @map("order_id")
+
+  @@unique([channel, externalOrderId])
+  @@index([channel, importedAt])
+  @@index([orderId])
+  @@map("external_orders")
 }
 
 model Review {
@@ -311,6 +362,22 @@ enum InventoryMovementType {
   ADJUSTMENT_OUT
   RETURN_IN
   RETURN_OUT
+}
+
+enum SalesChannel {
+  WEB
+  MERCADOLIBRE
+  TIKTOK_SHOP
+  AMAZON
+}
+
+enum MarketplaceListingStatus {
+  DRAFT
+  READY
+  ACTIVE
+  PAUSED
+  ERROR
+  ARCHIVED
 }
 
 enum OrderStatus {
