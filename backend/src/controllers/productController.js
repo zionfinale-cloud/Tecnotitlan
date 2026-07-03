@@ -60,12 +60,69 @@ const buildSkuPrefix = (category) => {
   return (words[0] || 'GEN').slice(0, 3).toUpperCase().padEnd(3, 'X');
 };
 
+
+const sanitizeSkuPrefix = (value) => {
+  const normalized = normalizeSkuText(value || '')
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 3)
+    .toUpperCase();
+
+  return normalized.length >= 2 ? normalized.padEnd(3, 'X') : null;
+};
+
+const parseOptionalFloat = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeMediaPayload = (media = []) =>
+  Array.isArray(media)
+    ? media
+        .filter((item) => item && item.url)
+        .map((item) => ({
+          type: item.type || 'IMAGE',
+          url: item.url,
+          altText: item.altText || null,
+        }))
+    : [];
+
+const normalizeCharacteristicsPayload = (characteristics = []) =>
+  Array.isArray(characteristics)
+    ? characteristics
+        .filter((item) => item && item.key && item.value)
+        .map((item) => ({
+          key: String(item.key).trim(),
+          value: String(item.value).trim(),
+        }))
+    : [];
+
 // @desc    Crear un nuevo producto
 // @route   POST /api/products
 // @access  Private/Admin (now wrapped with asyncHandler)
 const createProduct = asyncHandler(async (req, res, next) => {
   logger.info('[ProductCtrl] Intentando crear un nuevo producto');
-  const { name, description, price, brand, categoryId, countInStock, media, costPrice, characteristics, productType, supplierInfo, youtubeUrl } = req.body;
+  const {
+    name,
+    description,
+    price,
+    brand,
+    categoryId,
+    countInStock,
+    media,
+    costPrice,
+    characteristics,
+    productType,
+    supplierInfo,
+    youtubeUrl,
+    skuPrefix,
+    shippingPayer,
+    shippingCostEstimate,
+    weightKg,
+    lengthCm,
+    widthCm,
+    heightCm,
+  } = req.body;
 
   // --- Generación de SKU ---
   // 1. Obtener prefijo de la categoría desde la BD
@@ -74,7 +131,7 @@ const createProduct = asyncHandler(async (req, res, next) => {
     if (categoryId) {
       const category = await tx.category.findUnique({ where: { id: categoryId } });
       if (category) {
-        categoryPrefix = buildSkuPrefix(category);
+        categoryPrefix = sanitizeSkuPrefix(skuPrefix) || buildSkuPrefix(category);
       }
     }
 
@@ -102,11 +159,18 @@ const createProduct = asyncHandler(async (req, res, next) => {
         costPrice: costPrice ? parseFloat(costPrice) : null, // Convertir a número, si existe
         brand,
         categoryId,
-        countInStock: parseInt(countInStock, 10), // Convertir a número entero
+        countInStock: parseInt(countInStock, 10) || 0, // Convertir a número entero
         productType: productType || 'IN_HOUSE', // Usar enums de Prisma
         supplierInfo,
         youtubeUrl,
-        // media y characteristics se manejan como relaciones separadas
+        shippingPayer: shippingPayer || 'CUSTOMER',
+        shippingCostEstimate: parseOptionalFloat(shippingCostEstimate),
+        weightKg: parseOptionalFloat(weightKg),
+        lengthCm: parseOptionalFloat(lengthCm),
+        widthCm: parseOptionalFloat(widthCm),
+        heightCm: parseOptionalFloat(heightCm),
+        media: { create: normalizeMediaPayload(media) },
+        characteristics: { create: normalizeCharacteristicsPayload(characteristics) },
       },
     });
 
@@ -230,6 +294,8 @@ const getProductById = asyncHandler(async (req, res, next) => {
     include: {
       reviews: { include: { user: { select: { firstName: true, lastName: true } } } },
       category: { select: { id: true, name: true } },
+      media: true,
+      characteristics: true,
     },
   });
 
@@ -245,25 +311,62 @@ const getProductById = asyncHandler(async (req, res, next) => {
 // @access  Private/Admin
 const updateProduct = asyncHandler(async (req, res, next) => {
   logger.info(`[ProductCtrl] Actualizando producto con SKU: ${req.params.sku}`);
-  const { name, description, price, countInStock, categoryId, costPrice, youtubeUrl, brand, productType, supplierInfo } = req.body;
+  const {
+    name,
+    description,
+    price,
+    countInStock,
+    categoryId,
+    costPrice,
+    youtubeUrl,
+    brand,
+    productType,
+    supplierInfo,
+    media,
+    characteristics,
+    shippingPayer,
+    shippingCostEstimate,
+    weightKg,
+    lengthCm,
+    widthCm,
+    heightCm,
+  } = req.body;
   const product = await prisma.product.findUnique({ where: { sku: req.params.sku.toUpperCase() } });
 
   if (product) {
-    const updatedProduct = await prisma.product.update({
-      where: { sku: req.params.sku.toUpperCase() },
-      data: {
-        name,
-        description,
-        price: parseFloat(price),
-        countInStock: parseInt(countInStock, 10),
-        categoryId,
-        costPrice: costPrice === '' || costPrice === undefined || costPrice === null ? null : parseFloat(costPrice),
-        brand,
-        productType: productType || product.productType,
-        supplierInfo,
-        youtubeUrl,
-        // media y characteristics se actualizan por separado
-      },
+    const updatedProduct = await prisma.$transaction(async (tx) => {
+      if (Array.isArray(media)) {
+        await tx.media.deleteMany({ where: { productId: product.id } });
+      }
+
+      if (Array.isArray(characteristics)) {
+        await tx.characteristic.deleteMany({ where: { productId: product.id } });
+      }
+
+      return tx.product.update({
+        where: { sku: req.params.sku.toUpperCase() },
+        data: {
+          name,
+          description,
+          price: parseFloat(price),
+          countInStock: parseInt(countInStock, 10) || 0,
+          categoryId,
+          costPrice: costPrice === '' || costPrice === undefined || costPrice === null ? null : parseFloat(costPrice),
+          brand,
+          productType: productType || product.productType,
+          supplierInfo,
+          youtubeUrl,
+          shippingPayer: shippingPayer || product.shippingPayer,
+          shippingCostEstimate: parseOptionalFloat(shippingCostEstimate),
+          weightKg: parseOptionalFloat(weightKg),
+          lengthCm: parseOptionalFloat(lengthCm),
+          widthCm: parseOptionalFloat(widthCm),
+          heightCm: parseOptionalFloat(heightCm),
+          ...(Array.isArray(media) ? { media: { create: normalizeMediaPayload(media) } } : {}),
+          ...(Array.isArray(characteristics) ? { characteristics: { create: normalizeCharacteristicsPayload(characteristics) } } : {}),
+        },
+        include: { media: true, characteristics: true },
+      });
     });
     res.status(200).json({ status: 'success', data: { product: updatedProduct } });
   } else {

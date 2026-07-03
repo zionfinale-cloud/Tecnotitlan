@@ -79,6 +79,12 @@ model Product {
   countInStock       Int              @default(0)
   productType        ProductType      @default(IN_HOUSE)
   supplierInfo       String?
+  shippingPayer      ShippingPayer    @default(CUSTOMER) @map("shipping_payer")
+  shippingCostEstimate Float?         @default(0) @map("shipping_cost_estimate")
+  weightKg           Float?           @map("weight_kg")
+  lengthCm           Float?           @map("length_cm")
+  widthCm            Float?           @map("width_cm")
+  heightCm           Float?           @map("height_cm")
   isArchived         Boolean          @default(false)
   rating             Float            @default(0)
   numReviews         Int              @default(0)
@@ -353,6 +359,12 @@ model SupportTicket {
 enum ProductType {
   IN_HOUSE
   DROPSHIPPING
+}
+
+enum ShippingPayer {
+  CUSTOMER
+  SELLER
+  MARKETPLACE
 }
 
 enum InventoryMovementType {

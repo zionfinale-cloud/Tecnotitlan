@@ -1,0 +1,10 @@
+-- CreateEnum
+CREATE TYPE "ShippingPayer" AS ENUM ('CUSTOMER', 'SELLER', 'MARKETPLACE');
+
+-- AlterTable
+ALTER TABLE "products" ADD COLUMN "shipping_payer" "ShippingPayer" NOT NULL DEFAULT 'CUSTOMER',
+ADD COLUMN "shipping_cost_estimate" DOUBLE PRECISION DEFAULT 0,
+ADD COLUMN "weight_kg" DOUBLE PRECISION,
+ADD COLUMN "length_cm" DOUBLE PRECISION,
+ADD COLUMN "width_cm" DOUBLE PRECISION,
+ADD COLUMN "height_cm" DOUBLE PRECISION;

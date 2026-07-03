@@ -16,6 +16,7 @@ const ProductScreen = () => {
   const { sku } = useParams();
   const [qty, setQty] = useState(1);
   const [product, setProduct] = useState(null);
+  const [activeImage, setActiveImage] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -32,6 +33,7 @@ const ProductScreen = () => {
       try {
         const { data } = await api.get(`/products/${sku}`);
         setProduct(data.data.product);
+        setActiveImage(data.data.product?.media?.[0]?.url || '');
       } catch (err) {
         setError(err.response?.data?.message || 'Producto no encontrado.');
       } finally {
@@ -42,8 +44,9 @@ const ProductScreen = () => {
     loadProduct();
   }, [sku]);
 
-  const image = product?.image || product?.media?.[0]?.url || fallbackImage;
+  const image = activeImage || product?.image || product?.media?.[0]?.url || fallbackImage;
   const isFallbackImage = image === fallbackImage;
+  const characteristics = product?.characteristics || [];
 
   const addToCartHandler = () => {
     if (!product) return;
@@ -79,6 +82,20 @@ const ProductScreen = () => {
             ) : (
               <img src={image} alt={product.name} className={styles.productImage} />
             )}
+            {product.media?.length > 1 && (
+              <div className={styles.thumbRow}>
+                {product.media.map((item) => (
+                  <button
+                    className={`${styles.thumbButton} ${item.url === image ? styles.thumbActive : ''}`}
+                    key={item.id || item.url}
+                    type="button"
+                    onClick={() => setActiveImage(item.url)}
+                  >
+                    <img src={item.url} alt={item.altText || product.name} />
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className={styles.infoStack}>
@@ -96,9 +113,29 @@ const ProductScreen = () => {
               </div>
 
               <div>
-                <div className={styles.descriptionTitle}>Descripción</div>
+                <div className={styles.descriptionTitle}>Descripcion</div>
                 <p className={styles.description}>{product.description}</p>
               </div>
+
+              {characteristics.length > 0 && (
+                <div>
+                  <div className={styles.descriptionTitle}>Especificaciones</div>
+                  <div className={styles.specGrid}>
+                    {characteristics.map((item) => (
+                      <div className={styles.specItem} key={item.id || `${item.key}-${item.value}`}>
+                        <span>{item.key}</span>
+                        <strong>{item.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {product.youtubeUrl && (
+                <a className={styles.videoLink} href={product.youtubeUrl} target="_blank" rel="noreferrer">
+                  <i className="fas fa-play-circle"></i> Ver video del producto
+                </a>
+              )}
             </article>
 
             <aside className={styles.buyBox}>
