@@ -1,29 +1,29 @@
 .container {
   display: flex;
   min-height: 100vh;
-  background-color: #f8f9fa; /* Gris muy claro */
+  background: #eef3f8;
+  color: #0f172a;
 }
 
-/* Sidebar (Barra Lateral) */
 .sidebar {
   width: 260px;
-  background-color: #1a202c; /* Oscuro */
-  color: white;
+  background: linear-gradient(180deg, #101827 0%, #162033 100%);
+  color: #f8fafc;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+  box-shadow: 4px 0 20px rgba(15, 23, 42, 0.16);
 }
 
 .sidebarHeader {
   padding: 1.5rem;
-  border-bottom: 1px solid #2d3748;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .sidebarTitle {
   font-size: 1.5rem;
-  font-weight: bold;
-  color: var(--cta-color); /* Verde Neón */
+  font-weight: 900;
+  color: #75f238;
   margin: 0;
   letter-spacing: 0.05em;
 }
@@ -42,23 +42,24 @@
   display: flex;
   align-items: center;
   padding: 0.75rem 1rem;
-  color: #a0aec0; /* Gris texto */
+  color: #cbd5e1;
   text-decoration: none;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   transition: all 0.2s ease;
+  font-weight: 700;
 }
 
 .navLink:hover {
-  background-color: #2d3748;
-  color: white;
+  background-color: rgba(117, 242, 56, 0.1);
+  color: #ffffff;
   transform: translateX(5px);
 }
 
 .activeLink {
-  background-color: var(--cta-color) !important;
-  color: #1a202c !important; /* Texto oscuro sobre verde */
-  font-weight: bold;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  background-color: #75f238 !important;
+  color: #071120 !important;
+  font-weight: 900;
+  box-shadow: 0 10px 22px rgba(117, 242, 56, 0.18);
 }
 
 .iconContainer {
@@ -67,18 +68,43 @@
   margin-right: 12px;
 }
 
-/* Contenido Principal */
 .mainContent {
   flex-grow: 1;
   padding: 2rem;
   overflow-y: auto;
+  color: #0f172a;
 }
 
 .contentCard {
-  background-color: white;
+  background-color: #ffffff;
+  color: #0f172a;
   padding: 2rem;
   border-radius: 1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
   min-height: 85vh;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #dbe4ee;
+}
+
+.contentCard :global(h1),
+.contentCard :global(h2),
+.contentCard :global(h3),
+.contentCard :global(h4),
+.contentCard :global(h5),
+.contentCard :global(h6),
+.contentCard :global(p),
+.contentCard :global(label),
+.contentCard :global(td),
+.contentCard :global(th) {
+  color: inherit;
+}
+
+@media (max-width: 767px) {
+  .mainContent {
+    padding: 1rem;
+  }
+
+  .contentCard {
+    padding: 1.25rem;
+    min-height: auto;
+  }
 }
