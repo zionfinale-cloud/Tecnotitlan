@@ -44,6 +44,7 @@ import PrivacyPolicy from './screens/PrivacyPolicy';
 import TermsOfService from './screens/TermsOfService';
 import ContactScreen from './screens/ContactScreen';
 import SupportTicketsScreen from './screens/admin/SupportTicketsScreen';
+import VerifyAccountScreen from './screens/VerifyAccountScreen';
 
 // --- Configuración de PayPal ---
 const initialOptions = {
@@ -70,6 +71,8 @@ function App() {
                                                 <Route path="cart" element={<CartScreen />} />
                                                 <Route path="login" element={<LoginScreen />} />
                                                 <Route path="register" element={<RegisterScreen />} />
+                                                <Route path="verify-email" element={<VerifyAccountScreen />} />
+                                                <Route path="verify-email/:token" element={<VerifyAccountScreen />} />
                                                 <Route path="privacy-policy" element={<PrivacyPolicy />} />
                                                 <Route path="terms-of-service" element={<TermsOfService />} />
                                                 <Route path="contact" element={<ContactScreen />} />

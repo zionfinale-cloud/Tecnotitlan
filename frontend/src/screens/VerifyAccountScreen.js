@@ -1,76 +1,84 @@
-import React, { useEffect, useState, useContext } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useContext, useEffect, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
+const cardStyle = {
+  maxWidth: 520,
+  width: '100%',
+  background: 'var(--surface-raised)',
+  border: '1px solid var(--line)',
+  borderRadius: 18,
+  padding: '2rem',
+  textAlign: 'center',
+  boxShadow: 'var(--shadow)',
+};
+
 const VerifyAccountScreen = () => {
-    const { token } = useParams();
-    const { verifyAccount } = useContext(AuthContext);
-    const [status, setStatus] = useState('loading'); // loading, success, error
-    const [message, setMessage] = useState('');
+  const { token: tokenParam } = useParams();
+  const [searchParams] = useSearchParams();
+  const { verifyAccount } = useContext(AuthContext);
+  const [status, setStatus] = useState('loading');
+  const [message, setMessage] = useState('');
 
-    useEffect(() => {
-        const verify = async () => {
-            try {
-                const response = await verifyAccount(token);
-                if (response.status === 'success') {
-                    setStatus('success');
-                    setMessage('¡Tu cuenta ha sido activada exitosamente! Ya puedes comprar.');
-                } else {
-                    setStatus('error');
-                    setMessage(response.message || 'No se pudo activar la cuenta.');
-                }
-            } catch (error) {
-                setStatus('error');
-                setMessage(error.response?.data?.message || 'El enlace es inválido o ha expirado.');
-            }
-        };
+  const token = tokenParam || searchParams.get('token');
 
-        if (token) {
-            verify();
+  useEffect(() => {
+    const verify = async () => {
+      try {
+        const response = await verifyAccount(token);
+        if (response.status === 'success') {
+          setStatus('success');
+          setMessage('Tu cuenta fue activada correctamente. Ya puedes iniciar sesión y comprar.');
         } else {
-            setStatus('error');
-            setMessage('Token de verificación no proporcionado.');
+          setStatus('error');
+          setMessage(response.message || 'No se pudo activar la cuenta.');
         }
-    }, [token, verifyAccount]);
+      } catch (error) {
+        setStatus('error');
+        setMessage(error.response?.data?.message || 'El enlace es inválido o ha expirado.');
+      }
+    };
 
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-            <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
-                {status === 'loading' && (
-                    <>
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--cta-color)] mx-auto mb-4"></div>
-                        <h2 className="text-2xl font-bold text-gray-800">Verificando cuenta...</h2>
-                    </>
-                )}
+    if (token) {
+      verify();
+    } else {
+      setStatus('error');
+      setMessage('Token de verificación no proporcionado.');
+    }
+    // verifyAccount updates global loading state, so keeping it out avoids duplicate token consumption.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
-                {status === 'success' && (
-                    <>
-                        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                            <i className="fas fa-check text-green-600 text-xl"></i>
-                        </div>
-                        <h2 className="text-2xl font-bold text-gray-800 mb-2">¡Cuenta Activada!</h2>
-                        <p className="text-gray-600 mb-6">{message}</p>
-                        <Link to="/login" className="inline-block bg-[var(--cta-color)] text-white font-bold py-2 px-6 rounded hover:opacity-90 transition duration-200">
-                            Iniciar Sesión
-                        </Link>
-                    </>
-                )}
+  return (
+    <div style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', padding: '2rem' }}>
+      <div style={cardStyle}>
+        {status === 'loading' && (
+          <>
+            <i className="fas fa-spinner fa-spin" style={{ color: 'var(--cta-color)', fontSize: '2rem', marginBottom: '1rem' }}></i>
+            <h2>Verificando cuenta...</h2>
+          </>
+        )}
 
-                {status === 'error' && (
-                    <>
-                        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-                            <i className="fas fa-times text-red-600 text-xl"></i>
-                        </div>
-                        <h2 className="text-2xl font-bold text-gray-800 mb-2">Error de Activación</h2>
-                        <p className="text-gray-600 mb-6">{message}</p>
-                        <Link to="/" className="text-[var(--cta-color)] hover:underline">
-                            Volver al inicio
-                        </Link>
-                    </>
-                )}
-            </div>
-        </div>
-    );
+        {status === 'success' && (
+          <>
+            <i className="fas fa-check-circle" style={{ color: 'var(--cta-color)', fontSize: '2.4rem', marginBottom: '1rem' }}></i>
+            <h2>Cuenta activada</h2>
+            <p style={{ color: 'var(--muted)' }}>{message}</p>
+            <Link to="/login" className="btn btn-primary">Iniciar sesión</Link>
+          </>
+        )}
+
+        {status === 'error' && (
+          <>
+            <i className="fas fa-times-circle" style={{ color: '#ff6b6b', fontSize: '2.4rem', marginBottom: '1rem' }}></i>
+            <h2>Error de activación</h2>
+            <p style={{ color: 'var(--muted)' }}>{message}</p>
+            <Link to="/" style={{ color: 'var(--cta-color)', fontWeight: 800 }}>Volver al inicio</Link>
+          </>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default VerifyAccountScreen;

@@ -5,6 +5,61 @@ import { NotFoundError, BadRequestError } from '../utils/errorUtils.js';
 import * as meliService from '../services/mercadoLibreService.js';
 import logger from '../utils/logger.js';
 
+const SKU_PREFIX_BY_CATEGORY = {
+  auriculares: 'AUR',
+  audifonos: 'AUR',
+  audífonos: 'AUR',
+  audio: 'AUR',
+  bocinas: 'BOS',
+  bocina: 'BOS',
+  parlantes: 'BOS',
+  relojes: 'WTC',
+  reloj: 'WTC',
+  smartwatch: 'WTC',
+  smartwatches: 'WTC',
+  wearables: 'WTC',
+  drones: 'DRN',
+  drone: 'DRN',
+  cargadores: 'CRG',
+  cargador: 'CRG',
+  cables: 'CBL',
+  cable: 'CBL',
+  energia: 'ENE',
+  energía: 'ENE',
+  gaming: 'GMG',
+};
+
+const normalizeSkuText = (value = '') =>
+  value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const buildSkuPrefix = (category) => {
+  const candidates = [category?.slug, category?.name].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const normalized = normalizeSkuText(candidate);
+    if (SKU_PREFIX_BY_CATEGORY[normalized]) return SKU_PREFIX_BY_CATEGORY[normalized];
+
+    const partialMatch = Object.entries(SKU_PREFIX_BY_CATEGORY).find(([key]) =>
+      normalized.includes(normalizeSkuText(key))
+    );
+    if (partialMatch) return partialMatch[1];
+  }
+
+  const base = normalizeSkuText(category?.slug || category?.name || 'general').replace(/[^a-z0-9\s-]/g, '');
+  const words = base.split(/[\s-]+/).filter(Boolean);
+
+  if (words.length >= 2) {
+    return words.map((word) => word[0]).join('').slice(0, 3).toUpperCase().padEnd(3, 'X');
+  }
+
+  return (words[0] || 'GEN').slice(0, 3).toUpperCase().padEnd(3, 'X');
+};
+
 // @desc    Crear un nuevo producto
 // @route   POST /api/products
 // @access  Private/Admin (now wrapped with asyncHandler)
@@ -14,24 +69,24 @@ const createProduct = asyncHandler(async (req, res, next) => {
 
   // --- Generación de SKU ---
   // 1. Obtener prefijo de la categoría desde la BD
-  let categoryPrefix = 'GEN'; // Prefijo genérico por defecto
+  let categoryPrefix = 'GEN';
   const createdProduct = await prisma.$transaction(async (tx) => {
     if (categoryId) {
       const category = await tx.category.findUnique({ where: { id: categoryId } });
       if (category) {
-        categoryPrefix = category.slug.toUpperCase();
+        categoryPrefix = buildSkuPrefix(category);
       }
     }
 
     // 2. Obtener el siguiente número de la secuencia para productos
     const counter = await tx.counter.upsert({
-      where: { id: 'productSku' },
+      where: { id: 'productSku:' + categoryPrefix },
       update: { sequenceValue: { increment: 1 } },
-      create: { id: 'productSku', sequenceValue: 1 },
+      create: { id: 'productSku:' + categoryPrefix, sequenceValue: 1 },
     });
 
     // 3. Formatear el número con ceros a la izquierda (ej: 1 -> "0001")
-    const formattedSeq = counter.sequenceValue.toString().padStart(4, '0');
+    const formattedSeq = counter.sequenceValue.toString().padStart(3, '0');
 
     // 4. Crear el SKU
     const generatedSku = `${categoryPrefix}-${formattedSeq}`;
@@ -648,3 +703,4 @@ export {
   exportProductsToCSV,
   bulkUpdateProducts,
 };
+

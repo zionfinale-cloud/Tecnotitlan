@@ -52,8 +52,14 @@ const RegisterFormContent = () => {
 
             // Generar token de reCAPTCHA (acción: 'register')
             const token = await executeRecaptcha('register');
-            await register(name, email, password, token);
-            // Si el registro es exitoso, el useEffect se encargará de la redirección
+            const result = await register(name, email, password, token);
+            if (result?.requireActivation) {
+                showNotification(result.message || 'Registro exitoso. Revisa tu correo para activar tu cuenta.', 'success');
+                setName('');
+                setEmail('');
+                setPassword('');
+                setConfirmPassword('');
+            }
         } catch (error) {
             // Mostrar error de la API
             showNotification(error.response?.data?.message || 'Error de registro. Inténtelo de nuevo.', 'danger');
