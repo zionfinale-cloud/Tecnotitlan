@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Button, Card, Col, Container, Form, Image, ListGroup, Row } from 'react-bootstrap';
+import { Container } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Message from '../components/Message';
@@ -8,8 +8,9 @@ import { CartContext } from '../context/CartContext';
 import { SettingsContext } from '../context/SettingsContext';
 import { ToastContext } from '../context/ToastContext';
 import api from '../services/apiService';
+import styles from './ProductScreen.module.css';
 
-const fallbackImage = 'https://placehold.co/800x600/151a1d/75f238?text=TECNOTITLAN';
+const fallbackImage = 'https://placehold.co/900x700/151a1d/75f238?text=TECNOTITLAN';
 
 const ProductScreen = () => {
   const { sku } = useParams();
@@ -42,6 +43,7 @@ const ProductScreen = () => {
   }, [sku]);
 
   const image = product?.image || product?.media?.[0]?.url || fallbackImage;
+  const isFallbackImage = image === fallbackImage;
 
   const addToCartHandler = () => {
     if (!product) return;
@@ -60,9 +62,9 @@ const ProductScreen = () => {
   };
 
   return (
-    <Container className="py-5" style={{ minHeight: '80vh' }}>
-      <Link to="/" className="btn btn-light my-3 rounded-full border-0 shadow-sm">
-        <i className="fas fa-chevron-left me-2"></i> Volver a la Tienda
+    <Container className={styles.page}>
+      <Link to="/" className={styles.backLink}>
+        <i className="fas fa-chevron-left"></i> Volver a la tienda
       </Link>
 
       {loading ? (
@@ -70,100 +72,75 @@ const ProductScreen = () => {
       ) : error ? (
         <Message variant="danger">{error}</Message>
       ) : (
-        <Row className="g-4">
-          <Col md={6}>
-            <Image src={image} alt={product.name} fluid className="rounded-xl shadow-lg" />
-          </Col>
+        <div className={styles.grid}>
+          <section className={styles.gallery}>
+            {isFallbackImage ? (
+              <div className={styles.placeholderText}>TECNOTITLAN</div>
+            ) : (
+              <img src={image} alt={product.name} className={styles.productImage} />
+            )}
+          </section>
 
-          <Col md={3}>
-            <ListGroup variant="flush" className="rounded-xl border-0 shadow-lg">
-              <ListGroup.Item className="bg-white">
-                <p className="text-muted small fw-bold mb-2">{product.category?.name || product.sku}</p>
-                <h3 className="fw-bold text-dark">{product.name}</h3>
-              </ListGroup.Item>
+          <section className={styles.infoStack}>
+            <article className={styles.panel}>
+              <span className={styles.category}>{product.category?.name || product.sku}</span>
+              <h1 className={styles.title}>{product.name}</h1>
 
-              <ListGroup.Item className="bg-white">
-                <Rating value={product.rating || 0} text={`${product.numReviews || 0} reseñas`} />
-              </ListGroup.Item>
+              <div className={styles.ratingRow}>
+                <Rating value={product.rating || 0} text={`${product.numReviews || 0} reseñas`} color="var(--cta-color)" />
+              </div>
 
-              <ListGroup.Item className="bg-white">
-                <p className="fw-medium text-secondary mb-0">
-                  <span className="fw-bold text-dark me-1">Precio:</span>
-                  <span className="fs-3 fw-black" style={{ color: 'var(--cta-color)' }}>
-                    {currencySymbol}{Number(product.price || 0).toFixed(2)}
-                  </span>
-                </p>
-              </ListGroup.Item>
+              <div className={styles.priceLine}>
+                <span className={styles.priceLabel}>Precio</span>
+                <span className={styles.price}>{currencySymbol}{Number(product.price || 0).toFixed(2)}</span>
+              </div>
 
-              <ListGroup.Item className="bg-white">
-                <strong className="text-dark">Descripción:</strong>
-                <p className="text-secondary mt-1 mb-0">{product.description}</p>
-              </ListGroup.Item>
-            </ListGroup>
-          </Col>
+              <div>
+                <div className={styles.descriptionTitle}>Descripción</div>
+                <p className={styles.description}>{product.description}</p>
+              </div>
+            </article>
 
-          <Col md={3}>
-            <Card className="rounded-xl shadow-lg border-0 mt-4 mt-md-0">
-              <ListGroup variant="flush">
-                <ListGroup.Item className="bg-white border-b">
-                  <Row className="fw-bold">
-                    <Col>Precio:</Col>
-                    <Col className="text-end" style={{ color: 'var(--cta-color)' }}>
-                      {currencySymbol}{Number(product.price || 0).toFixed(2)}
-                    </Col>
-                  </Row>
-                </ListGroup.Item>
-
-                <ListGroup.Item className="bg-white border-b">
-                  <Row className="fw-bold">
-                    <Col>Estado:</Col>
-                    <Col className="text-end">
-                      {product.countInStock > 0 ? (
-                        <span className="text-success fw-bold">En stock</span>
-                      ) : (
-                        <span className="text-danger fw-bold">Sin stock</span>
-                      )}
-                    </Col>
-                  </Row>
-                </ListGroup.Item>
-
-                {product.countInStock > 0 && (
-                  <ListGroup.Item className="bg-white border-b">
-                    <Row className="align-items-center">
-                      <Col>Cantidad:</Col>
-                      <Col xs="auto" className="p-0">
-                        <Form.Control
-                          as="select"
-                          value={qty}
-                          onChange={(event) => setQty(Number(event.target.value))}
-                          className="rounded-lg shadow-sm text-center"
-                          style={{ width: '80px' }}
-                        >
-                          {[...Array(product.countInStock).keys()].slice(0, 10).map((x) => (
-                            <option key={x + 1} value={x + 1}>
-                              {x + 1}
-                            </option>
-                          ))}
-                        </Form.Control>
-                      </Col>
-                    </Row>
-                  </ListGroup.Item>
+            <aside className={styles.buyBox}>
+              <div className={styles.buyRow}>
+                <span>Precio</span>
+                <strong className={styles.price}>{currencySymbol}{Number(product.price || 0).toFixed(2)}</strong>
+              </div>
+              <div className={styles.buyRow}>
+                <span>Estado</span>
+                {product.countInStock > 0 ? (
+                  <strong className={styles.stockOk}>En stock</strong>
+                ) : (
+                  <strong className={styles.stockOut}>Sin stock</strong>
                 )}
+              </div>
 
-                <ListGroup.Item className="bg-white">
-                  <Button
-                    onClick={addToCartHandler}
-                    className="btn-primary w-100 rounded-full py-2 shadow-md"
-                    type="button"
-                    disabled={product.countInStock === 0}
-                  >
-                    <i className="fas fa-cart-plus me-2"></i> Añadir al carrito
-                  </Button>
-                </ListGroup.Item>
-              </ListGroup>
-            </Card>
-          </Col>
-        </Row>
+              {product.countInStock > 0 && (
+                <div className={styles.buyRow}>
+                  <span>Cantidad</span>
+                  <select className={styles.select} value={qty} onChange={(event) => setQty(Number(event.target.value))}>
+                    {[...Array(product.countInStock).keys()].slice(0, 10).map((x) => (
+                      <option key={x + 1} value={x + 1}>
+                        {x + 1}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <button className={styles.cartButton} onClick={addToCartHandler} type="button" disabled={product.countInStock === 0}>
+                <i className="fas fa-cart-plus me-2"></i> Añadir al carrito
+              </button>
+            </aside>
+
+            <div className={styles.benefitBox}>
+              <div className={styles.benefit}><i className="fas fa-truck"></i> Envíos a todo México</div>
+              <div className={styles.benefit}><i className="fas fa-shield-alt"></i> Compra segura</div>
+              <div className={styles.benefit}><i className="fas fa-medal"></i> Garantía y respaldo</div>
+              <div className={styles.benefit}><i className="fas fa-headset"></i> Atención personalizada</div>
+            </div>
+          </section>
+        </div>
       )}
     </Container>
   );
