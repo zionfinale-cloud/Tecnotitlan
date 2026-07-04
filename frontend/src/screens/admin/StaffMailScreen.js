@@ -307,7 +307,7 @@ const StaffMailScreen = () => {
             <iframe
               className={mailStyles.htmlFrame}
               title="Contenido del correo"
-              sandbox=""
+              sandbox="allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
               srcDoc={selectedMessage.html}
             />
           ) : (

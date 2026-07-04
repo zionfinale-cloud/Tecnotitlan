@@ -5,7 +5,29 @@ import ProductList from '../components/ProductList';
 import useProductFilters from '../hooks/useProductFilters';
 import styles from './HomeScreen.module.css';
 
-const categoryIcons = ['fa-helicopter', 'fa-mobile-alt', 'fa-gamepad', 'fa-headphones', 'fa-clock', 'fa-battery-full'];
+const CATEGORY_ICON_RULES = [
+  { terms: ['auricular', 'audifono', 'audifonos', 'audio'], icon: 'fa-headphones' },
+  { terms: ['bocina', 'bocinas', 'speaker', 'parlante'], icon: 'fa-volume-up' },
+  { terms: ['cargador', 'cargadores', 'carga'], icon: 'fa-plug' },
+  { terms: ['cable', 'cables'], icon: 'fa-usb' },
+  { terms: ['reloj', 'relojes', 'watch', 'wearable'], icon: 'fa-clock' },
+  { terms: ['drone', 'drones'], icon: 'fa-helicopter' },
+  { terms: ['gaming', 'juego', 'consola'], icon: 'fa-gamepad' },
+  { terms: ['power', 'bateria', 'battery', 'energia'], icon: 'fa-battery-full' },
+  { terms: ['celular', 'telefono', 'phone', 'movil'], icon: 'fa-mobile-alt' },
+];
+
+const normalizeCategoryText = (value = '') =>
+  value
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const getCategoryIcon = (category) => {
+  const text = normalizeCategoryText(`${category.name || ''} ${category.slug || ''}`);
+  return CATEGORY_ICON_RULES.find((rule) => rule.terms.some((term) => text.includes(term)))?.icon || 'fa-microchip';
+};
 
 const HomeScreen = () => {
   const { products, loading, error, pages, page, setPage, categories, selectedCategory, setSelectedCategory, collectionTitle, clearFilters } = useProductFilters();
@@ -21,9 +43,9 @@ const HomeScreen = () => {
       <HeroSection />
       <Container>
         <section id="categories" className={styles.categories}>
-          {categories.map((category, index) => (
+          {categories.map((category) => (
             <button key={category.id} onClick={() => setSelectedCategory(category.slug)} className={selectedCategory === category.slug ? styles.activeCategory : ''}>
-              <i className={`fas ${categoryIcons[index % categoryIcons.length]}`}></i>
+              <i className={`fas ${getCategoryIcon(category)}`}></i>
               <span><strong>{category.name}</strong><small>Explorar productos</small></span>
             </button>
           ))}

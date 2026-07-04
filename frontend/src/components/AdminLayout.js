@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import styles from './AdminLayout.module.css'; // Importamos los estilos CSS Modules
 import { SettingsContext } from '../context/SettingsContext';
@@ -23,6 +23,15 @@ const navLinks = [
 const AdminLayout = () => {
     const { settings } = useContext(SettingsContext);
     const { userInfo } = useContext(AuthContext);
+    const [collapsed, setCollapsed] = useState(() => localStorage.getItem('tecnotitlan-admin-sidebar') === 'collapsed');
+
+    const toggleSidebar = () => {
+        setCollapsed((current) => {
+            const next = !current;
+            localStorage.setItem('tecnotitlan-admin-sidebar', next ? 'collapsed' : 'expanded');
+            return next;
+        });
+    };
 
     return (
         // Fondo gris claro para el área del contenido principal
@@ -31,18 +40,26 @@ const AdminLayout = () => {
                 BARRA LATERAL (SIDEBAR)
                 Estilo Oscuro con acentos Neon
                ----------------------- */}
-            <aside className={`${styles.sidebar} d-none d-md-block`}>
+            <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''} d-none d-md-block`}>
                 <div className={styles.sidebarHeader}>
+                    <button
+                        className={styles.collapseButton}
+                        type="button"
+                        onClick={toggleSidebar}
+                        title={collapsed ? 'Expandir menú' : 'Contraer menú'}
+                    >
+                        <i className={`fas ${collapsed ? 'fa-angle-right' : 'fa-angle-left'}`}></i>
+                    </button>
                     {/* Enlace para volver a la tienda */}
-                    <Link to="/" className="text-decoration-none d-block text-center">
+                    <Link to="/" className={`${styles.brandLink} text-decoration-none d-block text-center`}>
                         {settings?.logoUrl ? (
-                            <img src={settings.logoUrl} alt="Logo" style={{ maxHeight: '50px', maxWidth: '100%' }} />
+                            <img src={settings.logoUrl} alt="Logo" className={styles.logo} />
                         ) : (
                             <h2 className={styles.sidebarTitle}>
                                 {settings?.siteName || 'TECNOTITLÁN'}
                             </h2>
                         )}
-                        <small className="text-muted d-block mt-2" style={{ fontSize: '0.7rem' }}>VOLVER A LA TIENDA</small>
+                        <small className={styles.backText}>VOLVER A LA TIENDA</small>
                     </Link>
                 </div>
                     <nav>
@@ -58,7 +75,7 @@ const AdminLayout = () => {
                                         <div className={styles.iconContainer}>
                                             <i className={`fas ${item.icon}`}></i>
                                         </div>
-                                        <span>{item.text}</span>
+                                        <span className={styles.linkText}>{item.text}</span>
                                     </NavLink>
                                 </li>
                             ))}
