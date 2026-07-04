@@ -4,9 +4,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import api from '../services/apiService';
+import { stripePublishableKey } from '../utils/runtimeEnv';
 import styles from './Checkout.module.css';
 
-const publishableKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || '';
+const publishableKey = stripePublishableKey;
 const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
 const StripePaymentForm = ({ order, clientSecret, paymentIntentId }) => {

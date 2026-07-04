@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Container } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { getPaymentMethod, savePaymentMethod } from '../utils/checkoutStorage';
+import { stripePublishableKey } from '../utils/runtimeEnv';
 import styles from './Checkout.module.css';
 
-const stripeConfigured = Boolean(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
+const stripeConfigured = Boolean(stripePublishableKey);
 
 const manualPaymentMethods = [
   {
