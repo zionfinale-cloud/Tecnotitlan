@@ -4,6 +4,7 @@ import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
 import { getConfig } from '../services/configService.js';
 import * as whatsappService from '../services/whatsappService.js';
+import { applyPaidOrderInventoryMovements } from '../services/orderInventoryService.js';
 
 let stripe;
 
@@ -43,8 +44,6 @@ const markStripeOrderPaid = async (paymentIntent) => {
     return null;
   }
 
-  if (order.isPaid) return order;
-
   if (order.paymentMethod !== 'Stripe') {
     logger.warn('[Stripe Webhook] Pedido no usa Stripe como metodo de pago.', {
       orderNumber: order.orderNumber,
@@ -68,20 +67,33 @@ const markStripeOrderPaid = async (paymentIntent) => {
     item => item.product.productType === 'DROPSHIPPING'
   );
 
-  const updatedOrder = await prisma.order.update({
-    where: { id: order.id },
-    data: {
-      isPaid: true,
-      paidAt: new Date(),
-      status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
-      paymentResult: {
-        id: paymentIntent.id,
-        status: paymentIntent.status,
-        update_time: new Date(paymentIntent.created * 1000).toISOString(),
-        email_address: paymentIntent.receipt_email || '',
-        source: 'stripe_webhook',
-      },
-    },
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    const paidOrder = order.isPaid
+      ? order
+      : await tx.order.update({
+          where: { id: order.id },
+          data: {
+            isPaid: true,
+            paidAt: new Date(),
+            status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
+            paymentResult: {
+              id: paymentIntent.id,
+              status: paymentIntent.status,
+              update_time: new Date(paymentIntent.created * 1000).toISOString(),
+              email_address: paymentIntent.receipt_email || '',
+              source: 'stripe_webhook',
+            },
+          },
+          include: { orderItems: { include: { product: true } } },
+        });
+
+    try {
+      await applyPaidOrderInventoryMovements(tx, paidOrder);
+    } catch (error) {
+      logger.error(`[Inventory] Webhook Stripe sin salida de inventario para ${paidOrder.orderNumber}: ${error.message}`);
+    }
+
+    return paidOrder;
   });
 
   whatsappService.sendAdminOrderPaidNotification(updatedOrder);

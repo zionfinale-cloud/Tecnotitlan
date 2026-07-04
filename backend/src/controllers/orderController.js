@@ -4,6 +4,7 @@ import { NotFoundError, BadRequestError } from '../utils/errorUtils.js';
 import logger from '../utils/logger.js';
 import * as whatsappService from '../services/whatsappService.js';
 import { getConfig } from '../services/configService.js';
+import { applyPaidOrderInventoryMovements } from '../services/orderInventoryService.js';
 import Stripe from 'stripe';
 import axios from 'axios'; // <-- REQUERIDO
 
@@ -143,37 +144,6 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
           },
         },
       });
-
-      // 4. Actualizar el stock de los productos (solo los In-House)
-      for (const item of orderItems) {
-        const dbProduct = productMap[item.product];
-        if (dbProduct && dbProduct.productType === 'IN_HOUSE') {
-                  const stockBefore = dbProduct.countInStock;
-                  const stockAfter = stockBefore - item.qty;
-                  await tx.product.update({
-                    where: { id: dbProduct.id },
-                    data: { countInStock: { decrement: item.qty } },
-                  });
-                  await tx.inventoryMovement.create({
-                    data: {
-                      type: 'SALE',
-                      productId: dbProduct.id,
-                      quantity: item.qty,
-                      unitCost: dbProduct.costPrice || 0,
-                      unitPrice: dbProduct.price,
-                      totalCost: item.qty * (dbProduct.costPrice || 0),
-                      totalRevenue: item.qty * dbProduct.price,
-                      channel: 'WEB',
-                      stockBefore,
-                      stockAfter,
-                      referenceType: 'ORDER',
-                      referenceId: order.id,
-                      notes: `Venta en pedido ${order.orderNumber}`,
-                      createdById: req.user.id,
-                    },
-                  });
-                }
-      }
 
       return order;
     });
@@ -327,19 +297,30 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
     item => item.product.productType === 'DROPSHIPPING'
   );
 
-  const updatedOrder = await prisma.order.update({
-    where: { id: order.id },
-    data: {
-      isPaid: true,
-      paidAt: new Date(),
-      status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
-      paymentResult: {
-        id: paymentIntent.id,
-        status: paymentIntent.status,
-        update_time: new Date(paymentIntent.created * 1000).toISOString(),
-        email_address: paymentIntent.receipt_email || '',
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    const paidOrder = await tx.order.update({
+      where: { id: order.id },
+      data: {
+        isPaid: true,
+        paidAt: new Date(),
+        status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
+        paymentResult: {
+          id: paymentIntent.id,
+          status: paymentIntent.status,
+          update_time: new Date(paymentIntent.created * 1000).toISOString(),
+          email_address: paymentIntent.receipt_email || '',
+        },
       },
-    },
+      include: { orderItems: { include: { product: true } } },
+    });
+
+    try {
+      await applyPaidOrderInventoryMovements(tx, paidOrder, req.user.id);
+    } catch (error) {
+      logger.error(`[Inventory] Pago confirmado sin salida de inventario para ${paidOrder.orderNumber}: ${error.message}`);
+    }
+
+    return paidOrder;
   });
 
   whatsappService.sendAdminOrderPaidNotification(updatedOrder);
@@ -376,22 +357,33 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
       item => item.product.productType === 'DROPSHIPPING'
     );
 
-    const updatedOrder = await prisma.order.update({
-      where: { id: req.params.id },
-      data: {
-        isPaid: true,
-        paidAt: new Date(),
-        status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
-        paymentResult: { // Prisma maneja JSON
-          id: paymentResult.id,
-          status: paymentResult.status,
-          update_time: paymentResult.update_time,
-          email_address: paymentResult.payer ? paymentResult.payer.email_address : '', // Corregido: removido el doble .payer
-        },
-      },
-    });
-    
-    whatsappService.sendAdminOrderPaidNotification(updatedOrder);
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      const paidOrder = await tx.order.update({
+        where: { id: req.params.id },
+        data: {
+          isPaid: true,
+          paidAt: new Date(),
+          status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
+          paymentResult: {
+            id: paymentResult.id,
+            status: paymentResult.status,
+            update_time: paymentResult.update_time,
+            email_address: paymentResult.payer ? paymentResult.payer.email_address : '',
+          },
+        },
+        include: { orderItems: { include: { product: true } } },
+      });
+
+      try {
+        await applyPaidOrderInventoryMovements(tx, paidOrder, req.user.id);
+      } catch (error) {
+        logger.error(`[Inventory] Pago manual confirmado sin salida de inventario para ${paidOrder.orderNumber}: ${error.message}`);
+      }
+
+      return paidOrder;
+    });
+
+    whatsappService.sendAdminOrderPaidNotification(updatedOrder);
 
     res.status(200).json({ status: 'success', data: { order: updatedOrder } });
   } else {
