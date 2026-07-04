@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Container } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import api from '../services/apiService';
+import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
 import styles from './OrderScreen.module.css';
 
 const OrderScreen = () => {
@@ -27,7 +28,7 @@ const OrderScreen = () => {
         <section><h2>Envío</h2><p>{trackingNumber ? `Guía: ${trackingNumber}` : 'La guía aparecerá aquí cuando el pedido sea enviado.'}</p><p>{order.isDelivered ? 'Pedido entregado.' : 'Seguiremos actualizando esta sección durante el envío.'}</p></section>
         <section><h2>Resumen</h2><p>Método de pago: {order.paymentMethod}</p><p>Total: <strong>${order.totalPrice.toFixed(2)}</strong></p></section>
       </div>
-      <section className={styles.items}><h2>Productos</h2>{order.orderItems.map(item => <article key={item.id}><img src={item.image || '/images/sample.jpg'} alt="" /><span>{item.name}<small>{item.qty} × ${item.price.toFixed(2)}</small></span></article>)}</section>
+      <section className={styles.items}><h2>Productos</h2>{order.orderItems.map(item => <article key={item.id}><img src={resolveAssetUrl(item.image)} alt="" onError={(event) => { event.currentTarget.src = FALLBACK_PRODUCT_IMAGE; }} /><span>{item.name}<small>{item.qty} × ${item.price.toFixed(2)}</small></span></article>)}</section>
     </Container>
   );
 };

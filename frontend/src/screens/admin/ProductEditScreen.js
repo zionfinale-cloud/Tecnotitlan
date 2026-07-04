@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/apiService';
+import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../../utils/assetUrl';
 import styles from './ProductListScreen.module.css';
 
 const SKU_PREFIXES = [
@@ -315,7 +316,14 @@ const ProductEditScreen = () => {
               <div className={styles.actions}>
                 {form.media.map((item, index) => (
                   <div key={`${item.url}-${index}`} className={styles.placeholderBox} style={{ width: 180 }}>
-                    <img src={item.url} alt={item.altText || form.name} style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8 }} />
+                    <img
+                      src={resolveAssetUrl(item.url)}
+                      alt={item.altText || form.name}
+                      style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8 }}
+                      onError={(event) => {
+                        event.currentTarget.src = FALLBACK_PRODUCT_IMAGE;
+                      }}
+                    />
                     <button className={styles.dangerButton} type="button" onClick={() => removeImage(index)} style={{ marginTop: 8 }}>
                       Quitar
                     </button>

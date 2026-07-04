@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import Rating from './Rating';
 import { CartContext } from '../context/CartContext';
 import { ToastContext } from '../context/ToastContext';
+import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
 import styles from './Product.module.css';
 
 const Product = ({ product }) => {
   const { addToCart } = useContext(CartContext);
   const { showToast } = useContext(ToastContext);
   const productUrl = `/product/${product.sku || product._id || product.id}`;
-  const image = product.image || product.media?.[0]?.url || 'https://placehold.co/400x300/151a1d/75f238?text=TECNOTITLAN';
+  const image = resolveAssetUrl(product.image || product.media?.[0]?.url);
 
   const addToCartHandler = (event) => {
     event.preventDefault();
@@ -20,7 +21,16 @@ const Product = ({ product }) => {
 
   return (
     <article className={styles.card}>
-      <Link to={productUrl} className={styles.imageContainer}><img src={image} alt={product.name} className={styles.productImage} /></Link>
+      <Link to={productUrl} className={styles.imageContainer}>
+        <img
+          src={image}
+          alt={product.name}
+          className={styles.productImage}
+          onError={(event) => {
+            event.currentTarget.src = FALLBACK_PRODUCT_IMAGE;
+          }}
+        />
+      </Link>
       <div className={styles.cardBody}>
         <span className={styles.category}>{product.sku || 'Selección Tecnotitlán'}</span>
         <Link to={productUrl} className={styles.title}>{product.name}</Link>

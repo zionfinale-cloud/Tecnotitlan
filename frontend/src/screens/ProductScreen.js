@@ -8,9 +8,10 @@ import { CartContext } from '../context/CartContext';
 import { SettingsContext } from '../context/SettingsContext';
 import { ToastContext } from '../context/ToastContext';
 import api from '../services/apiService';
+import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
 import styles from './ProductScreen.module.css';
 
-const fallbackImage = 'https://placehold.co/900x700/151a1d/75f238?text=TECNOTITLAN';
+const fallbackImage = FALLBACK_PRODUCT_IMAGE;
 
 const ProductScreen = () => {
   const { sku } = useParams();
@@ -33,7 +34,7 @@ const ProductScreen = () => {
       try {
         const { data } = await api.get(`/products/${sku}`);
         setProduct(data.data.product);
-        setActiveImage(data.data.product?.media?.[0]?.url || '');
+        setActiveImage(resolveAssetUrl(data.data.product?.media?.[0]?.url, ''));
       } catch (err) {
         setError(err.response?.data?.message || 'Producto no encontrado.');
       } finally {
@@ -44,7 +45,7 @@ const ProductScreen = () => {
     loadProduct();
   }, [sku]);
 
-  const image = activeImage || product?.image || product?.media?.[0]?.url || fallbackImage;
+  const image = activeImage || resolveAssetUrl(product?.image || product?.media?.[0]?.url);
   const isFallbackImage = image === fallbackImage;
   const characteristics = product?.characteristics || [];
 
@@ -80,18 +81,25 @@ const ProductScreen = () => {
             {isFallbackImage ? (
               <div className={styles.placeholderText}>TECNOTITLAN</div>
             ) : (
-              <img src={image} alt={product.name} className={styles.productImage} />
+              <img
+                src={image}
+                alt={product.name}
+                className={styles.productImage}
+                onError={(event) => {
+                  event.currentTarget.src = fallbackImage;
+                }}
+              />
             )}
             {product.media?.length > 1 && (
               <div className={styles.thumbRow}>
                 {product.media.map((item) => (
                   <button
-                    className={`${styles.thumbButton} ${item.url === image ? styles.thumbActive : ''}`}
+                    className={`${styles.thumbButton} ${resolveAssetUrl(item.url) === image ? styles.thumbActive : ''}`}
                     key={item.id || item.url}
                     type="button"
-                    onClick={() => setActiveImage(item.url)}
+                    onClick={() => setActiveImage(resolveAssetUrl(item.url))}
                   >
-                    <img src={item.url} alt={item.altText || product.name} />
+                    <img src={resolveAssetUrl(item.url)} alt={item.altText || product.name} />
                   </button>
                 ))}
               </div>

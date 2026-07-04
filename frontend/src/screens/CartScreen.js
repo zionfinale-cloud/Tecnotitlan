@@ -6,6 +6,7 @@ import { CartContext } from '../context/CartContext';
 import { SettingsContext } from '../context/SettingsContext';
 // Componentes de feedback
 import Message from '../components/Message'; 
+import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
 // Estilos CSS Modules (Puro CSS)
 import styles from './CartScreen.module.css';
 
@@ -53,10 +54,13 @@ const CartScreen = () => {
                                         {/* Imagen del Producto */}
                                         <Col md={2} className="p-0">
                                             <Image 
-                                                src={item.image} 
+                                                src={resolveAssetUrl(item.image)} 
                                                 alt={item.name} 
                                                 fluid 
                                                 className={styles.productImage} 
+                                                onError={(event) => {
+                                                    event.currentTarget.src = FALLBACK_PRODUCT_IMAGE;
+                                                }}
                                             />
                                         </Col>
                                         

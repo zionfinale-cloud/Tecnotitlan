@@ -90,11 +90,14 @@ export const uploadImage = asyncHandler(async (req, res) => {
   // Devolvemos la ruta pública para que el frontend pueda usarla.
   // Si es Cloudinary, req.file.path es la URL completa.
   // Si es local, construimos la ruta relativa.
-  const filePath = getConfig().UPLOAD_STRATEGY === 'cloudinary'
+  const publicPath = getConfig().UPLOAD_STRATEGY === 'cloudinary'
     ? req.file.path
     : req.file.path.includes(path.join('frontend', 'public'))
       ? req.file.path.split(path.join('frontend', 'public'))[1].replace(/\\/g, '/')
       : `/uploads/${req.file.filename}`;
+  const filePath = publicPath.startsWith('/uploads/')
+    ? `${req.protocol}://${req.get('host')}${publicPath}`
+    : publicPath;
 
   res.status(201).json({
     status: 'success',
