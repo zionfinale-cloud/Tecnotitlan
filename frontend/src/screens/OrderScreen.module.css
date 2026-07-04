@@ -1,5 +1,6 @@
 .page { min-height: 75vh; padding-top: 3rem; padding-bottom: 4rem; color: #eef2f0; }
 .back { color: var(--cta-color); text-decoration: none; font-size: .75rem; font-weight: 800; }
+.payButton { display: inline-flex; align-items: center; justify-content: center; margin-top: .75rem; border-radius: 999px; padding: .8rem 1.15rem; background: var(--cta-color); color: #06111f; font-weight: 900; text-decoration: none; }
 .page header { margin: 1.5rem 0; padding: 1.6rem; border: 1px solid #283236; border-radius: 16px; background: linear-gradient(145deg, #12181a, #090d0f); }
 .page header span { color: var(--cta-color); text-transform: uppercase; font-size: .65rem; font-weight: 900; letter-spacing: .12em; }
 .page h1 { margin: .35rem 0; color: #fff; }

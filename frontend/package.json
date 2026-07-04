@@ -4,6 +4,8 @@
   "private": true,
   "dependencies": {
     "@paypal/react-paypal-js": "^8.2.0",
+    "@stripe/react-stripe-js": "^6.7.0",
+    "@stripe/stripe-js": "^9.9.0",
     "axios": "^1.6.8",
     "bootstrap": "^5.3.3",
     "js-cookie": "^3.0.5",

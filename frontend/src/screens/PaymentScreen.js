@@ -4,7 +4,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { getPaymentMethod, savePaymentMethod } from '../utils/checkoutStorage';
 import styles from './Checkout.module.css';
 
-const paymentMethods = [
+const stripeConfigured = Boolean(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
+
+const manualPaymentMethods = [
   {
     id: 'BANK_TRANSFER',
     title: 'Transferencia bancaria / SPEI',
@@ -22,7 +24,16 @@ const paymentMethods = [
   },
 ];
 
-const futureMethods = [
+const paymentMethods = [
+  ...(stripeConfigured ? [{
+    id: 'Stripe',
+    title: 'Tarjeta de credito/debito',
+    description: 'Pago seguro procesado por Stripe. Tecnotitlan no guarda los datos de tu tarjeta.',
+  }] : []),
+  ...manualPaymentMethods,
+];
+
+const futureMethods = stripeConfigured ? [] : [
   {
     id: 'Stripe',
     title: 'Tarjeta con Stripe',
@@ -87,8 +98,8 @@ const PaymentScreen = () => {
             </div>
           ))}
           <div className={styles.instructions}>
-            <h3>Stripe queda implementado</h3>
-            <p>El backend ya puede crear Payment Intents. Lo dejamos fuera del flujo visible hasta que actives la cuenta.</p>
+            <h3>{stripeConfigured ? 'Stripe activo' : 'Stripe queda implementado'}</h3>
+            <p>{stripeConfigured ? 'Tus clientes ya pueden elegir pago con tarjeta.' : 'El backend ya puede crear Payment Intents. Falta configurar la publishable key en el frontend.'}</p>
           </div>
         </aside>
       </form>

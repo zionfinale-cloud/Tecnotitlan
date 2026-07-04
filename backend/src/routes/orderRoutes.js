@@ -4,6 +4,7 @@ import asyncHandler from 'express-async-handler';
 import {
   addOrderItems,
   createStripePaymentIntent,
+  confirmStripePayment,
   getOrderById,
   updateOrderToPaid,
   updateOrderToDelivered,
@@ -21,6 +22,7 @@ router.route('/').post(protect, asyncHandler(addOrderItems)).get(protect, checkP
 router.route('/myorders').get(protect, asyncHandler(getMyOrders));
 router.route('/:id').get(protect, asyncHandler(getOrderById));
 router.route('/:id/create-payment-intent').post(protect, asyncHandler(createStripePaymentIntent));
+router.route('/:id/confirm-stripe-payment').post(protect, asyncHandler(confirmStripePayment));
 router.route('/:id/pay').put(protect, asyncHandler(updateOrderToPaid));
 router.route('/:id/status').put(protect, checkPermission('order:update'), asyncHandler(updateOrderStatus)); // Correcto
 router.route('/:id/deliver').put(protect, checkPermission('order:update'), asyncHandler(updateOrderToDelivered)); // Correcto

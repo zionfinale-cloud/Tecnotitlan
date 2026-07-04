@@ -28,6 +28,7 @@ import ShippingScreen from './screens/ShippingScreen';
 import PaymentScreen from './screens/PaymentScreen';
 import PlaceOrderScreen from './screens/PlaceOrderScreen';
 import OrderScreen from './screens/OrderScreen';
+import StripePaymentScreen from './screens/StripePaymentScreen';
 // Admin Screens
 import AdminDashboard from './screens/admin/AdminDashboard';
 import ProductListScreen from './screens/admin/ProductListScreen';
@@ -89,6 +90,7 @@ function App() {
                                                     <Route path="payment" element={<PaymentScreen />} />
                                                     <Route path="placeorder" element={<PlaceOrderScreen />} />
                                                     <Route path="order/:id" element={<OrderScreen />} />
+                                                    <Route path="order/:id/pay" element={<StripePaymentScreen />} />
                                                 </Route>
                                             </Route>
 

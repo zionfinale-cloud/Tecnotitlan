@@ -32,6 +32,10 @@ const paymentInstructions = {
     'Tu pedido esta registrado para atencion manual.',
     'Te contactaremos para resolver dudas y confirmar el pago.',
   ],
+  Stripe: [
+    'Tu pedido esta pendiente de pago con tarjeta.',
+    'Puedes continuar al pago seguro con Stripe desde el boton de esta pantalla.',
+  ],
 };
 
 const OrderScreen = () => {
@@ -78,6 +82,9 @@ const OrderScreen = () => {
         <section className={styles.paymentBox}>
           <h2>Siguiente paso</h2>
           {instructions.map((line) => <p key={line}>{line}</p>)}
+          {order.paymentMethod === 'Stripe' && (
+            <Link className={styles.payButton} to={`/order/${order.id}/pay`}>Pagar con tarjeta</Link>
+          )}
         </section>
       )}
 

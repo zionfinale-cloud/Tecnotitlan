@@ -20,6 +20,14 @@ const getStripeInstance = () => {
   return stripe;
 };
 
+
+const userCanManageOrders = (user) => {
+  const permissions = new Set((user?.role?.permissions || []).map(permission => permission.name));
+  return user?.role?.name === 'SUPER_ADMIN' || permissions.has('order:update');
+};
+
+const userCanAccessOrder = (user, order) => userCanManageOrders(user) || order.userId === user?.id;
+
 /**
  * @desc    Crear un nuevo pedido
  * @route   POST /api/orders
@@ -209,14 +217,19 @@ const createStripePaymentIntent = asyncHandler(async (req, res, next) => {
 
   const order = await prisma.order.findUnique({ where: { id: req.params.id } });
 
+  if (order && !userCanAccessOrder(req.user, order)) {
+    return next(new BadRequestError('No autorizado para pagar este pedido.', 403));
+  }
+
   if (order && !order.isPaid) {
     const paymentIntent = await stripeInstance.paymentIntents.create({
       amount: Math.round(order.totalPrice * 100), // Stripe requiere el monto en centavos
       currency: 'mxn',
-      metadata: { order_id: order.orderNumber }, // Usar orderNumber que es string
+      automatic_payment_methods: { enabled: true },
+      metadata: { order_id: order.orderNumber, order_uuid: order.id }, // Usar orderNumber que es string
     });
     // Devolver el client_secret para que el frontend pueda confirmar el pago
-    res.send({ clientSecret: paymentIntent.client_secret });
+    res.send({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id });
   } else {
     return next(new NotFoundError('Pedido no encontrado o ya pagado.'));
   }
@@ -264,6 +277,75 @@ const getOrderById = asyncHandler(async (req, res, next) => {
   }
 });
 
+
+/**
+ * @desc    Confirmar un pago de Stripe validando el PaymentIntent en servidor
+ * @route   POST /api/orders/:id/confirm-stripe-payment
+ * @access  Private
+ */
+const confirmStripePayment = asyncHandler(async (req, res, next) => {
+  const { paymentIntentId } = req.body;
+  if (!paymentIntentId) {
+    return next(new BadRequestError('El paymentIntentId es requerido.', 400));
+  }
+
+  const stripeInstance = getStripeInstance();
+  if (!stripeInstance) {
+    return next(new Error('La configuracion de pago de Stripe no esta disponible.'));
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: { orderItems: { include: { product: true } } },
+  });
+
+  if (!order) return next(new NotFoundError('Pedido no encontrado'));
+  if (!userCanAccessOrder(req.user, order)) {
+    return next(new BadRequestError('No autorizado para pagar este pedido.', 403));
+  }
+  if (order.isPaid) {
+    return res.status(200).json({ status: 'success', data: { order } });
+  }
+  if (order.paymentMethod !== 'Stripe') {
+    return next(new BadRequestError('Este pedido no fue creado para pagarse con Stripe.', 400));
+  }
+
+  const paymentIntent = await stripeInstance.paymentIntents.retrieve(paymentIntentId);
+  const expectedAmount = Math.round(order.totalPrice * 100);
+
+  if (paymentIntent.status !== 'succeeded') {
+    return next(new BadRequestError('El pago de Stripe aun no esta confirmado.', 400));
+  }
+  if (paymentIntent.amount !== expectedAmount || paymentIntent.currency !== 'mxn') {
+    return next(new BadRequestError('El monto del pago no coincide con el pedido.', 400));
+  }
+  if (paymentIntent.metadata?.order_uuid !== order.id && paymentIntent.metadata?.order_id !== order.orderNumber) {
+    return next(new BadRequestError('El pago no corresponde a este pedido.', 400));
+  }
+
+  const isDropshippingOrder = order.orderItems.some(
+    item => item.product.productType === 'DROPSHIPPING'
+  );
+
+  const updatedOrder = await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      isPaid: true,
+      paidAt: new Date(),
+      status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
+      paymentResult: {
+        id: paymentIntent.id,
+        status: paymentIntent.status,
+        update_time: new Date(paymentIntent.created * 1000).toISOString(),
+        email_address: paymentIntent.receipt_email || '',
+      },
+    },
+  });
+
+  whatsappService.sendAdminOrderPaidNotification(updatedOrder);
+  res.status(200).json({ status: 'success', data: { order: updatedOrder } });
+});
+
 /**
  * @desc    Actualizar pedido a pagado
  * @route   PUT /api/orders/:id/pay
@@ -284,8 +366,7 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
 
   if (order) {
     const manualPaymentMethods = ['BANK_TRANSFER', 'MERCADO_LIBRE', 'WHATSAPP'];
-    const userPermissions = new Set((req.user?.role?.permissions || []).map(permission => permission.name));
-    const canManageOrders = req.user?.role?.name === 'SUPER_ADMIN' || userPermissions.has('order:update');
+    const canManageOrders = userCanManageOrders(req.user);
 
     if (manualPaymentMethods.includes(order.paymentMethod) && !canManageOrders) {
       return next(new BadRequestError('Solo administradores pueden confirmar pagos manuales.', 403));
@@ -409,6 +490,7 @@ const getAllOrders = asyncHandler(async (req, res) => {
 export {
   addOrderItems,
   createStripePaymentIntent,
+  confirmStripePayment,
   getOrderById,
   updateOrderToPaid,
   updateOrderToDelivered,

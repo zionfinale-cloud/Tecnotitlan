@@ -73,7 +73,7 @@ const PlaceOrderScreen = () => {
       });
       const order = data.data.order;
       clearCart();
-      navigate(`/order/${order.id}`);
+      navigate(paymentMethod === 'Stripe' ? `/order/${order.id}/pay` : `/order/${order.id}`);
     } catch (err) {
       setError(err.response?.data?.message || 'No pudimos crear el pedido. Revisa la informacion e intenta otra vez.');
     } finally {
