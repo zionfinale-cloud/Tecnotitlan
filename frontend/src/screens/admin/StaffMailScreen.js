@@ -30,8 +30,15 @@ const baseFolderItems = [
   { id: 'STARRED', label: 'Destacados', icon: 'fa-star', disabled: true },
   { id: 'SNOOZED', label: 'Pospuestos', icon: 'fa-clock', disabled: true },
   { id: 'SENT', label: 'Enviados', icon: 'fa-paper-plane' },
-  { id: 'DRAFTS', label: 'Borradores', icon: 'fa-file', disabled: true },
+  { id: 'DRAFTS', label: 'Borradores', icon: 'fa-file' },
+  { id: 'SPAM', label: 'Spam', icon: 'fa-shield-alt' },
+  { id: 'TRASH', label: 'Papelera', icon: 'fa-trash' },
 ];
+
+const folderLabels = baseFolderItems.reduce((labels, folder) => {
+  labels[folder.id] = folder.label;
+  return labels;
+}, {});
 
 const StaffMailScreen = () => {
   const { userInfo } = useContext(AuthContext);
@@ -180,7 +187,10 @@ const StaffMailScreen = () => {
     setError('');
     setSuccess('');
     try {
-      const { data } = await api.post(`/staff-mail/messages/${message.uid}`, credentials);
+      const { data } = await api.post(`/staff-mail/messages/${message.uid}`, {
+        ...credentials,
+        mailbox: activeFolder,
+      });
       setSelectedMessage(data.data.message);
       setReplyText('');
       setMessages((current) => current.map((item) => (
@@ -479,7 +489,7 @@ const StaffMailScreen = () => {
         <section className={mailStyles.messageList}>
           <div className={mailStyles.listHeader}>
             <div>
-            <strong>{activeFolder === 'SENT' ? 'Enviados' : 'Principal'}</strong>
+            <strong>{folderLabels[activeFolder] || 'Principal'}</strong>
               <br />
               <small>{filteredMessages.length} mensajes</small>
             </div>

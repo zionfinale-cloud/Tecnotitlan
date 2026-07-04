@@ -40,6 +40,9 @@ const connectImap = async (credentials) => {
 const folderAliases = {
   INBOX: ['INBOX'],
   SENT: ['Sent', 'INBOX.Sent', 'Sent Messages', 'Sent Items', 'Enviados', 'INBOX.Enviados'],
+  DRAFTS: ['Drafts', 'INBOX.Drafts', 'Borradores', 'INBOX.Borradores'],
+  SPAM: ['Junk', 'INBOX.Junk', 'Spam', 'INBOX.Spam', 'spam', 'INBOX.spam', 'Correo no deseado', 'INBOX.Correo no deseado'],
+  TRASH: ['Trash', 'INBOX.Trash', 'Deleted Messages', 'Papelera', 'INBOX.Papelera'],
 };
 
 const listMailboxes = async (client) => {
