@@ -12,7 +12,7 @@ const navLinks = [
     { to: '/admin/inventory', icon: 'fa-warehouse', text: 'Inventario' },
     { to: '/admin/channels', icon: 'fa-store', text: 'Canales' },
     { to: '/admin/orderlist', icon: 'fa-shipping-fast', text: 'Pedidos' },
-    { to: '/admin/mail', icon: 'fa-envelope', text: 'Correo' },
+    { href: 'https://mail.tecnotitlan.com.mx', icon: 'fa-envelope', text: 'Correo' },
     { to: '/admin/userlist', icon: 'fa-users', text: 'Usuarios' },
     { to: '/admin/categorylist', icon: 'fa-list-alt', text: 'Categorías' }, // Agregamos Categorías
     { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles' },
@@ -67,17 +67,31 @@ const AdminLayout = () => {
                         <ul className={styles.nav}>
                             {navLinks.filter(item => !item.permission || userInfo?.permissions?.includes(item.permission)).map((item, index) => (
                                 <li key={index} className={styles.navItem}>
-                                    <NavLink 
-                                        to={item.to} 
-                                        className={({ isActive }) => 
-                                            `${styles.navLink} ${isActive ? styles.activeLink : ''}`
-                                        }
-                                    >
-                                        <div className={styles.iconContainer}>
-                                            <i className={`fas ${item.icon}`}></i>
-                                        </div>
-                                        <span className={styles.linkText}>{item.text}</span>
-                                    </NavLink>
+                                    {item.href ? (
+                                        <a
+                                            href={item.href}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className={styles.navLink}
+                                        >
+                                            <div className={styles.iconContainer}>
+                                                <i className={`fas ${item.icon}`}></i>
+                                            </div>
+                                            <span className={styles.linkText}>{item.text}</span>
+                                        </a>
+                                    ) : (
+                                        <NavLink 
+                                            to={item.to} 
+                                            className={({ isActive }) => 
+                                                `${styles.navLink} ${isActive ? styles.activeLink : ''}`
+                                            }
+                                        >
+                                            <div className={styles.iconContainer}>
+                                                <i className={`fas ${item.icon}`}></i>
+                                            </div>
+                                            <span className={styles.linkText}>{item.text}</span>
+                                        </NavLink>
+                                    )}
                                 </li>
                             ))}
                         </ul>

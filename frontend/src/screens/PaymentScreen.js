@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { Container } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { getPaymentMethod, savePaymentMethod } from '../utils/checkoutStorage';
-import { stripePublishableKey } from '../utils/runtimeEnv';
 import styles from './Checkout.module.css';
-
-const stripeConfigured = Boolean(stripePublishableKey);
 
 const manualPaymentMethods = [
   {
@@ -26,20 +23,12 @@ const manualPaymentMethods = [
 ];
 
 const paymentMethods = [
-  ...(stripeConfigured ? [{
+  {
     id: 'Stripe',
     title: 'Tarjeta de credito/debito',
     description: 'Pago seguro procesado por Stripe. Tecnotitlan no guarda los datos de tu tarjeta.',
-  }] : []),
-  ...manualPaymentMethods,
-];
-
-const futureMethods = stripeConfigured ? [] : [
-  {
-    id: 'Stripe',
-    title: 'Tarjeta con Stripe',
-    description: 'Integracion preparada en el sistema. Se activara cuando quede lista la cuenta fiscal.',
   },
+  ...manualPaymentMethods,
 ];
 
 const PaymentScreen = () => {
@@ -88,19 +77,10 @@ const PaymentScreen = () => {
         </section>
 
         <aside className={styles.card}>
-          <h2 className={styles.cardTitle}>Preparado para crecer</h2>
-          {futureMethods.map((method) => (
-            <div key={method.id} className={`${styles.method} ${styles.methodDisabled}`}>
-              <i className="fas fa-lock" aria-hidden="true" />
-              <span>
-                <strong>{method.title}</strong>
-                <small>{method.description}</small>
-              </span>
-            </div>
-          ))}
+          <h2 className={styles.cardTitle}>Pagos seguros</h2>
           <div className={styles.instructions}>
-            <h3>{stripeConfigured ? 'Stripe activo' : 'Stripe queda implementado'}</h3>
-            <p>{stripeConfigured ? 'Tus clientes ya pueden elegir pago con tarjeta.' : 'El backend ya puede crear Payment Intents. Falta configurar la publishable key en el frontend.'}</p>
+            <h3>Stripe activo para pruebas</h3>
+            <p>Si el entorno de Stripe no esta configurado, la pantalla de tarjeta mostrara el error exacto para corregirlo.</p>
           </div>
         </aside>
       </form>
