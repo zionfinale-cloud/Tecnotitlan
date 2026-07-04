@@ -30,6 +30,7 @@ import supportTicketRoutes from './routes/supportTicketRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
 import marketplaceRoutes from './routes/marketplaceRoutes.js';
 import staffMailRoutes from './routes/staffMailRoutes.js';
+import stripeWebhookRoutes from './routes/stripeWebhookRoutes.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
@@ -81,7 +82,10 @@ const startServer = async () => {
     // Pasar la instancia de Socket.IO al servicio de WhatsApp
     whatsappService.setSocketIO(io);
 
-    app.use(express.json());
+        // Stripe necesita el body crudo para validar la firma del webhook.
+    app.use('/api/stripe', stripeWebhookRoutes);
+
+app.use(express.json());
     app.use(cors(corsOptions));
     app.use(helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
