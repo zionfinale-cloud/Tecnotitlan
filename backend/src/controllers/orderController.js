@@ -64,6 +64,11 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
     if (!productMap[item.product]) {
       return next(new BadRequestError(`Producto con identificador ${item.product} no encontrado.`));
     }
+
+    const dbProduct = productMap[item.product];
+    if (dbProduct.productType === 'IN_HOUSE' && dbProduct.countInStock < item.qty) {
+      return next(new BadRequestError(`No hay suficiente stock para ${dbProduct.name}. Disponible: ${dbProduct.countInStock}.`));
+    }
   }
 
   const itemsPrice = orderItems.reduce((acc, item) => {
