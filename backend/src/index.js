@@ -29,6 +29,7 @@ import whatsappRoutes from './routes/whatsappRoutes.js';
 import supportTicketRoutes from './routes/supportTicketRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
 import marketplaceRoutes from './routes/marketplaceRoutes.js';
+import staffMailRoutes from './routes/staffMailRoutes.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
@@ -151,6 +152,7 @@ const startServer = async () => {
     app.use('/api/support/tickets', supportTicketRoutes);
     app.use('/api/inventory', inventoryRoutes);
     app.use('/api/marketplaces', marketplaceRoutes);
+    app.use('/api/staff-mail', staffMailRoutes);
 
     const __dirname = path.resolve();
     app.use('/uploads', express.static(path.join(__dirname, '/uploads')));

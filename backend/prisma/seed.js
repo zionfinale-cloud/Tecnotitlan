@@ -45,6 +45,8 @@ const permissions = [
   { name: 'integration:delete', description: 'Desconectar integraciones' },
   { name: 'support:read', description: 'Ver tickets de soporte' },
   { name: 'support:update', description: 'Atender y actualizar tickets de soporte' },
+  { name: 'mail:read', description: 'Leer correo corporativo del equipo' },
+  { name: 'mail:send', description: 'Enviar respuestas desde correo corporativo' },
 ];
 
 async function main() {
