@@ -50,6 +50,7 @@ const StaffMailScreen = () => {
   const [sending, setSending] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const lastInboxCount = useRef(0);
@@ -105,6 +106,7 @@ const StaffMailScreen = () => {
       const nextMessages = data.data.messages || [];
       setMessages(nextMessages);
       setLastSyncedAt(new Date());
+      setIsConnected(true);
       maybeNotify(nextMessages);
       if (!silent) showSuccess('Bandeja actualizada.');
     } catch (err) {
@@ -112,6 +114,23 @@ const StaffMailScreen = () => {
     } finally {
       if (!silent) setLoading(false);
     }
+  };
+
+  const connectMailbox = async (event) => {
+    event.preventDefault();
+    await loadInbox();
+  };
+
+  const disconnectMailbox = () => {
+    setIsConnected(false);
+    setPassword('');
+    setMessages([]);
+    setSelectedMessage(null);
+    setReplyText('');
+    setSearch('');
+    setComposeOpen(false);
+    setLastSyncedAt(null);
+    lastInboxCount.current = 0;
   };
 
   useEffect(() => {
@@ -271,6 +290,68 @@ const StaffMailScreen = () => {
     );
   };
 
+  if (!isConnected) {
+    return (
+      <div className={mailStyles.loginShell}>
+        <div className={mailStyles.loginCard}>
+          <div className={mailStyles.loginBrand}>
+            <div className={mailStyles.brandIcon}><i className="fas fa-microchip"></i></div>
+            <div>
+              <h1>Tecnotitlan Mail</h1>
+              <p>Acceso privado para el equipo. Entra con tu correo corporativo.</p>
+            </div>
+          </div>
+
+          {(error || success) && (
+            <div className={`${mailStyles.notice} ${error ? mailStyles.noticeError : mailStyles.noticeSuccess}`} style={{ margin: '1rem 0 0' }}>
+              {error || success}
+            </div>
+          )}
+
+          <form className={mailStyles.loginForm} onSubmit={connectMailbox}>
+            <label>
+              Correo de la empresa
+              <input
+                value={emailInput}
+                onChange={(event) => setEmailInput(event.target.value)}
+                placeholder="usuario@tecnotitlan.com.mx"
+                autoComplete="username"
+                required
+              />
+            </label>
+
+            <label>
+              Contrasena del correo
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="No se guarda en Tecnotitlan"
+                autoComplete="current-password"
+                required
+              />
+            </label>
+
+            {!isCorporateEmail && emailInput.trim() && (
+              <small className={mailStyles.loginWarning}>Usa una cuenta terminada en @{MAIL_DOMAIN}.</small>
+            )}
+
+            <button className={mailStyles.primaryButton} type="submit" disabled={loading || !canConnect}>
+              <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-lock-open'}`}></i>
+              {loading ? 'Verificando...' : 'Entrar a mi bandeja'}
+            </button>
+          </form>
+
+          <div className={mailStyles.loginMeta}>
+            <span><i className="fas fa-shield-alt"></i> La contrasena no se almacena.</span>
+            <span><i className="fas fa-envelope"></i> IMAP/SMTP seguro contra cPanel.</span>
+            <a href={WEBMAIL_URL} target="_blank" rel="noreferrer">Abrir webmail como respaldo</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={mailStyles.mailShell}>
       <header className={mailStyles.topbar}>
@@ -298,6 +379,9 @@ const StaffMailScreen = () => {
           </button>
           <button className={mailStyles.iconButton} type="button" onClick={enableNotifications} title="Activar notificaciones">
             <i className={`fas ${notificationsEnabled ? 'fa-bell' : 'fa-bell-slash'}`}></i>
+          </button>
+          <button className={mailStyles.softButton} type="button" onClick={disconnectMailbox}>
+            Cambiar cuenta
           </button>
           <a className={mailStyles.softButton} href={WEBMAIL_URL} target="_blank" rel="noreferrer">
             Webmail
@@ -333,26 +417,13 @@ const StaffMailScreen = () => {
           </nav>
 
           <div className={mailStyles.accountCard}>
-            <label>Correo</label>
-            <input
-              className={mailStyles.accountInput}
-              value={emailInput}
-              onChange={(event) => setEmailInput(event.target.value)}
-              placeholder="usuario@tecnotitlan.com.mx"
-            />
-            <label>Contrasena</label>
-            <input
-              className={mailStyles.accountInput}
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="No se guarda"
-            />
-            <button className={mailStyles.softButton} type="button" onClick={() => loadInbox()} disabled={loading}>
-              Conectar
+            <label>Cuenta activa</label>
+            <strong>{email}</strong>
+            <button className={mailStyles.softButton} type="button" onClick={disconnectMailbox}>
+              Cerrar correo
             </button>
             <small className={mailStyles.privacyNote}>
-              Cada trabajador entra con su propia cuenta. La contrasena solo se usa para esta sesion.
+              Sesion temporal. Para otra bandeja, cambia de cuenta.
             </small>
           </div>
         </aside>

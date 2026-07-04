@@ -1,3 +1,96 @@
+.loginShell {
+  min-height: calc(100vh - 120px);
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at top left, rgba(0, 208, 132, 0.18), transparent 34%),
+    linear-gradient(135deg, #06111f 0%, #0f172a 48%, #f4f7fb 48.2%, #ffffff 100%);
+  border: 1px solid #dbe5ef;
+}
+
+.loginCard {
+  width: min(100%, 520px);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(219, 229, 239, 0.9);
+  border-radius: 1.4rem;
+  padding: 1.5rem;
+  box-shadow: 0 30px 80px rgba(6, 17, 31, 0.24);
+}
+
+.loginBrand {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.loginBrand h1 {
+  margin: 0;
+  color: #06111f;
+  font-size: 1.65rem;
+  font-weight: 900;
+}
+
+.loginBrand p {
+  margin: 0.3rem 0 0;
+  color: #64748b;
+}
+
+.loginForm {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.4rem;
+}
+
+.loginForm label {
+  display: grid;
+  gap: 0.45rem;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.loginForm input {
+  border: 1px solid #cbd5e1;
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  color: #0f172a;
+  background: #ffffff;
+  outline: 0;
+}
+
+.loginForm input:focus {
+  border-color: #00d084;
+  box-shadow: 0 0 0 4px rgba(0, 208, 132, 0.14);
+}
+
+.loginWarning {
+  color: #be123c;
+  font-weight: 700;
+}
+
+.loginMeta {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 0.45rem;
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
+.loginMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.loginMeta a {
+  color: #047857;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .mailShell {
   min-height: calc(100vh - 120px);
   background: #f4f7fb;
