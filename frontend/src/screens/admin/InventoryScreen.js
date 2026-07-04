@@ -9,10 +9,15 @@ const currency = new Intl.NumberFormat('es-MX', {
 
 const today = new Date().toISOString().slice(0, 10);
 
-const CHANNELS = [
+const MARKETPLACE_CHANNELS = [
   { value: 'MERCADOLIBRE', label: 'Mercado Libre' },
   { value: 'TIKTOK_SHOP', label: 'TikTok Shop' },
   { value: 'AMAZON', label: 'Amazon' },
+];
+
+const SALE_CHANNELS = [
+  { value: 'WEB', label: 'Web / bodega' },
+  ...MARKETPLACE_CHANNELS,
 ];
 
 const getWeekStart = () => {
@@ -44,6 +49,13 @@ const InventoryScreen = () => {
     quantity: '',
     price: '',
     stockBuffer: 0,
+    notes: '',
+  });
+  const [saleForm, setSaleForm] = useState({
+    productId: '',
+    channel: 'WEB',
+    quantity: '',
+    unitPrice: '',
     notes: '',
   });
   const [dateRange, setDateRange] = useState({
@@ -141,6 +153,30 @@ const InventoryScreen = () => {
     }
   };
 
+  const createManualSale = async (event) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    try {
+      await api.post('/inventory/sales', {
+        ...saleForm,
+        quantity: Number(saleForm.quantity),
+        unitPrice: Number(saleForm.unitPrice),
+      });
+      setSuccess('Venta/salida registrada.');
+      setSaleForm({
+        productId: '',
+        channel: 'WEB',
+        quantity: '',
+        unitPrice: '',
+        notes: '',
+      });
+      await loadInventory();
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo registrar la venta/salida.');
+    }
+  };
+
   return (
     <>
       <div className={styles.toolbar}>
@@ -233,6 +269,79 @@ const InventoryScreen = () => {
         </section>
 
         <section className={styles.card}>
+          <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Registrar venta / salida</h2>
+          <form onSubmit={createManualSale}>
+            <div className={styles.field}>
+              <label className={styles.label}>Producto vendido</label>
+              <select
+                className={styles.select}
+                value={saleForm.productId}
+                onChange={(event) => setSaleForm({ ...saleForm, productId: event.target.value })}
+                required
+              >
+                <option value="">Selecciona producto</option>
+                {activeProducts.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.sku} - {product.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.field} style={{ marginTop: '1rem' }}>
+              <label className={styles.label}>Donde se vendio</label>
+              <select
+                className={styles.select}
+                value={saleForm.channel}
+                onChange={(event) => setSaleForm({ ...saleForm, channel: event.target.value })}
+              >
+                {SALE_CHANNELS.map((channel) => (
+                  <option key={channel.value} value={channel.value}>{channel.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.formGrid} style={{ marginTop: '1rem' }}>
+              <div className={styles.field}>
+                <label className={styles.label}>Cantidad vendida</label>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min="1"
+                  value={saleForm.quantity}
+                  onChange={(event) => setSaleForm({ ...saleForm, quantity: event.target.value })}
+                  placeholder="1"
+                  required
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Precio unitario venta</label>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={saleForm.unitPrice}
+                  onChange={(event) => setSaleForm({ ...saleForm, unitPrice: event.target.value })}
+                  placeholder="299"
+                  required
+                />
+              </div>
+            </div>
+            <div className={styles.field} style={{ marginTop: '1rem' }}>
+              <label className={styles.label}>Notas</label>
+              <textarea
+                className={styles.textarea}
+                value={saleForm.notes}
+                onChange={(event) => setSaleForm({ ...saleForm, notes: event.target.value })}
+                placeholder="Folio, cliente, marketplace, guia o referencia..."
+              />
+            </div>
+            <div className={styles.actions}>
+              <button className={styles.button} type="submit">Registrar venta</button>
+            </div>
+          </form>
+        </section>
+
+        <section className={styles.card}>
           <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Mover stock a canal</h2>
           <form onSubmit={transferStock}>
             <div className={styles.field}>
@@ -258,7 +367,7 @@ const InventoryScreen = () => {
                 value={transferForm.channel}
                 onChange={(event) => setTransferForm({ ...transferForm, channel: event.target.value })}
               >
-                {CHANNELS.map((channel) => (
+                {MARKETPLACE_CHANNELS.map((channel) => (
                   <option key={channel.value} value={channel.value}>{channel.label}</option>
                 ))}
               </select>

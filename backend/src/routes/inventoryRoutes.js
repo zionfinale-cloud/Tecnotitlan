@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   createInvestment,
+  createManualSale,
   createStockEntry,
   getInventoryCut,
   getInventoryOverview,
@@ -27,6 +28,10 @@ router
 router
   .route('/transfers')
   .post(checkPermission('product:update'), transferStockToChannel);
+
+router
+  .route('/sales')
+  .post(checkPermission('product:update'), createManualSale);
 
 router
   .route('/movements')

@@ -134,6 +134,100 @@ const createStockEntry = asyncHandler(async (req, res, next) => {
   res.status(201).json({ status: 'success', data: { movement } });
 });
 
+const createManualSale = asyncHandler(async (req, res, next) => {
+  const { productId, channel = 'WEB', quantity, unitPrice, notes } = req.body;
+  const parsedQuantity = Number(quantity);
+  const parsedUnitPrice = Number(unitPrice);
+
+  if (!['WEB', ...SALES_CHANNELS].includes(channel)) {
+    return next(new BadRequestError('Canal de venta invalido.'));
+  }
+
+  if (!Number.isInteger(parsedQuantity) || parsedQuantity <= 0) {
+    return next(new BadRequestError('La cantidad vendida debe ser un entero mayor a cero.'));
+  }
+
+  if (!Number.isFinite(parsedUnitPrice) || parsedUnitPrice < 0) {
+    return next(new BadRequestError('El precio de venta debe ser valido.'));
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const product = await tx.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundError('Producto no encontrado.');
+    }
+
+    const unitCost = product.costPrice || 0;
+    let stockBefore;
+    let stockAfter;
+    let referenceId = null;
+
+    if (channel === 'WEB') {
+      if (product.countInStock < parsedQuantity) {
+        throw new BadRequestError('No hay suficiente stock en bodega/web para registrar esta venta.');
+      }
+
+      stockBefore = product.countInStock;
+      stockAfter = stockBefore - parsedQuantity;
+
+      await tx.product.update({
+        where: { id: product.id },
+        data: { countInStock: stockAfter },
+      });
+    } else {
+      const listing = await tx.marketplaceListing.findUnique({
+        where: { productId_channel: { productId: product.id, channel } },
+      });
+
+      if (!listing) {
+        throw new NotFoundError('No existe stock/publicacion configurada para ese canal.');
+      }
+
+      stockBefore = listing.publishedStock || 0;
+      if (stockBefore < parsedQuantity) {
+        throw new BadRequestError('No hay suficiente stock asignado a ese canal.');
+      }
+
+      stockAfter = stockBefore - parsedQuantity;
+      referenceId = listing.id;
+
+      await tx.marketplaceListing.update({
+        where: { id: listing.id },
+        data: {
+          publishedStock: stockAfter,
+          syncStatus: 'LOCAL_SALE_REGISTERED',
+        },
+      });
+    }
+
+    const movement = await tx.inventoryMovement.create({
+      data: {
+        type: 'SALE',
+        productId: product.id,
+        quantity: parsedQuantity,
+        unitCost,
+        unitPrice: parsedUnitPrice,
+        totalCost: parsedQuantity * unitCost,
+        totalRevenue: parsedQuantity * parsedUnitPrice,
+        channel,
+        stockBefore,
+        stockAfter,
+        referenceType: channel === 'WEB' ? 'MANUAL_WEB_SALE' : 'MANUAL_CHANNEL_SALE',
+        referenceId,
+        notes,
+        createdById: req.user?.id,
+      },
+      include: {
+        product: { select: { id: true, sku: true, name: true } },
+      },
+    });
+
+    return { movement };
+  });
+
+  res.status(201).json({ status: 'success', data: result });
+});
+
 const transferStockToChannel = asyncHandler(async (req, res, next) => {
   const { productId, channel, quantity, price, stockBuffer, notes } = req.body;
   const parsedQuantity = Number(quantity);
@@ -393,6 +487,7 @@ export {
   getInventoryOverview,
   createInvestment,
   createStockEntry,
+  createManualSale,
   transferStockToChannel,
   getMovements,
   getInventoryCut,
