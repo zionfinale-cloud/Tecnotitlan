@@ -1,6 +1,8 @@
 import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
+import axios from 'axios';
 import logger from '../utils/logger.js';
+import { getConfig } from './configService.js';
 
 let sock;
 let io;
@@ -62,4 +64,41 @@ export const sendMessage = async (number, message) => {
     // Formatear el número para Baileys (ej: 5215512345678@s.whatsapp.net)
     const jid = number.includes('@s.whatsapp.net') ? number : `${number}@s.whatsapp.net`;
     return await sock.sendMessage(jid, { text: message });
+};
+
+export const sendAdminOrderPaidNotification = async (order) => {
+    try {
+        const config = getConfig();
+        const adminWhatsappNumber = config.ADMIN_WHATSAPP_NUMBER;
+        const n8nWebhookUrl = config.N8N_ORDER_WEBHOOK_URL;
+        const total = Number(order?.totalPrice || 0).toLocaleString('es-MX', {
+            style: 'currency',
+            currency: 'MXN',
+        });
+        const orderNumber = order?.orderNumber || order?.id || 'sin folio';
+        const message = `Pago confirmado en Tecnotitlan\nPedido: ${orderNumber}\nTotal: ${total}`;
+
+        if (adminWhatsappNumber && sock) {
+            await sendMessage(adminWhatsappNumber, message);
+        } else if (adminWhatsappNumber && !sock) {
+            logger.warn(`[WhatsApp] No se envio aviso de pago ${orderNumber}: cliente no inicializado.`);
+        }
+
+        if (n8nWebhookUrl) {
+            await axios.post(n8nWebhookUrl, {
+                event: 'order.paid',
+                orderId: order?.id,
+                orderNumber,
+                totalPrice: order?.totalPrice,
+                paymentMethod: order?.paymentMethod,
+                paidAt: order?.paidAt,
+            });
+        }
+
+        if (!adminWhatsappNumber && !n8nWebhookUrl) {
+            logger.info(`[WhatsApp] Aviso de pago ${orderNumber} omitido: sin ADMIN_WHATSAPP_NUMBER ni N8N_ORDER_WEBHOOK_URL.`);
+        }
+    } catch (error) {
+        logger.error(`[WhatsApp] No se pudo enviar aviso de pago: ${error.message}`);
+    }
 };
