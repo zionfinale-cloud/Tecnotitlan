@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../services/apiService';
-import styles from './ProductListScreen.module.css';
+import { AuthContext } from '../../context/AuthContext';
+import mailStyles from './StaffMailScreen.module.css';
 
 const MAIL_DOMAIN = 'tecnotitlan.com.mx';
-const MAIL_SERVER = 'mail.tecnotitlan.com.mx';
 const WEBMAIL_URL = 'https://webmail.tecnotitlan.com.mx';
 
 const normalizeEmail = (value) => {
@@ -25,53 +25,101 @@ const stripHtml = (value = '') => value.replace(/<style[\s\S]*?<\/style>/gi, ' '
   .replace(/\s+/g, ' ')
   .trim();
 
+const folderItems = [
+  { id: 'INBOX', label: 'Recibidos', icon: 'fa-inbox' },
+  { id: 'STARRED', label: 'Destacados', icon: 'fa-star', disabled: true },
+  { id: 'SNOOZED', label: 'Pospuestos', icon: 'fa-clock', disabled: true },
+  { id: 'SENT', label: 'Enviados', icon: 'fa-paper-plane', disabled: true },
+  { id: 'DRAFTS', label: 'Borradores', icon: 'fa-file', disabled: true },
+];
+
 const StaffMailScreen = () => {
-  const [emailInput, setEmailInput] = useState('ventas@tecnotitlan.com.mx');
+  const { userInfo } = useContext(AuthContext);
+  const suggestedEmail = userInfo?.email?.endsWith(`@${MAIL_DOMAIN}`) ? userInfo.email : '';
+  const [emailInput, setEmailInput] = useState(suggestedEmail);
   const [password, setPassword] = useState('');
   const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [search, setSearch] = useState('');
+  const [activeFolder, setActiveFolder] = useState('INBOX');
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeForm, setComposeForm] = useState({ to: '', subject: '', text: '' });
   const [loading, setLoading] = useState(false);
   const [reading, setReading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const lastInboxCount = useRef(0);
 
   const email = useMemo(() => normalizeEmail(emailInput), [emailInput]);
   const isCorporateEmail = email.endsWith(`@${MAIL_DOMAIN}`);
   const credentials = { email, password };
-
-  const settings = [
-    { label: 'Usuario', value: email || 'usuario@tecnotitlan.com.mx' },
-    { label: 'Servidor entrada', value: MAIL_SERVER },
-    { label: 'IMAP SSL', value: '993' },
-    { label: 'Servidor salida', value: MAIL_SERVER },
-    { label: 'SMTP SSL', value: '465' },
-  ];
-
   const canConnect = isCorporateEmail && password.length > 0;
+  const unreadCount = messages.filter((message) => !message.seen).length;
 
-  const loadInbox = async () => {
+  const filteredMessages = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return messages;
+    return messages.filter((message) => [
+      message.subject,
+      message.snippet,
+      firstName(message.from),
+      firstAddress(message.from),
+    ].join(' ').toLowerCase().includes(term));
+  }, [messages, search]);
+
+  const showSuccess = (message) => {
+    setSuccess(message);
+    window.setTimeout(() => setSuccess(''), 3500);
+  };
+
+  const maybeNotify = (newMessages) => {
+    if (!notificationsEnabled || !newMessages.length) return;
+    if (lastInboxCount.current > 0 && newMessages.length > lastInboxCount.current && Notification.permission === 'granted') {
+      new Notification('Tecnotitlan Mail', {
+        body: `Tienes ${newMessages.length - lastInboxCount.current} correo(s) nuevo(s).`,
+      });
+    }
+    lastInboxCount.current = newMessages.length;
+  };
+
+  const loadInbox = async ({ silent = false } = {}) => {
     if (!canConnect) {
-      setError('Captura una cuenta corporativa y su contrasena para abrir la bandeja.');
+      setError('Captura tu cuenta corporativa y su contrasena para abrir la bandeja.');
       return;
     }
-    setLoading(true);
-    setError('');
-    setSuccess('');
+    if (!silent) {
+      setLoading(true);
+      setError('');
+      setSuccess('');
+    }
     try {
       const { data } = await api.post('/staff-mail/messages', {
         ...credentials,
-        limit: 25,
+        mailbox: 'INBOX',
+        limit: 35,
       });
-      setMessages(data.data.messages || []);
-      setSelectedMessage(null);
-      setSuccess('Bandeja actualizada.');
+      const nextMessages = data.data.messages || [];
+      setMessages(nextMessages);
+      setLastSyncedAt(new Date());
+      maybeNotify(nextMessages);
+      if (!silent) showSuccess('Bandeja actualizada.');
     } catch (err) {
-      setError(err.response?.data?.message || 'No se pudo conectar al correo.');
+      if (!silent) setError(err.response?.data?.message || 'No se pudo conectar al correo.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!canConnect || messages.length === 0) return undefined;
+    const timer = window.setInterval(() => loadInbox({ silent: true }), 60000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canConnect, messages.length, notificationsEnabled]);
 
   const readMessage = async (message) => {
     setReading(true);
@@ -81,6 +129,9 @@ const StaffMailScreen = () => {
       const { data } = await api.post(`/staff-mail/messages/${message.uid}`, credentials);
       setSelectedMessage(data.data.message);
       setReplyText('');
+      setMessages((current) => current.map((item) => (
+        item.uid === message.uid ? { ...item, seen: true } : item
+      )));
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo leer el correo.');
     } finally {
@@ -88,25 +139,48 @@ const StaffMailScreen = () => {
     }
   };
 
-  const sendReply = async (event) => {
-    event.preventDefault();
-    if (!selectedMessage) return;
+  const sendMail = async ({ to, subject, text, inReplyTo }) => {
+    setSending(true);
     setError('');
     setSuccess('');
     try {
       await api.post('/staff-mail/send', {
         ...credentials,
-        to: firstAddress(selectedMessage.from),
-        subject: selectedMessage.subject.startsWith('Re:')
-          ? selectedMessage.subject
-          : `Re: ${selectedMessage.subject}`,
-        text: replyText,
-        inReplyTo: selectedMessage.messageId,
+        to,
+        subject,
+        text,
+        inReplyTo,
       });
-      setReplyText('');
-      setSuccess('Respuesta enviada.');
+      showSuccess('Correo enviado.');
+      return true;
     } catch (err) {
-      setError(err.response?.data?.message || 'No se pudo enviar la respuesta.');
+      setError(err.response?.data?.message || 'No se pudo enviar el correo.');
+      return false;
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const sendReply = async (event) => {
+    event.preventDefault();
+    if (!selectedMessage) return;
+    const ok = await sendMail({
+      to: firstAddress(selectedMessage.from),
+      subject: selectedMessage.subject.startsWith('Re:')
+        ? selectedMessage.subject
+        : `Re: ${selectedMessage.subject}`,
+      text: replyText,
+      inReplyTo: selectedMessage.messageId,
+    });
+    if (ok) setReplyText('');
+  };
+
+  const sendCompose = async (event) => {
+    event.preventDefault();
+    const ok = await sendMail(composeForm);
+    if (ok) {
+      setComposeForm({ to: '', subject: '', text: '' });
+      setComposeOpen(false);
     }
   };
 
@@ -121,190 +195,255 @@ const StaffMailScreen = () => {
         customerName: firstName(selectedMessage.from),
         customerEmail: firstAddress(selectedMessage.from),
         subject: selectedMessage.subject,
-        message: selectedMessage.text || selectedMessage.html?.replace(/<[^>]+>/g, ' ') || 'Correo sin contenido.',
+        message: selectedMessage.text || stripHtml(selectedMessage.html) || 'Correo sin contenido.',
       });
-      setSuccess(`Ticket creado: ${data.data.ticket.ticketNumber}`);
+      showSuccess(`Ticket creado: ${data.data.ticket.ticketNumber}`);
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo crear el ticket.');
     }
   };
 
-  const copySettings = async () => {
-    const text = settings.map((item) => `${item.label}: ${item.value}`).join('\n');
-    await navigator.clipboard.writeText(text);
-    setSuccess('Configuracion copiada.');
+  const enableNotifications = async () => {
+    if (!('Notification' in window)) {
+      setError('Este navegador no soporta notificaciones.');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setNotificationsEnabled(permission === 'granted');
+    if (permission === 'granted') showSuccess('Notificaciones activadas.');
+  };
+
+  const renderReader = () => {
+    if (!selectedMessage) {
+      return (
+        <div className={mailStyles.emptyState}>
+          <div>
+            <div className={mailStyles.emptyIcon}><i className="fas fa-envelope-open-text"></i></div>
+            <h2>{reading ? 'Abriendo correo...' : 'Selecciona un correo'}</h2>
+            <p>Lee, responde y crea tickets sin salir del panel.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div className={mailStyles.readerHeader}>
+          <h2 className={mailStyles.readerTitle}>{selectedMessage.subject}</h2>
+          <div className={mailStyles.readerMeta}>
+            De {firstName(selectedMessage.from)} &lt;{firstAddress(selectedMessage.from)}&gt;
+            {selectedMessage.date && <> · {dateFormat.format(new Date(selectedMessage.date))}</>}
+          </div>
+          <div className={mailStyles.readerActions}>
+            <button className={mailStyles.softButton} type="button" onClick={createTicket}>
+              <i className="fas fa-ticket-alt"></i> Crear ticket
+            </button>
+            <a className={mailStyles.softButton} href={`mailto:${firstAddress(selectedMessage.from)}`}>
+              <i className="fas fa-external-link-alt"></i> Abrir externo
+            </a>
+          </div>
+        </div>
+
+        <div className={mailStyles.messageBody}>
+          {selectedMessage.text || stripHtml(selectedMessage.html) || 'Correo sin contenido.'}
+        </div>
+
+        {selectedMessage.attachments?.length > 0 && (
+          <div className={`${mailStyles.notice} ${mailStyles.noticeSuccess}`}>
+            Este correo tiene {selectedMessage.attachments.length} adjunto(s). Los mostraremos como descarga en la siguiente fase.
+          </div>
+        )}
+
+        <form className={mailStyles.replyBox} onSubmit={sendReply}>
+          <textarea
+            value={replyText}
+            onChange={(event) => setReplyText(event.target.value)}
+            placeholder="Responder al cliente..."
+            required
+          />
+          <div className={mailStyles.replyActions}>
+            <button className={mailStyles.primaryButton} type="submit" disabled={sending}>
+              <i className="fas fa-paper-plane"></i> {sending ? 'Enviando...' : 'Enviar respuesta'}
+            </button>
+          </div>
+        </form>
+      </>
+    );
   };
 
   return (
-    <>
-      <div className={styles.toolbar}>
-        <div>
-          <h1 className={styles.title}>Correo del equipo</h1>
-          <p className={styles.subtitle}>
-            Bandeja interna para leer, responder y convertir correos en tickets. No guardamos contrasenas.
-          </p>
+    <div className={mailStyles.mailShell}>
+      <header className={mailStyles.topbar}>
+        <div className={mailStyles.brand}>
+          <div className={mailStyles.brandIcon}><i className="fas fa-microchip"></i></div>
+          <div>
+            <h1 className={mailStyles.brandTitle}>Tecnotitlan Mail</h1>
+            <span className={mailStyles.brandSub}>{email || 'Conecta tu correo corporativo'}</span>
+          </div>
         </div>
-        <a className={styles.secondaryButton} href={WEBMAIL_URL} target="_blank" rel="noreferrer">
-          Abrir webmail
-        </a>
-      </div>
 
-      {error && <div className={styles.error}>{error}</div>}
-      {success && <div className={styles.success}>{success}</div>}
+        <div className={mailStyles.searchBox}>
+          <i className="fas fa-search"></i>
+          <input
+            className={mailStyles.searchInput}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar en el correo"
+          />
+        </div>
 
-      <section className={styles.card}>
-        <div className={styles.formGrid}>
-          <div className={styles.field}>
-            <label className={styles.label}>Correo corporativo</label>
+        <div className={mailStyles.topActions}>
+          <button className={mailStyles.iconButton} type="button" onClick={() => loadInbox()} disabled={loading}>
+            <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sync-alt'}`}></i>
+          </button>
+          <button className={mailStyles.iconButton} type="button" onClick={enableNotifications} title="Activar notificaciones">
+            <i className={`fas ${notificationsEnabled ? 'fa-bell' : 'fa-bell-slash'}`}></i>
+          </button>
+          <a className={mailStyles.softButton} href={WEBMAIL_URL} target="_blank" rel="noreferrer">
+            Webmail
+          </a>
+        </div>
+      </header>
+
+      {(error || success) && (
+        <div className={`${mailStyles.notice} ${error ? mailStyles.noticeError : mailStyles.noticeSuccess}`}>
+          {error || success}
+        </div>
+      )}
+
+      <main className={mailStyles.layout}>
+        <aside className={mailStyles.sidebar}>
+          <button className={`${mailStyles.primaryButton} ${mailStyles.composeButton}`} type="button" onClick={() => setComposeOpen(true)}>
+            <i className="fas fa-pen"></i> Redactar
+          </button>
+
+          <nav className={mailStyles.folderList}>
+            {folderItems.map((folder) => (
+              <button
+                key={folder.id}
+                className={`${mailStyles.folderButton} ${activeFolder === folder.id ? mailStyles.folderButtonActive : ''}`}
+                type="button"
+                onClick={() => !folder.disabled && setActiveFolder(folder.id)}
+                title={folder.disabled ? 'Disponible en la siguiente fase' : folder.label}
+              >
+                <span><i className={`fas ${folder.icon}`}></i> {folder.label}</span>
+                {folder.id === 'INBOX' && <strong className={mailStyles.badge}>{unreadCount}</strong>}
+              </button>
+            ))}
+          </nav>
+
+          <div className={mailStyles.accountCard}>
+            <label>Correo</label>
             <input
-              className={styles.input}
+              className={mailStyles.accountInput}
               value={emailInput}
               onChange={(event) => setEmailInput(event.target.value)}
-              placeholder="ventas o ventas@tecnotitlan.com.mx"
+              placeholder="usuario@tecnotitlan.com.mx"
             />
-            {!isCorporateEmail && (
-              <small className={styles.muted}>Usa una cuenta terminada en @{MAIL_DOMAIN}.</small>
-            )}
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label}>Contrasena del correo</label>
+            <label>Contrasena</label>
             <input
-              className={styles.input}
+              className={mailStyles.accountInput}
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="No se guarda en Tecnotitlan"
+              placeholder="No se guarda"
             />
-            <small className={styles.muted}>Se usa solo para esta sesion contra IMAP/SMTP.</small>
+            <button className={mailStyles.softButton} type="button" onClick={() => loadInbox()} disabled={loading}>
+              Conectar
+            </button>
+            <small className={mailStyles.privacyNote}>
+              Cada trabajador entra con su propia cuenta. La contrasena solo se usa para esta sesion.
+            </small>
           </div>
-        </div>
+        </aside>
 
-        <div className={styles.actions}>
-          <button className={styles.button} type="button" onClick={loadInbox} disabled={loading}>
-            {loading ? 'Conectando...' : 'Abrir bandeja'}
-          </button>
-          <button className={styles.secondaryButton} type="button" onClick={copySettings}>
-            Copiar configuracion
-          </button>
-        </div>
-      </section>
-
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 0.9fr) minmax(320px, 1.4fr)', gap: '1rem', marginTop: '1.25rem' }}>
-        <div className={styles.card}>
-          <div className={styles.toolbar}>
+        <section className={mailStyles.messageList}>
+          <div className={mailStyles.listHeader}>
             <div>
-              <h2 className={styles.title} style={{ fontSize: '1.2rem', marginBottom: 0 }}>Bandeja</h2>
-              <p className={styles.subtitle} style={{ marginBottom: 0 }}>{messages.length} correos cargados</p>
+              <strong>Principal</strong>
+              <br />
+              <small>{filteredMessages.length} mensajes</small>
             </div>
+            <span className={mailStyles.statusPill}>
+              <i className="fas fa-circle"></i>
+              {lastSyncedAt ? `Actualizado ${lastSyncedAt.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}` : 'Sin conectar'}
+            </span>
           </div>
 
-          {messages.length === 0 ? (
-            <div className={styles.empty}>Conecta una cuenta para ver los ultimos correos.</div>
-          ) : (
-            <div style={{ display: 'grid', gap: '0.75rem' }}>
-              {messages.map((message) => (
-                <button
-                  key={message.uid}
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={() => readMessage(message)}
-                  style={{
-                    display: 'block',
-                    textAlign: 'left',
-                    borderColor: selectedMessage?.uid === message.uid ? '#00d084' : '#cbd5e1',
-                    whiteSpace: 'normal',
-                  }}
-                >
-                  <strong>{message.subject}</strong>
-                  <br />
-                  <span>{firstName(message.from)}</span>
-                  <br />
-                  <small className={styles.muted}>{message.date ? dateFormat.format(new Date(message.date)) : ''}</small>
-                  <p className={styles.muted} style={{ margin: '0.35rem 0 0' }}>{message.snippet}</p>
+          {composeOpen && (
+            <form className={mailStyles.composePanel} onSubmit={sendCompose}>
+              <div className={mailStyles.composeHeader}>
+                <strong>Nuevo mensaje</strong>
+                <button className={mailStyles.iconButton} type="button" onClick={() => setComposeOpen(false)}>
+                  <i className="fas fa-times"></i>
                 </button>
-              ))}
-            </div>
+              </div>
+              <div className={mailStyles.composeBody}>
+                <input
+                  className={mailStyles.composeInput}
+                  type="email"
+                  value={composeForm.to}
+                  onChange={(event) => setComposeForm((current) => ({ ...current, to: event.target.value }))}
+                  placeholder="Para"
+                  required
+                />
+                <input
+                  className={mailStyles.composeInput}
+                  value={composeForm.subject}
+                  onChange={(event) => setComposeForm((current) => ({ ...current, subject: event.target.value }))}
+                  placeholder="Asunto"
+                  required
+                />
+                <textarea
+                  className={mailStyles.composeTextarea}
+                  value={composeForm.text}
+                  onChange={(event) => setComposeForm((current) => ({ ...current, text: event.target.value }))}
+                  placeholder="Escribe tu mensaje..."
+                  required
+                />
+                <button className={mailStyles.primaryButton} type="submit" disabled={sending}>
+                  <i className="fas fa-paper-plane"></i> {sending ? 'Enviando...' : 'Enviar'}
+                </button>
+              </div>
+            </form>
           )}
-        </div>
 
-        <div className={styles.card}>
-          {!selectedMessage ? (
-            <div className={styles.empty}>{reading ? 'Abriendo correo...' : 'Selecciona un correo para leerlo.'}</div>
-          ) : (
-            <>
-              <div className={styles.toolbar}>
+          <div className={mailStyles.messageRows}>
+            {filteredMessages.length === 0 ? (
+              <div className={mailStyles.emptyState}>
                 <div>
-                  <h2 className={styles.title} style={{ fontSize: '1.3rem', marginBottom: '0.25rem' }}>
-                    {selectedMessage.subject}
-                  </h2>
-                  <p className={styles.subtitle} style={{ marginBottom: 0 }}>
-                    De {firstName(selectedMessage.from)} &lt;{firstAddress(selectedMessage.from)}&gt;
-                  </p>
+                  <div className={mailStyles.emptyIcon}><i className="fas fa-inbox"></i></div>
+                  <h2>{messages.length ? 'Sin resultados' : 'Conecta tu bandeja'}</h2>
+                  <p>{messages.length ? 'Prueba con otra busqueda.' : 'Escribe tu correo y contrasena para cargar tus mensajes.'}</p>
                 </div>
-                <button className={styles.secondaryButton} type="button" onClick={createTicket}>
-                  Crear ticket
-                </button>
               </div>
-
-              <div
-                style={{
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '0.75rem',
-                  padding: '1rem',
-                  minHeight: '220px',
-                  background: '#f8fafc',
-                  color: '#0f172a',
-                  whiteSpace: 'pre-wrap',
-                }}
+            ) : filteredMessages.map((message) => (
+              <button
+                key={message.uid}
+                type="button"
+                className={[
+                  mailStyles.messageRow,
+                  selectedMessage?.uid === message.uid ? mailStyles.messageRowActive : '',
+                  !message.seen ? mailStyles.messageRowUnread : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => readMessage(message)}
               >
-                {selectedMessage.text || stripHtml(selectedMessage.html) || 'Correo sin contenido.'}
-              </div>
-
-              {selectedMessage.attachments?.length > 0 && (
-                <div className={styles.placeholderBox}>
-                  <p className={styles.placeholderText}>
-                    Este correo tiene {selectedMessage.attachments.length} adjunto(s). En esta primera version solo se muestran como referencia.
-                  </p>
+                <div className={mailStyles.rowTop}>
+                  <span className={mailStyles.sender}>{firstName(message.from)}</span>
+                  <span className={mailStyles.date}>{message.date ? dateFormat.format(new Date(message.date)) : ''}</span>
                 </div>
-              )}
+                <span className={mailStyles.subject}>{message.subject}</span>
+                <p className={mailStyles.snippet}>{message.snippet || 'Sin vista previa'}</p>
+              </button>
+            ))}
+          </div>
+        </section>
 
-              <form onSubmit={sendReply} style={{ marginTop: '1rem' }}>
-                <label className={styles.field}>
-                  <span className={styles.label}>Responder</span>
-                  <textarea
-                    className={styles.textarea}
-                    value={replyText}
-                    onChange={(event) => setReplyText(event.target.value)}
-                    placeholder="Escribe la respuesta al cliente..."
-                    required
-                  />
-                </label>
-                <div className={styles.actions}>
-                  <button className={styles.button} type="submit">Enviar respuesta</button>
-                </div>
-              </form>
-            </>
-          )}
-        </div>
-      </section>
-
-      <section className={styles.card} style={{ marginTop: '1.25rem' }}>
-        <h2 className={styles.title} style={{ fontSize: '1.1rem' }}>Configuracion tecnica</h2>
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <tbody>
-              {settings.map((item) => (
-                <tr key={item.label}>
-                  <th>{item.label}</th>
-                  <td>{item.value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </>
+        <section className={mailStyles.reader}>
+          {renderReader()}
+        </section>
+      </main>
+    </div>
   );
 };
 
