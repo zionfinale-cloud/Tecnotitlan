@@ -145,7 +145,7 @@ const ChannelsScreen = () => {
         <div>
           <h1 className={styles.title}>Canales de venta</h1>
           <p className={styles.subtitle}>
-            Prepara publicaciones por marketplace sin tocar el inventario maestro.
+            Configura publicaciones, precios e IDs externos. Mueve piezas desde Inventario.
           </p>
         </div>
       </div>
@@ -154,7 +154,7 @@ const ChannelsScreen = () => {
       {success && <div className={styles.success}>{success}</div>}
 
       <section className={styles.card}>
-        <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Nueva publicacion</h2>
+        <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Publicacion / ficha por canal</h2>
         <form onSubmit={saveListing}>
           <div className={styles.formGrid}>
             <div className={styles.field}>
@@ -237,7 +237,7 @@ const ChannelsScreen = () => {
               />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Stock publicado</label>
+              <label className={styles.label}>Stock publicado/asignado</label>
               <input
                 className={styles.input}
                 type="number"

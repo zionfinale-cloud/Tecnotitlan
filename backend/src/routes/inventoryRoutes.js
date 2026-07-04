@@ -6,6 +6,7 @@ import {
   getInventoryOverview,
   getInvestments,
   getMovements,
+  transferStockToChannel,
 } from '../controllers/inventoryController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
@@ -22,6 +23,10 @@ router
 router
   .route('/entries')
   .post(checkPermission('product:update'), createStockEntry);
+
+router
+  .route('/transfers')
+  .post(checkPermission('product:update'), transferStockToChannel);
 
 router
   .route('/movements')

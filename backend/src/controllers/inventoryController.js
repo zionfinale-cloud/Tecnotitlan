@@ -13,6 +13,8 @@ const toDateRange = (startDate, endDate) => {
   return Object.keys(filter).length ? filter : undefined;
 };
 
+const SALES_CHANNELS = ['MERCADOLIBRE', 'TIKTOK_SHOP', 'AMAZON'];
+
 const getInvestments = asyncHandler(async (req, res) => {
   const investments = await prisma.inventoryInvestment.findMany({
     include: {
@@ -130,6 +132,102 @@ const createStockEntry = asyncHandler(async (req, res, next) => {
   });
 
   res.status(201).json({ status: 'success', data: { movement } });
+});
+
+const transferStockToChannel = asyncHandler(async (req, res, next) => {
+  const { productId, channel, quantity, price, stockBuffer, notes } = req.body;
+  const parsedQuantity = Number(quantity);
+  const parsedPrice = price === undefined || price === '' ? null : Number(price);
+  const parsedStockBuffer = Number(stockBuffer || 0);
+
+  if (!SALES_CHANNELS.includes(channel)) {
+    return next(new BadRequestError('Canal de destino invalido.'));
+  }
+
+  if (!Number.isInteger(parsedQuantity) || parsedQuantity <= 0) {
+    return next(new BadRequestError('La cantidad debe ser un entero mayor a cero.'));
+  }
+
+  if (!Number.isInteger(parsedStockBuffer) || parsedStockBuffer < 0) {
+    return next(new BadRequestError('El buffer debe ser un entero no negativo.'));
+  }
+
+  if (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0)) {
+    return next(new BadRequestError('El precio de canal debe ser valido.'));
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const product = await tx.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundError('Producto no encontrado.');
+    }
+
+    if (product.countInStock < parsedQuantity) {
+      throw new BadRequestError('No hay suficiente stock en bodega/web para mover a ese canal.');
+    }
+
+    const stockBefore = product.countInStock;
+    const stockAfter = stockBefore - parsedQuantity;
+
+    await tx.product.update({
+      where: { id: product.id },
+      data: { countInStock: stockAfter },
+    });
+
+    const existingListing = await tx.marketplaceListing.findUnique({
+      where: { productId_channel: { productId: product.id, channel } },
+    });
+
+    const nextPublishedStock = (existingListing?.publishedStock || 0) + parsedQuantity;
+
+    const listing = existingListing
+      ? await tx.marketplaceListing.update({
+          where: { id: existingListing.id },
+          data: {
+            publishedStock: nextPublishedStock,
+            stockBuffer: parsedStockBuffer,
+            price: parsedPrice ?? existingListing.price ?? product.price,
+            syncStatus: 'LOCAL_STOCK_UPDATED',
+          },
+        })
+      : await tx.marketplaceListing.create({
+          data: {
+            productId: product.id,
+            channel,
+            externalSku: product.sku,
+            title: product.name,
+            price: parsedPrice ?? product.price,
+            publishedStock: nextPublishedStock,
+            stockBuffer: parsedStockBuffer,
+            status: 'DRAFT',
+            syncStatus: 'LOCAL_STOCK_ASSIGNED',
+          },
+        });
+
+    const movement = await tx.inventoryMovement.create({
+      data: {
+        type: 'CHANNEL_TRANSFER',
+        productId: product.id,
+        quantity: parsedQuantity,
+        unitCost: product.costPrice || 0,
+        totalCost: parsedQuantity * (product.costPrice || 0),
+        channel,
+        stockBefore,
+        stockAfter,
+        referenceType: 'CHANNEL_STOCK_TRANSFER',
+        referenceId: listing.id,
+        notes,
+        createdById: req.user?.id,
+      },
+      include: {
+        product: { select: { id: true, sku: true, name: true } },
+      },
+    });
+
+    return { movement, listing };
+  });
+
+  res.status(201).json({ status: 'success', data: result });
 });
 
 const getMovements = asyncHandler(async (req, res) => {
@@ -295,6 +393,7 @@ export {
   getInventoryOverview,
   createInvestment,
   createStockEntry,
+  transferStockToChannel,
   getMovements,
   getInventoryCut,
 };

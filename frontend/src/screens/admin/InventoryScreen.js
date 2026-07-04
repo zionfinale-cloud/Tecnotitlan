@@ -9,6 +9,12 @@ const currency = new Intl.NumberFormat('es-MX', {
 
 const today = new Date().toISOString().slice(0, 10);
 
+const CHANNELS = [
+  { value: 'MERCADOLIBRE', label: 'Mercado Libre' },
+  { value: 'TIKTOK_SHOP', label: 'TikTok Shop' },
+  { value: 'AMAZON', label: 'Amazon' },
+];
+
 const getWeekStart = () => {
   const date = new Date();
   const day = date.getDay() || 7;
@@ -30,6 +36,14 @@ const InventoryScreen = () => {
     investmentId: '',
     quantity: '',
     unitCost: '',
+    notes: '',
+  });
+  const [transferForm, setTransferForm] = useState({
+    productId: '',
+    channel: 'MERCADOLIBRE',
+    quantity: '',
+    price: '',
+    stockBuffer: 0,
     notes: '',
   });
   const [dateRange, setDateRange] = useState({
@@ -98,6 +112,32 @@ const InventoryScreen = () => {
       await loadInventory();
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo registrar la entrada.');
+    }
+  };
+
+  const transferStock = async (event) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    try {
+      await api.post('/inventory/transfers', {
+        ...transferForm,
+        quantity: Number(transferForm.quantity),
+        price: transferForm.price === '' ? undefined : Number(transferForm.price),
+        stockBuffer: Number(transferForm.stockBuffer || 0),
+      });
+      setSuccess('Stock movido al canal.');
+      setTransferForm({
+        productId: '',
+        channel: 'MERCADOLIBRE',
+        quantity: '',
+        price: '',
+        stockBuffer: 0,
+        notes: '',
+      });
+      await loadInventory();
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo mover el stock al canal.');
     }
   };
 
@@ -188,6 +228,89 @@ const InventoryScreen = () => {
             </div>
             <div className={styles.actions}>
               <button className={styles.button} type="submit">Registrar entrada</button>
+            </div>
+          </form>
+        </section>
+
+        <section className={styles.card}>
+          <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Mover stock a canal</h2>
+          <form onSubmit={transferStock}>
+            <div className={styles.field}>
+              <label className={styles.label}>Producto en bodega/web</label>
+              <select
+                className={styles.select}
+                value={transferForm.productId}
+                onChange={(event) => setTransferForm({ ...transferForm, productId: event.target.value })}
+                required
+              >
+                <option value="">Selecciona producto</option>
+                {activeProducts.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.sku} - {product.name} ({product.countInStock} en bodega/web)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.field} style={{ marginTop: '1rem' }}>
+              <label className={styles.label}>Canal destino</label>
+              <select
+                className={styles.select}
+                value={transferForm.channel}
+                onChange={(event) => setTransferForm({ ...transferForm, channel: event.target.value })}
+              >
+                {CHANNELS.map((channel) => (
+                  <option key={channel.value} value={channel.value}>{channel.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.formGrid} style={{ marginTop: '1rem' }}>
+              <div className={styles.field}>
+                <label className={styles.label}>Cantidad a mover</label>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min="1"
+                  value={transferForm.quantity}
+                  onChange={(event) => setTransferForm({ ...transferForm, quantity: event.target.value })}
+                  placeholder="10"
+                  required
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Precio canal</label>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={transferForm.price}
+                  onChange={(event) => setTransferForm({ ...transferForm, price: event.target.value })}
+                  placeholder="349"
+                />
+              </div>
+            </div>
+            <div className={styles.field} style={{ marginTop: '1rem' }}>
+              <label className={styles.label}>Buffer de seguridad</label>
+              <input
+                className={styles.input}
+                type="number"
+                min="0"
+                value={transferForm.stockBuffer}
+                onChange={(event) => setTransferForm({ ...transferForm, stockBuffer: event.target.value })}
+                placeholder="2"
+              />
+            </div>
+            <div className={styles.field} style={{ marginTop: '1rem' }}>
+              <label className={styles.label}>Notas</label>
+              <textarea
+                className={styles.textarea}
+                value={transferForm.notes}
+                onChange={(event) => setTransferForm({ ...transferForm, notes: event.target.value })}
+                placeholder="Ej. Enviado a bodega Meli, apartado para TikTok, preparado para Amazon..."
+              />
+            </div>
+            <div className={styles.actions}>
+              <button className={styles.button} type="submit">Mover a canal</button>
             </div>
           </form>
         </section>

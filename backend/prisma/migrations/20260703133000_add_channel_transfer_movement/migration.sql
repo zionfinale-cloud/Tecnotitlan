@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "InventoryMovementType" ADD VALUE IF NOT EXISTS 'CHANNEL_TRANSFER';

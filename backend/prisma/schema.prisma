@@ -372,6 +372,7 @@ enum ShippingPayer {
 enum InventoryMovementType {
   PURCHASE
   SALE
+  CHANNEL_TRANSFER
   ADJUSTMENT_IN
   ADJUSTMENT_OUT
   RETURN_IN
