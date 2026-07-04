@@ -25,11 +25,6 @@ const InventoryScreen = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [investmentForm, setInvestmentForm] = useState({
-    name: `Inversion ${today}`,
-    amount: '',
-    notes: '',
-  });
   const [entryForm, setEntryForm] = useState({
     productId: '',
     investmentId: '',
@@ -87,23 +82,6 @@ const InventoryScreen = () => {
     }
   };
 
-  const createInvestment = async (event) => {
-    event.preventDefault();
-    setError('');
-    setSuccess('');
-    try {
-      await api.post('/inventory/investments', {
-        ...investmentForm,
-        amount: Number(investmentForm.amount),
-      });
-      setSuccess('Inversion registrada.');
-      setInvestmentForm({ name: `Inversion ${today}`, amount: '', notes: '' });
-      await loadInventory();
-    } catch (err) {
-      setError(err.response?.data?.message || 'No se pudo registrar la inversion.');
-    }
-  };
-
   const createStockEntry = async (event) => {
     event.preventDefault();
     setError('');
@@ -127,9 +105,9 @@ const InventoryScreen = () => {
     <>
       <div className={styles.toolbar}>
         <div>
-          <h1 className={styles.title}>Inversion, inventario y salidas</h1>
+          <h1 className={styles.title}>Inventario y salidas</h1>
           <p className={styles.subtitle}>
-            La inversion es dinero. El inventario son piezas. Las salidas son ventas por canal.
+            Aqui ves piezas fisicas, stock por canal, entradas de mercancia y salidas por venta.
           </p>
         </div>
       </div>
@@ -139,48 +117,7 @@ const InventoryScreen = () => {
 
       <div className={styles.formGrid}>
         <section className={styles.card}>
-          <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>1. Bolsa de inversion</h2>
-          <form onSubmit={createInvestment}>
-            <div className={styles.field}>
-              <label className={styles.label}>Nombre</label>
-              <input
-                className={styles.input}
-                value={investmentForm.name}
-                onChange={(event) => setInvestmentForm({ ...investmentForm, name: event.target.value })}
-                placeholder="Compra julio / Lote auriculares"
-                required
-              />
-            </div>
-            <div className={styles.field} style={{ marginTop: '1rem' }}>
-              <label className={styles.label}>Monto invertido</label>
-              <input
-                className={styles.input}
-                type="number"
-                min="0"
-                step="0.01"
-                value={investmentForm.amount}
-                onChange={(event) => setInvestmentForm({ ...investmentForm, amount: event.target.value })}
-                placeholder="30000"
-                required
-              />
-            </div>
-            <div className={styles.field} style={{ marginTop: '1rem' }}>
-              <label className={styles.label}>Notas</label>
-              <textarea
-                className={styles.textarea}
-                value={investmentForm.notes}
-                onChange={(event) => setInvestmentForm({ ...investmentForm, notes: event.target.value })}
-                placeholder="Proveedor, condiciones, objetivo del lote..."
-              />
-            </div>
-            <div className={styles.actions}>
-              <button className={styles.button} type="submit">Guardar inversion</button>
-            </div>
-          </form>
-        </section>
-
-        <section className={styles.card}>
-          <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>2. Compra / entrada de mercancia</h2>
+          <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Entrada de mercancia</h2>
           <form onSubmit={createStockEntry}>
             <div className={styles.field}>
               <label className={styles.label}>Producto</label>
@@ -259,7 +196,7 @@ const InventoryScreen = () => {
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
         <div className={styles.toolbar}>
           <div>
-            <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>3. Inventario por producto y canal</h2>
+            <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>Inventario por producto y canal</h2>
             <p className={styles.subtitle} style={{ marginBottom: 0 }}>
               Existencia fisica y stock publicado por marketplace para evitar perder mercancia.
             </p>
@@ -309,7 +246,7 @@ const InventoryScreen = () => {
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
         <div className={styles.toolbar}>
           <div>
-            <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>4. Corte de salidas / ventas</h2>
+            <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>Corte de salidas / ventas</h2>
             <p className={styles.subtitle} style={{ marginBottom: 0 }}>Donde se vendio, cuanto salio, cuanto entro y cuanto quedo.</p>
           </div>
           <form className={styles.toolbar} onSubmit={refreshCut}>
@@ -441,39 +378,6 @@ const InventoryScreen = () => {
               {!loading && movements.length === 0 && (
                 <tr>
                   <td colSpan="8" className={styles.empty}>Aun no hay compras ni salidas registradas.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className={styles.card} style={{ marginTop: '1.25rem' }}>
-        <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Inversiones</h2>
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Monto</th>
-                <th>Gastado</th>
-                <th>Disponible</th>
-                <th>Fecha</th>
-              </tr>
-            </thead>
-            <tbody>
-              {investments.map((investment) => (
-                <tr key={investment.id}>
-                  <td>{investment.name}</td>
-                  <td>{currency.format(investment.amount || 0)}</td>
-                  <td>{currency.format(investment.spent || 0)}</td>
-                  <td>{currency.format(investment.remaining || 0)}</td>
-                  <td>{new Date(investment.createdAt).toLocaleDateString('es-MX')}</td>
-                </tr>
-              ))}
-              {!loading && investments.length === 0 && (
-                <tr>
-                  <td colSpan="5" className={styles.empty}>Registra tu primera inversion para empezar limpio.</td>
                 </tr>
               )}
             </tbody>
