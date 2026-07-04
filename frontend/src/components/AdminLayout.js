@@ -17,6 +17,7 @@ const navLinks = [
     { to: '/admin/categorylist', icon: 'fa-list-alt', text: 'Categorías' }, // Agregamos Categorías
     { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles' },
     { to: '/admin/support', icon: 'fa-headset', text: 'Soporte', permission: 'support:read' },
+    { to: '/admin/settings/storefront', icon: 'fa-paint-brush', text: 'Storefront' },
     { to: '/admin/settings/legal', icon: 'fa-gavel', text: 'Páginas Legales' },
 ];
 

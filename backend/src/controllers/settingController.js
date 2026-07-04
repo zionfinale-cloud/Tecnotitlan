@@ -16,6 +16,15 @@ const PUBLIC_SETTING_KEYS = [
     'currency_symbol',
     'page_privacy_policy',
     'page_terms_of_service',
+    'hero_eyebrow',
+    'hero_title',
+    'hero_highlight',
+    'hero_subtitle',
+    'hero_cta_text',
+    'hero_cta_href',
+    'hero_image_url',
+    'home_promos',
+    'home_category_icons',
 ];
 
 const getPublicSettings = asyncHandler(async (req, res) => {
@@ -52,9 +61,17 @@ const updateSettings = asyncHandler(async (req, res) => {
 
     // Usamos una transacción para asegurar que todas las actualizaciones se completen o ninguna lo haga.
     const updatePromises = settings.map(setting =>
-        prisma.setting.update({
+        prisma.setting.upsert({
             where: { key: setting.key },
-            data: { value: setting.value },
+            update: {
+                value: setting.value,
+                ...(setting.type ? { type: setting.type } : {}),
+            },
+            create: {
+                key: setting.key,
+                value: setting.value,
+                type: setting.type || 'string',
+            },
         })
     );
 

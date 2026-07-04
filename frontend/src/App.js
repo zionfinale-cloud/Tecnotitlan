@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 
 // --- CONTEXTOS (Proveedores de Estado Global) ---
@@ -43,6 +43,7 @@ import CategoryListScreen from './screens/admin/CategoryListScreen';
 import RoleListScreen from './screens/admin/RoleListScreen';
 import WhatsappSettingsScreen from './screens/admin/WhatsappSettingsScreen';
 import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-rutas
+import StorefrontSettingsScreen from './screens/admin/StorefrontSettingsScreen';
 import LegalPagesScreen from './screens/admin/LegalPagesScreen';
 import PrivacyPolicy from './screens/PrivacyPolicy';
 import TermsOfService from './screens/TermsOfService';
@@ -113,6 +114,8 @@ function App() {
                                                 
                                                 {/* Sub-rutas de Configuración */}
                                                 <Route path="settings" element={<SettingsPage />}>
+                                                    <Route index element={<Navigate to="storefront" replace />} />
+                                                    <Route path="storefront" element={<StorefrontSettingsScreen />} />
                                                     <Route path="legal" element={<LegalPagesScreen />} />
                                                     <Route path="whatsapp" element={<WhatsappSettingsScreen />} />
                                                 </Route>

@@ -15,6 +15,13 @@ const SettingsPage = () => {
             <ListGroup.Item className="bg-gray-50 fw-bold border-b text-slate-800">Ajustes</ListGroup.Item>
             <ListGroup.Item 
                 as={NavLink} 
+                to="/admin/settings/storefront" 
+                className={({ isActive }) => `cursor-pointer ${isActive ? 'bg-primary text-white font-bold' : ''}`}
+            >
+                <i className="fas fa-store me-2"></i> Storefront / Home
+            </ListGroup.Item>
+            <ListGroup.Item 
+                as={NavLink} 
                 to="/admin/settings/whatsapp" 
                 className={({ isActive }) => `cursor-pointer ${isActive ? 'bg-primary text-white font-bold' : ''}`}
             >

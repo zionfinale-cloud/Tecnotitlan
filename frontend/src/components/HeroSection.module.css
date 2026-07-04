@@ -13,6 +13,14 @@
 .visual { height: 450px; position: relative; display: grid; place-items: center; }
 .visual img { width: min(680px, 115%); height: 100%; object-fit: cover; object-position: center; mask-image: radial-gradient(ellipse 68% 72% at center, #000 55%, transparent 100%); filter: saturate(1.08) contrast(1.04); }
 .glow { position: absolute; width: 420px; height: 240px; border-radius: 50%; background: rgba(70,255,126,.12); filter: blur(70px); }
+.promoCard { position: absolute; right: 1rem; bottom: 1.5rem; width: min(310px, 82vw); padding: 1rem; border: 1px solid rgba(117,242,56,.22); border-radius: 18px; background: rgba(8,12,13,.76); backdrop-filter: blur(18px); box-shadow: 0 22px 60px rgba(0,0,0,.28); color: #f7f9f8; display: grid; gap: .35rem; }
+.promoCard span { color: var(--cta-color); font-size: .62rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.promoCard strong { font-size: 1.05rem; line-height: 1.15; }
+.promoCard small { color: #b7c0bc; line-height: 1.45; }
+.promoCard a { color: var(--cta-color); font-size: .75rem; font-weight: 900; text-decoration: none; margin-top: .3rem; }
+.promoDots { display: flex; gap: .35rem; margin-top: .35rem; }
+.promoDots button { width: 8px; height: 8px; border-radius: 999px; border: 0; background: rgba(255,255,255,.28); padding: 0; }
+.promoDots .promoDotActive { width: 20px; background: var(--cta-color); }
 
 :global([data-theme="light"]) .hero { border-bottom-color: var(--line); background: radial-gradient(circle at 72% 45%, rgba(117,242,56,.12), transparent 39%), linear-gradient(135deg, #fff, #f6faf7); }
 :global([data-theme="light"]) .hero::before { opacity: .5; }
@@ -20,11 +28,14 @@
 :global([data-theme="light"]) .copy p, :global([data-theme="light"]) .miniBenefits { color: var(--muted); }
 :global([data-theme="light"]) .visual img { mix-blend-mode: multiply; filter: saturate(1.04) contrast(1.03); }
 :global([data-theme="light"]) .glow { background: rgba(117,242,56,.16); }
+:global([data-theme="light"]) .promoCard { background: rgba(255,255,255,.86); color: var(--heading); border-color: var(--line); }
+:global([data-theme="light"]) .promoCard small { color: var(--muted); }
 
 @media (max-width: 991px) {
   .inner { min-height: 560px; grid-template-columns: 1fr; }
   .copy { padding: 3rem 0 0; }
   .visual { height: 280px; margin-top: -2rem; }
+  .promoCard { position: relative; right: auto; bottom: auto; align-self: end; margin-top: -5rem; }
   .miniBenefits { flex-wrap: wrap; }
 }
 @media (max-width: 575px) {

@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useContext, useEffect, useMemo } from 'react';
 import { Container } from 'react-bootstrap';
 import HeroSection from '../components/HeroSection';
 import ProductList from '../components/ProductList';
+import { SettingsContext } from '../context/SettingsContext';
 import useProductFilters from '../hooks/useProductFilters';
 import styles from './HomeScreen.module.css';
 
@@ -24,13 +25,22 @@ const normalizeCategoryText = (value = '') =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
-const getCategoryIcon = (category) => {
+const getCategoryIcon = (category, iconOverrides = {}) => {
+  if (iconOverrides[category.slug]) return iconOverrides[category.slug];
   const text = normalizeCategoryText(`${category.name || ''} ${category.slug || ''}`);
   return CATEGORY_ICON_RULES.find((rule) => rule.terms.some((term) => text.includes(term)))?.icon || 'fa-microchip';
 };
 
 const HomeScreen = () => {
+  const { settings } = useContext(SettingsContext);
   const { products, loading, error, pages, page, setPage, categories, selectedCategory, setSelectedCategory, collectionTitle, clearFilters } = useProductFilters();
+  const iconOverrides = useMemo(() => {
+    try {
+      return JSON.parse(settings.home_category_icons || '{}');
+    } catch (error) {
+      return {};
+    }
+  }, [settings.home_category_icons]);
 
   useEffect(() => {
     const anchor = window.location.hash;
@@ -45,7 +55,7 @@ const HomeScreen = () => {
         <section id="categories" className={styles.categories}>
           {categories.map((category) => (
             <button key={category.id} onClick={() => setSelectedCategory(category.slug)} className={selectedCategory === category.slug ? styles.activeCategory : ''}>
-              <i className={`fas ${getCategoryIcon(category)}`}></i>
+              <i className={`fas ${getCategoryIcon(category, iconOverrides)}`}></i>
               <span><strong>{category.name}</strong><small>Explorar productos</small></span>
             </button>
           ))}
