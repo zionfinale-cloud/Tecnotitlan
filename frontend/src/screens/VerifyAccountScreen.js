@@ -16,9 +16,11 @@ const cardStyle = {
 const VerifyAccountScreen = () => {
   const { token: tokenParam } = useParams();
   const [searchParams] = useSearchParams();
-  const { verifyAccount } = useContext(AuthContext);
+  const { verifyAccount, resendVerificationEmail } = useContext(AuthContext);
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('');
+  const [email, setEmail] = useState('');
+  const [resendMessage, setResendMessage] = useState('');
 
   const token = tokenParam || searchParams.get('token');
 
@@ -49,6 +51,18 @@ const VerifyAccountScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  const resendHandler = async (event) => {
+    event.preventDefault();
+    setResendMessage('');
+
+    try {
+      const response = await resendVerificationEmail(email);
+      setResendMessage(response.message || 'Si la cuenta existe, enviaremos un nuevo correo de activacion.');
+    } catch (error) {
+      setResendMessage(error.response?.data?.message || 'No pudimos reenviar la activacion.');
+    }
+  };
+
   return (
     <div style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', padding: '2rem' }}>
       <div style={cardStyle}>
@@ -73,6 +87,24 @@ const VerifyAccountScreen = () => {
             <i className="fas fa-times-circle" style={{ color: '#ff6b6b', fontSize: '2.4rem', marginBottom: '1rem' }}></i>
             <h2>Error de activación</h2>
             <p style={{ color: 'var(--muted)' }}>{message}</p>
+            <form onSubmit={resendHandler} style={{ display: 'grid', gap: 10, margin: '1rem 0' }}>
+              <input
+                type="email"
+                placeholder="tu-correo@ejemplo.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                style={{
+                  border: '1px solid var(--line)',
+                  borderRadius: 12,
+                  padding: '0.8rem 1rem',
+                  background: 'var(--surface)',
+                  color: 'var(--text)',
+                }}
+              />
+              <button type="submit" className="btn btn-primary">Reenviar activacion</button>
+              {resendMessage && <p style={{ color: 'var(--muted)', margin: 0 }}>{resendMessage}</p>}
+            </form>
             <Link to="/" style={{ color: 'var(--cta-color)', fontWeight: 800 }}>Volver al inicio</Link>
           </>
         )}

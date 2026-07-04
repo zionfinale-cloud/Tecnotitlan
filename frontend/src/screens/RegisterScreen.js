@@ -15,12 +15,13 @@ const RegisterFormContent = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [pendingActivationEmail, setPendingActivationEmail] = useState('');
     
     const navigate = useNavigate();
     const location = useLocation();
     
     // Consumimos los contextos
-    const { userInfo, register, loading } = useContext(AuthContext);
+    const { userInfo, register, resendVerificationEmail, loading } = useContext(AuthContext);
     const { showNotification } = useContext(NotificationContext);
     
     // Hook de reCAPTCHA
@@ -55,6 +56,7 @@ const RegisterFormContent = () => {
             const result = await register(name, email, password, token);
             if (result?.requireActivation) {
                 showNotification(result.message || 'Registro exitoso. Revisa tu correo para activar tu cuenta.', 'success');
+                setPendingActivationEmail(email);
                 setName('');
                 setEmail('');
                 setPassword('');
@@ -66,6 +68,17 @@ const RegisterFormContent = () => {
         }
     };
 
+    const resendHandler = async () => {
+        if (!pendingActivationEmail) return;
+
+        try {
+            const result = await resendVerificationEmail(pendingActivationEmail);
+            showNotification(result.message || 'Te enviamos un nuevo correo de activacion.', 'success');
+        } catch (error) {
+            showNotification(error.response?.data?.message || 'No pudimos reenviar la activacion.', 'danger');
+        }
+    };
+
     return (
         <div className={styles.pageContainer}>
             <Card className={styles.registerCard}>
@@ -73,6 +86,18 @@ const RegisterFormContent = () => {
                     <h1 className={styles.title}>Crear Cuenta</h1>
                     
                     {loading && <LoadingSpinner />} 
+
+                    {pendingActivationEmail && (
+                        <div className={styles.activationNotice}>
+                            <strong>Cuenta pendiente de activar</strong>
+                            <p>
+                                Enviamos el enlace a <span>{pendingActivationEmail}</span>. Revisa tambien spam o promociones.
+                            </p>
+                            <Button type="button" className={styles.resendButton} onClick={resendHandler} disabled={loading}>
+                                Reenviar activacion
+                            </Button>
+                        </div>
+                    )}
                     
                     <Form onSubmit={submitHandler}>
                         

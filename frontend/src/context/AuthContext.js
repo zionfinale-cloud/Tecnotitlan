@@ -9,7 +9,8 @@ export const AuthContext = createContext({
     login: () => {},
     logout: () => {},
     register: () => {},
-    verifyAccount: () => {}
+    verifyAccount: () => {},
+    resendVerificationEmail: () => {}
 });
 
 export const AuthProvider = ({ children }) => {
@@ -92,6 +93,11 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const resendVerificationEmail = async (email) => {
+        const { data } = await api.post('/users/resend-verification', { email });
+        return data;
+    };
+
     const logout = () => {
         // Enviar petición de logout al backend para limpiar el cookie HTTP-Only
         api.post('/users/logout').catch(e => console.error("Error al hacer logout en API:", e)); 
@@ -112,7 +118,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     return (
-        <AuthContext.Provider value={{ userInfo, loading, login, logout, register, updateProfile, verifyAccount }}>
+        <AuthContext.Provider value={{ userInfo, loading, login, logout, register, updateProfile, verifyAccount, resendVerificationEmail }}>
             {children}
         </AuthContext.Provider>
     );

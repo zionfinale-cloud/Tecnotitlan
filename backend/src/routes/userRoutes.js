@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   registerUser,
+  resendVerificationEmail,
   loginUser,
   verifyEmail,
   getUserProfile,
@@ -18,6 +19,7 @@ const router = express.Router();
 
 // Rutas para /api/users
 router.post('/register', registerUser); // FIX: Ruta explícita para que coincida con el frontend
+router.post('/resend-verification', resendVerificationEmail);
 router.get('/confirm/:token', verifyEmail);
 router.post('/login', loginUser);
 router.post('/logout', logoutUser); // Nueva ruta para evitar el 404

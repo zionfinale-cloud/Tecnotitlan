@@ -52,6 +52,39 @@
 }
 
 /* Botón de "Registrarme" */
+.activationNotice {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border: 1px solid rgba(16, 217, 154, 0.35);
+    border-radius: 1rem;
+    background: rgba(16, 217, 154, 0.1);
+    color: var(--text-primary);
+}
+
+.activationNotice strong {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--cta-color);
+}
+
+.activationNotice p {
+    margin: 0 0 0.75rem;
+    color: var(--text-secondary);
+}
+
+.activationNotice span {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.resendButton {
+    border-radius: 9999px !important;
+    font-weight: 800 !important;
+    background: transparent !important;
+    border: 1px solid var(--cta-color) !important;
+    color: var(--cta-color) !important;
+}
+
 .submitButton {
     width: 100%;
     border-radius: 9999px !important; /* rounded-full */

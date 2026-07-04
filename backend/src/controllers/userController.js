@@ -15,6 +15,25 @@ const generateToken = (id) => {
   });
 };
 
+const generateVerificationToken = () => crypto.randomBytes(32).toString('hex');
+
+const sendActivationResponse = async (res, email, verificationToken, successMessage, statusCode = 201) => {
+  try {
+    await sendVerificationEmail(email, verificationToken);
+    return res.status(statusCode).json({
+      status: 'success',
+      message: successMessage,
+      data: { emailSent: true },
+    });
+  } catch (error) {
+    return res.status(202).json({
+      status: 'success',
+      message: 'La cuenta quedo registrada, pero no pudimos enviar el correo de activacion. Revisa la configuracion SMTP del backend o solicita reenviar activacion.',
+      data: { emailSent: false },
+    });
+  }
+};
+
 // @desc    Registrar un nuevo usuario
 // @route   POST /api/users/register
 // @access  Public
@@ -74,6 +93,22 @@ const registerUser = asyncHandler(async (req, res, next) => {
   // 1. Verificar si el email ya existe.
   const userExists = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   if (userExists) {
+    if (!userExists.isVerified) {
+      const verificationToken = generateVerificationToken();
+      await prisma.user.update({
+        where: { id: userExists.id },
+        data: { verificationToken },
+      });
+
+      return sendActivationResponse(
+        res,
+        userExists.email,
+        verificationToken,
+        'Ya existia una cuenta pendiente de activar. Te reenviamos el correo de activacion.',
+        200,
+      );
+    }
+
     return next(new BadRequestError('El usuario ya existe con ese email.'));
   }
 
@@ -82,7 +117,7 @@ const registerUser = asyncHandler(async (req, res, next) => {
   const hashedPassword = await bcrypt.hash(password, salt);
 
   // 2.5 Generar token de verificación criptográfico
-  const verificationToken = crypto.randomBytes(32).toString('hex');
+  const verificationToken = generateVerificationToken();
 
   // 3. Buscar el rol 'USER' por defecto, incluyendo sus permisos (aunque esté vacío).
   const defaultRole = await prisma.role.findUnique({ where: { name: 'USER' }, include: { permissions: { select: { name: true } } } });
@@ -115,12 +150,13 @@ const registerUser = asyncHandler(async (req, res, next) => {
 
   if (user) {
     // Enviar correo con el Link Mágico
-    await sendVerificationEmail(user.email, verificationToken);
-
-    res.status(201).json({
-      status: 'success',
-      message: 'Registro exitoso. Por favor revisa tu correo para activar tu cuenta.',
-    });
+    return sendActivationResponse(
+      res,
+      user.email,
+      verificationToken,
+      'Registro exitoso. Por favor revisa tu correo para activar tu cuenta.',
+      201,
+    );
   } else {
     // Este caso es menos probable con asyncHandler, pero es bueno tenerlo
     return next(new BadRequestError('No se pudo crear el usuario.'));
@@ -130,6 +166,40 @@ const registerUser = asyncHandler(async (req, res, next) => {
 // @desc    Verificar correo electrónico del usuario
 // @route   GET /api/users/confirm/:token
 // @access  Public
+const resendVerificationEmail = asyncHandler(async (req, res) => {
+  const email = req.body.email?.toLowerCase();
+
+  if (!email) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'El email es obligatorio.',
+    });
+  }
+
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user || user.isVerified) {
+    return res.status(200).json({
+      status: 'success',
+      message: 'Si la cuenta existe y esta pendiente, enviaremos un nuevo correo de activacion.',
+    });
+  }
+
+  const verificationToken = generateVerificationToken();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { verificationToken },
+  });
+
+  return sendActivationResponse(
+    res,
+    user.email,
+    verificationToken,
+    'Te enviamos un nuevo correo de activacion.',
+    200,
+  );
+});
+
 const verifyEmail = asyncHandler(async (req, res, next) => {
   const { token } = req.params;
 
@@ -399,6 +469,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 
 export {
   registerUser,
+  resendVerificationEmail,
   verifyEmail,
   loginUser,
   getUserProfile,
