@@ -52,7 +52,7 @@ const UserListScreen = () => {
         <Table striped bordered hover responsive className={`table-sm ${styles.userTable}`}>
           <thead>
             <tr>
-              <th>ID</th>
+              <th>CLIENTE</th>
               <th>NOMBRE</th>
               <th>EMAIL</th>
               <th>ROL</th>
@@ -62,8 +62,7 @@ const UserListScreen = () => {
           <tbody>
             {users.map((user) => (
               <tr key={user.id}>
-                {/* Recortamos el ID visualmente y mostramos el completo en el tooltip */}
-                <td title={user.id}>{user.id.substring(0, 10)}...</td>
+                <td title={user.id}>{user.customerNumber || user.id.substring(0, 10)}</td>
                 <td>{user.firstName} {user.lastName}</td>
                 <td><a href={`mailto:${user.email}`}>{user.email}</a></td>
                 <td>

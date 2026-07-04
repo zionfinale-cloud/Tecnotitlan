@@ -17,6 +17,16 @@ const generateToken = (id) => {
 
 const generateVerificationToken = () => crypto.randomBytes(32).toString('hex');
 
+const getNextCustomerNumber = async (tx) => {
+  const counter = await tx.counter.upsert({
+    where: { id: 'customerNumber' },
+    update: { sequenceValue: { increment: 1 } },
+    create: { id: 'customerNumber', sequenceValue: 1 },
+  });
+
+  return `CLI-${counter.sequenceValue.toString().padStart(6, '0')}`;
+};
+
 const sendActivationResponse = async (res, email, verificationToken, successMessage, statusCode = 201) => {
   try {
     await sendVerificationEmail(email, verificationToken);
@@ -127,25 +137,30 @@ const registerUser = asyncHandler(async (req, res, next) => {
   }
 
   // 3. Crear el nuevo usuario con Prisma.
-  const user = await prisma.user.create({
-    data: {
-      firstName,
-      lastName,
-      secondLastName,
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      countryCode,
-      phone,
-      street,
-      neighborhood,
-      city,
-      state,
-      postalCode,
-      // Asignar el ID del rol encontrado. Ignoramos cualquier 'role' que venga del body por seguridad.
-      roleId: defaultRole.id,
-      verificationToken,
-      isVerified: false, // El usuario nace inactivo
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const customerNumber = await getNextCustomerNumber(tx);
+
+    return tx.user.create({
+      data: {
+        customerNumber,
+        firstName,
+        lastName,
+        secondLastName,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        countryCode,
+        phone,
+        street,
+        neighborhood,
+        city,
+        state,
+        postalCode,
+        // Asignar el ID del rol encontrado. Ignoramos cualquier 'role' que venga del body por seguridad.
+        roleId: defaultRole.id,
+        verificationToken,
+        isVerified: false, // El usuario nace inactivo
+      },
+    });
   });
 
   if (user) {
@@ -257,6 +272,7 @@ const loginUser = asyncHandler(async (req, res, next) => {
     status: 'success',
     data: {
       id: user.id,
+      customerNumber: user.customerNumber,
       name: `${user.firstName} ${user.lastName}`,
       email: user.email,
       phone: user.phone,
@@ -284,6 +300,7 @@ const getUserProfile = asyncHandler(async (req, res, next) => {
       data: {
         // Devolvemos todos los campos necesarios para poblar el formulario de perfil
         id: user.id,
+        customerNumber: user.customerNumber,
         firstName: user.firstName,
         lastName: user.lastName,
         secondLastName: user.secondLastName,
@@ -350,6 +367,7 @@ const updateUserProfile = asyncHandler(async (req, res, next) => {
       status: 'success',
       data: {
         id: updatedUser.id,
+        customerNumber: updatedUser.customerNumber,
         name: `${updatedUser.firstName} ${updatedUser.lastName}`,
         email: updatedUser.email,
         phone: updatedUser.phone,
@@ -422,6 +440,7 @@ const updateUser = asyncHandler(async (req, res, next) => {
       status: 'success',
       data: {
         id: updatedUser.id,
+        customerNumber: updatedUser.customerNumber,
         name: `${updatedUser.firstName} ${updatedUser.lastName}`,
         email: updatedUser.email,
         role: updatedUser.role.name,

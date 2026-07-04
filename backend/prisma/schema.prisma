@@ -16,6 +16,7 @@ datasource db {
 
 model User {
   id                String          @id @default(cuid())
+  customerNumber    String?         @unique @map("customer_number")
   firstName         String          @map("first_name")
   lastName          String          @map("last_name")
   secondLastName    String?         @map("second_last_name")

@@ -8,7 +8,7 @@ const UserTable = ({ users, onDelete }) => {
     <Table striped bordered hover responsive className={styles.userTable}>
       <thead>
         <tr>
-          <th>ID</th>
+          <th>CLIENTE</th>
           <th>NOMBRE</th>
           <th>EMAIL</th>
           <th>ROL</th>
@@ -19,7 +19,7 @@ const UserTable = ({ users, onDelete }) => {
       <tbody>
         {users.map((user) => (
           <tr key={user.id}>
-            <td>{user.id}</td>
+            <td title={user.id}>{user.customerNumber || user.id}</td>
             <td>{user.name}</td>
             <td><a href={`mailto:${user.email}`}>{user.email}</a></td>
             <td>{user.role?.name || 'Sin Rol'}</td>

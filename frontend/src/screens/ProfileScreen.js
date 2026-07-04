@@ -40,7 +40,11 @@ const ProfileScreen = () => {
     <Container className={styles.page}>
       <section className={styles.profileCard}>
         <div className={styles.avatarLarge}>{userInfo.name?.charAt(0).toUpperCase() || 'U'}</div>
-        <div><span className={styles.eyebrow}>Mi cuenta</span><h1>{userInfo.name}</h1><p>{userInfo.email}</p></div>
+        <div>
+          <span className={styles.eyebrow}>Mi cuenta</span>
+          <h1>{userInfo.name}</h1>
+          <p>{userInfo.customerNumber ? `Cliente ${userInfo.customerNumber} · ` : ''}{userInfo.email}</p>
+        </div>
         <Button variant="outline-light" onClick={handleLogout}>Cerrar sesión</Button>
       </section>
 

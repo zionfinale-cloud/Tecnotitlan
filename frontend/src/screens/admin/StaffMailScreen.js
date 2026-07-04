@@ -4,7 +4,7 @@ import { AuthContext } from '../../context/AuthContext';
 import mailStyles from './StaffMailScreen.module.css';
 
 const MAIL_DOMAIN = 'tecnotitlan.com.mx';
-const WEBMAIL_URL = 'https://webmail.tecnotitlan.com.mx';
+const WEBMAIL_URL = 'https://mail.tecnotitlan.com.mx:2096';
 
 const normalizeEmail = (value) => {
   const trimmed = value.trim().toLowerCase();
