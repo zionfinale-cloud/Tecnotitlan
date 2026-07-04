@@ -31,11 +31,40 @@
     padding: 0.75rem;
     border-radius: 0.5rem;
     border: 1px solid #e2e8f0;
+    caret-color: var(--cta-color);
+    cursor: text;
 }
 
 .input:focus {
     border-color: var(--cta-color);
     box-shadow: 0 0 0 3px rgba(0, 230, 118, 0.2);
+}
+
+.passwordField {
+    position: relative;
+}
+
+.passwordField .input {
+    padding-right: 3rem;
+}
+
+.passwordToggle {
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    color: #718096;
+    cursor: pointer;
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+}
+
+.passwordToggle:hover {
+    color: var(--cta-color);
 }
 
 .submitButton {

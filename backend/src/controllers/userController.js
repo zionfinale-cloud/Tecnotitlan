@@ -265,7 +265,7 @@ const loginUser = asyncHandler(async (req, res, next) => {
 
   // 2. Si el usuario no existe o la contraseña no coincide, lanzar error.
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return next(new UnauthorizedError('Email o contraseña inválidos.'));
+    return next(new UnauthorizedError('No encontramos una cuenta con ese correo o la contrasena no coincide.'));
   }
 
   res.status(200).json({

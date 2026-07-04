@@ -33,6 +33,13 @@ const errorHandler = (err, req, res, next) => {
         message = 'El recurso que intentas modificar o eliminar no fue encontrado.';
         status = 'fail';
         break;
+      case 'P2022': { // Columna esperada por Prisma no existe en la base de datos
+        statusCode = 503;
+        const missingColumn = err.meta?.column || 'una columna requerida';
+        message = `La base de datos necesita actualizarse antes de continuar. Falta ${missingColumn}. Ejecuta las migraciones del backend y vuelve a intentar.`;
+        status = 'fail';
+        break;
+      }
       default:
         // Para otros errores de Prisma, mantenemos un mensaje genérico
         message = 'Ocurrió un error en la base de datos.';

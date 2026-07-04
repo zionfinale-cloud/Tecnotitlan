@@ -1,57 +1,91 @@
-/* Contenedor principal de la página de Registro */
 .pageContainer {
     display: flex;
-    flex-direction: column; /* Asegura que los elementos se apilen verticalmente */
-    justify-content: flex-start; /* Alinea la tarjeta arriba */
-    align-items: center; /* Centra la tarjeta horizontalmente */
-    padding: 4rem 0; /* Espaciado vertical generoso */
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 4rem 1rem;
     min-height: 80vh;
 }
 
-/* Tarjeta de Registro */
 .registerCard {
     padding: 2rem;
-    border-radius: 1.5rem; /* Un poco más redondeado */
-    border: 1px solid rgba(255, 255, 255, 0.1); /* Borde sutil para el efecto de vidrio */
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); /* shadow-lg */
-    background-color: rgba(var(--card-bg-rgb), 0.8); /* Fondo semi-transparente */
-    -webkit-backdrop-filter: blur(10px); /* Efecto de desenfoque para navegadores Webkit */
-    backdrop-filter: blur(10px); /* Efecto de desenfoque estándar */
+    border-radius: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    background-color: rgba(var(--card-bg-rgb), 0.88);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
     width: 100%;
-    max-width: 550px; /* Un poco más ancho para el formulario de registro */
+    max-width: 550px;
 }
 
-/* Título "Crear Cuenta" */
 .title {
-    font-size: 1.875rem; /* text-3xl */
-    font-weight: 700; /* font-bold */
-    margin-bottom: 1.5rem; /* mb-4 */
+    font-size: 1.875rem;
+    font-weight: 800;
+    margin-bottom: 1.5rem;
     text-align: center;
     color: var(--text-primary);
 }
 
-/* Etiquetas de los campos */
 .label {
-    font-weight: 500; /* font-medium */
+    font-weight: 700;
     color: var(--text-secondary);
 }
 
-/* Campos de texto */
 .input {
-    border-radius: 0.5rem !important; /* rounded-lg */
-    /* Sombra interior para dar profundidad */
-    box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05) !important;
+    border-radius: 0.5rem !important;
+    box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.05) !important;
     border: 1px solid var(--border-color) !important;
-    background-color: var(--input-bg-color) !important; /* Un color ligeramente más oscuro que el fondo de la tarjeta */
+    background-color: var(--input-bg-color) !important;
     color: var(--text-primary) !important;
+    caret-color: var(--cta-color) !important;
+    cursor: text;
 }
 
 .input:focus {
     border-color: var(--cta-color) !important;
-    box-shadow: 0 0 0 3px rgba(0, 220, 130, 0.2) !important; /* Sombra de foco personalizada */
+    box-shadow: 0 0 0 3px rgba(0, 220, 130, 0.2) !important;
 }
 
-/* Botón de "Registrarme" */
+.passwordField {
+    position: relative;
+}
+
+.passwordField .input {
+    padding-right: 3rem !important;
+}
+
+.passwordToggle {
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+}
+
+.passwordToggle:hover {
+    color: var(--cta-color);
+}
+
+.inputError {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.fieldError {
+    color: #ef4444;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin: 0.4rem 0 0;
+}
+
 .activationNotice {
     margin-bottom: 1.5rem;
     padding: 1rem;
@@ -74,7 +108,7 @@
 
 .activationNotice span {
     color: var(--text-primary);
-    font-weight: 700;
+    font-weight: 800;
 }
 
 .resendButton {
@@ -87,30 +121,33 @@
 
 .submitButton {
     width: 100%;
-    border-radius: 9999px !important; /* rounded-full */
+    border-radius: 9999px !important;
     padding: 0.75rem 0 !important;
     margin-bottom: 0.75rem;
-    font-weight: bold;
+    font-weight: 800;
     background-color: var(--cta-color) !important;
     border-color: var(--cta-color) !important;
     color: var(--brand-dark) !important;
-    transition: transform 0.2s;
+    transition: transform 0.2s, filter 0.2s;
 }
 
-.submitButton:hover {
+.submitButton:hover:not(:disabled) {
     transform: scale(1.02);
 }
 
-/* Fila para el enlace de registro/login */
+.submitButton:disabled {
+    filter: grayscale(0.35);
+    cursor: not-allowed;
+}
+
 .linkRow {
     padding: 1rem 0;
     text-align: center;
     color: var(--text-secondary);
 }
 
-/* Enlace "¿Ya tienes cuenta? Entrar" */
 .loginLink {
     text-decoration: none;
     color: var(--cta-color);
-    font-weight: bold;
+    font-weight: 800;
 }

@@ -36,6 +36,12 @@ const CartScreen = () => {
     return (
         <Container className={styles.pageContainer}>
             <h1 className={styles.pageTitle}>Carrito de Compras</h1>
+
+            {!userInfo && cartItems.length > 0 && (
+                <Message variant="info">
+                    Tu carrito se guarda en este navegador. Para completar la compra te pediremos iniciar sesion o crear una cuenta.
+                </Message>
+            )}
             
             <Row>
                 <Col md={8}>
