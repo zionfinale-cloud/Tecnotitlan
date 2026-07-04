@@ -5,6 +5,7 @@ import logger from '../utils/logger.js';
 import { getConfig } from '../services/configService.js';
 import * as whatsappService from '../services/whatsappService.js';
 import { applyPaidOrderInventoryMovements } from '../services/orderInventoryService.js';
+import { sendOrderPaidEmail } from '../services/emailService.js';
 
 let stripe;
 
@@ -32,7 +33,10 @@ const markStripeOrderPaid = async (paymentIntent) => {
         orderNumber ? { orderNumber } : undefined,
       ].filter(Boolean),
     },
-    include: { orderItems: { include: { product: true } } },
+    include: {
+      user: { select: { firstName: true, lastName: true, email: true } },
+      orderItems: { include: { product: true } },
+    },
   });
 
   if (!order) {
@@ -43,6 +47,8 @@ const markStripeOrderPaid = async (paymentIntent) => {
     });
     return null;
   }
+
+  const wasAlreadyPaid = order.isPaid;
 
   if (order.paymentMethod !== 'Stripe') {
     logger.warn('[Stripe Webhook] Pedido no usa Stripe como metodo de pago.', {
@@ -84,7 +90,10 @@ const markStripeOrderPaid = async (paymentIntent) => {
               source: 'stripe_webhook',
             },
           },
-          include: { orderItems: { include: { product: true } } },
+          include: {
+            user: { select: { firstName: true, lastName: true, email: true } },
+            orderItems: { include: { product: true } },
+          },
         });
 
     try {
@@ -96,7 +105,10 @@ const markStripeOrderPaid = async (paymentIntent) => {
     return paidOrder;
   });
 
-  whatsappService.sendAdminOrderPaidNotification(updatedOrder);
+  if (!wasAlreadyPaid) {
+    await sendOrderPaidEmail(updatedOrder);
+    whatsappService.sendAdminOrderPaidNotification(updatedOrder);
+  }
   logger.info(`[Stripe Webhook] Pedido ${updatedOrder.orderNumber} marcado como pagado.`);
   return updatedOrder;
 };

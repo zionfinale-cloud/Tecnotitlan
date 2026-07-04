@@ -5,6 +5,7 @@ import logger from '../utils/logger.js';
 import * as whatsappService from '../services/whatsappService.js';
 import { getConfig } from '../services/configService.js';
 import { applyPaidOrderInventoryMovements } from '../services/orderInventoryService.js';
+import { sendOrderPaidEmail, sendOrderShippedEmail } from '../services/emailService.js';
 import Stripe from 'stripe';
 import axios from 'axios'; // <-- REQUERIDO
 
@@ -266,7 +267,10 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
 
   const order = await prisma.order.findUnique({
     where: { id: req.params.id },
-    include: { orderItems: { include: { product: true } } },
+    include: {
+      user: { select: { firstName: true, lastName: true, email: true } },
+      orderItems: { include: { product: true } },
+    },
   });
 
   if (!order) return next(new NotFoundError('Pedido no encontrado'));
@@ -311,7 +315,10 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
           email_address: paymentIntent.receipt_email || '',
         },
       },
-      include: { orderItems: { include: { product: true } } },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+        orderItems: { include: { product: true } },
+      },
     });
 
     try {
@@ -323,6 +330,7 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
     return paidOrder;
   });
 
+  await sendOrderPaidEmail(updatedOrder);
   whatsappService.sendAdminOrderPaidNotification(updatedOrder);
   res.status(200).json({ status: 'success', data: { order: updatedOrder } });
 });
@@ -342,7 +350,10 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
 
   const order = await prisma.order.findUnique({
     where: { id: req.params.id },
-    include: { orderItems: { include: { product: true } } },
+    include: {
+      user: { select: { firstName: true, lastName: true, email: true } },
+      orderItems: { include: { product: true } },
+    },
   });
 
   if (order) {
@@ -371,7 +382,10 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
             email_address: paymentResult.payer ? paymentResult.payer.email_address : '',
           },
         },
-        include: { orderItems: { include: { product: true } } },
+        include: {
+          user: { select: { firstName: true, lastName: true, email: true } },
+          orderItems: { include: { product: true } },
+        },
       });
 
       try {
@@ -383,6 +397,7 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
       return paidOrder;
     });
 
+    await sendOrderPaidEmail(updatedOrder);
     whatsappService.sendAdminOrderPaidNotification(updatedOrder);
 
     res.status(200).json({ status: 'success', data: { order: updatedOrder } });
@@ -443,10 +458,17 @@ const updateOrderStatus = asyncHandler(async (req, res, next) => {
 
   try {
     const updatedOrder = await prisma.order.update({
-      where: { id: req.params.id },
-      data: dataToUpdate,
-    });
-    res.status(200).json({ status: 'success', data: { order: updatedOrder } });
+      where: { id: req.params.id },
+      data: dataToUpdate,
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+        orderItems: true,
+      },
+    });
+    if (trackingNumber) {
+      await sendOrderShippedEmail(updatedOrder);
+    }
+    res.status(200).json({ status: 'success', data: { order: updatedOrder } });
   } catch (error) {
     if (error.code === 'P2025') return next(new NotFoundError('Pedido no encontrado'));
     next(error);

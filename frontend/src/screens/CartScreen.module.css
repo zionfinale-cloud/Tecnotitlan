@@ -13,7 +13,7 @@
     margin-bottom: 1.5rem;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 0.5rem;
-    color: var(--text-color);
+    color: var(--text-color, var(--text-primary));
 }
 
 /* --- Lista de Productos --- */
@@ -46,7 +46,7 @@
 
 .productLink {
     text-decoration: none;
-    color: var(--text-color);
+    color: var(--text-color, var(--text-primary));
     font-weight: 500;
     margin-left: 1rem;
     transition: color 0.2s ease;
@@ -60,7 +60,7 @@
 .priceText {
     text-align: center;
     font-weight: 700;
-    color: var(--text-color);
+    color: var(--text-color, var(--text-primary));
 }
 
 .qtySelect {
@@ -71,7 +71,7 @@
     margin: 0 auto;
     border-color: var(--border-color);
     background-color: var(--secondary-bg-color);
-    color: var(--text-color);
+    color: var(--text-color, var(--text-primary));
 }
 
 .deleteButton {
@@ -101,6 +101,7 @@
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     border: none;
     margin-top: 1.5rem;
+    color: var(--text-color, var(--text-primary));
 }
 
 /* Ajuste para desktop */
@@ -114,13 +115,54 @@
     font-size: 1.5rem;
     font-weight: 700;
     margin-bottom: 0;
-    color: var(--text-color);
+    color: var(--text-color, var(--text-primary));
 }
 
 .summaryCard :global(.list-group-item),
 .cartItem :global(.col),
 .summaryCard :global(.col) {
-    color: var(--text-color);
+    color: var(--text-color, var(--text-primary));
+}
+
+.summaryCard :global(.list-group-item) {
+    border-color: var(--border-color) !important;
+}
+
+.summaryCard strong,
+.summaryCard h2,
+.summaryCard span,
+.summaryCard div {
+    color: var(--text-color, var(--text-primary));
+}
+
+.summaryCard .summaryTotal {
+    color: var(--cta-color);
+}
+
+:global([data-theme='dark']) .summaryCard,
+:global(.dark) .summaryCard {
+    background: #12191d;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme='dark']) .summaryCard :global(.list-group-item),
+:global(.dark) .summaryCard :global(.list-group-item) {
+    background: transparent !important;
+    color: #f6fbff !important;
+}
+
+:global([data-theme='dark']) .summaryCard h2,
+:global([data-theme='dark']) .summaryCard span,
+:global([data-theme='dark']) .summaryCard div,
+:global(.dark) .summaryCard h2,
+:global(.dark) .summaryCard span,
+:global(.dark) .summaryCard div {
+    color: #f6fbff;
+}
+
+:global([data-theme='dark']) .summaryCard .summaryTotal,
+:global(.dark) .summaryCard .summaryTotal {
+    color: #10d99a;
 }
 
 .summaryTotal {
@@ -139,6 +181,14 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+}
+
+.checkoutButton:disabled {
+    background: #233039 !important;
+    border-color: #233039 !important;
+    color: #9fb2bd !important;
+    opacity: 1;
+    cursor: not-allowed;
 }
 
 .backLink {
