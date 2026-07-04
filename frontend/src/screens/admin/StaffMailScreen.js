@@ -25,11 +25,11 @@ const stripHtml = (value = '') => value.replace(/<style[\s\S]*?<\/style>/gi, ' '
   .replace(/\s+/g, ' ')
   .trim();
 
-const folderItems = [
+const baseFolderItems = [
   { id: 'INBOX', label: 'Recibidos', icon: 'fa-inbox' },
   { id: 'STARRED', label: 'Destacados', icon: 'fa-star', disabled: true },
   { id: 'SNOOZED', label: 'Pospuestos', icon: 'fa-clock', disabled: true },
-  { id: 'SENT', label: 'Enviados', icon: 'fa-paper-plane', disabled: true },
+  { id: 'SENT', label: 'Enviados', icon: 'fa-paper-plane' },
   { id: 'DRAFTS', label: 'Borradores', icon: 'fa-file', disabled: true },
 ];
 
@@ -45,6 +45,7 @@ const StaffMailScreen = () => {
   const [activeFolder, setActiveFolder] = useState('INBOX');
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeForm, setComposeForm] = useState({ to: '', subject: '', text: '' });
+  const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [reading, setReading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -60,6 +61,10 @@ const StaffMailScreen = () => {
   const credentials = { email, password };
   const canConnect = isCorporateEmail && password.length > 0;
   const unreadCount = messages.filter((message) => !message.seen).length;
+  const folderItems = baseFolderItems.map((folder) => (
+    folder.id === 'INBOX' ? { ...folder, count: unreadCount } : folder
+  ));
+  const contactStorageKey = email ? `tecnotitlan-mail-contacts:${email}` : '';
 
   const filteredMessages = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -87,7 +92,29 @@ const StaffMailScreen = () => {
     lastInboxCount.current = newMessages.length;
   };
 
-  const loadInbox = async ({ silent = false } = {}) => {
+  useEffect(() => {
+    if (!contactStorageKey) {
+      setContacts([]);
+      return;
+    }
+    try {
+      setContacts(JSON.parse(localStorage.getItem(contactStorageKey) || '[]'));
+    } catch (err) {
+      setContacts([]);
+    }
+  }, [contactStorageKey]);
+
+  const saveContact = (address) => {
+    const normalized = String(address || '').trim().toLowerCase();
+    if (!normalized || !contactStorageKey) return;
+    setContacts((current) => {
+      const next = [normalized, ...current.filter((item) => item !== normalized)].slice(0, 25);
+      localStorage.setItem(contactStorageKey, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const loadMailbox = async ({ silent = false, mailbox = activeFolder } = {}) => {
     if (!canConnect) {
       setError('Captura tu cuenta corporativa y su contrasena para abrir la bandeja.');
       return;
@@ -100,7 +127,7 @@ const StaffMailScreen = () => {
     try {
       const { data } = await api.post('/staff-mail/messages', {
         ...credentials,
-        mailbox: 'INBOX',
+        mailbox,
         limit: 35,
       });
       const nextMessages = data.data.messages || [];
@@ -108,7 +135,7 @@ const StaffMailScreen = () => {
       setLastSyncedAt(new Date());
       setIsConnected(true);
       maybeNotify(nextMessages);
-      if (!silent) showSuccess('Bandeja actualizada.');
+      if (!silent) showSuccess(mailbox === 'SENT' ? 'Enviados actualizados.' : 'Bandeja actualizada.');
     } catch (err) {
       if (!silent) setError(err.response?.data?.message || 'No se pudo conectar al correo.');
     } finally {
@@ -118,7 +145,7 @@ const StaffMailScreen = () => {
 
   const connectMailbox = async (event) => {
     event.preventDefault();
-    await loadInbox();
+    await loadMailbox({ mailbox: 'INBOX' });
   };
 
   const disconnectMailbox = () => {
@@ -135,10 +162,18 @@ const StaffMailScreen = () => {
 
   useEffect(() => {
     if (!canConnect || messages.length === 0) return undefined;
-    const timer = window.setInterval(() => loadInbox({ silent: true }), 60000);
+    const timer = window.setInterval(() => loadMailbox({ silent: true, mailbox: activeFolder }), 60000);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canConnect, messages.length, notificationsEnabled]);
+  }, [canConnect, messages.length, notificationsEnabled, activeFolder]);
+
+  const switchFolder = async (folder) => {
+    if (folder.disabled) return;
+    setActiveFolder(folder.id);
+    setSelectedMessage(null);
+    setMessages([]);
+    await loadMailbox({ mailbox: folder.id });
+  };
 
   const readMessage = async (message) => {
     setReading(true);
@@ -163,14 +198,18 @@ const StaffMailScreen = () => {
     setError('');
     setSuccess('');
     try {
-      await api.post('/staff-mail/send', {
+      const { data } = await api.post('/staff-mail/send', {
         ...credentials,
         to,
         subject,
         text,
         inReplyTo,
       });
-      showSuccess('Correo enviado.');
+      saveContact(to);
+      showSuccess(data.data.sentCopyWarning ? 'Correo enviado, pero no se pudo guardar copia en Enviados.' : 'Correo enviado y guardado en Enviados.');
+      if (activeFolder === 'SENT') {
+        await loadMailbox({ mailbox: 'SENT', silent: true });
+      }
       return true;
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo enviar el correo.');
@@ -264,7 +303,16 @@ const StaffMailScreen = () => {
         </div>
 
         <div className={mailStyles.messageBody}>
-          {selectedMessage.text || stripHtml(selectedMessage.html) || 'Correo sin contenido.'}
+          {selectedMessage.html ? (
+            <iframe
+              className={mailStyles.htmlFrame}
+              title="Contenido del correo"
+              sandbox=""
+              srcDoc={selectedMessage.html}
+            />
+          ) : (
+            selectedMessage.text || 'Correo sin contenido.'
+          )}
         </div>
 
         {selectedMessage.attachments?.length > 0 && (
@@ -374,7 +422,7 @@ const StaffMailScreen = () => {
         </div>
 
         <div className={mailStyles.topActions}>
-          <button className={mailStyles.iconButton} type="button" onClick={() => loadInbox()} disabled={loading}>
+          <button className={mailStyles.iconButton} type="button" onClick={() => loadMailbox()} disabled={loading}>
             <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-sync-alt'}`}></i>
           </button>
           <button className={mailStyles.iconButton} type="button" onClick={enableNotifications} title="Activar notificaciones">
@@ -407,11 +455,11 @@ const StaffMailScreen = () => {
                 key={folder.id}
                 className={`${mailStyles.folderButton} ${activeFolder === folder.id ? mailStyles.folderButtonActive : ''}`}
                 type="button"
-                onClick={() => !folder.disabled && setActiveFolder(folder.id)}
+                onClick={() => switchFolder(folder)}
                 title={folder.disabled ? 'Disponible en la siguiente fase' : folder.label}
               >
                 <span><i className={`fas ${folder.icon}`}></i> {folder.label}</span>
-                {folder.id === 'INBOX' && <strong className={mailStyles.badge}>{unreadCount}</strong>}
+                {folder.count > 0 && <strong className={mailStyles.badge}>{folder.count}</strong>}
               </button>
             ))}
           </nav>
@@ -431,7 +479,7 @@ const StaffMailScreen = () => {
         <section className={mailStyles.messageList}>
           <div className={mailStyles.listHeader}>
             <div>
-              <strong>Principal</strong>
+            <strong>{activeFolder === 'SENT' ? 'Enviados' : 'Principal'}</strong>
               <br />
               <small>{filteredMessages.length} mensajes</small>
             </div>
@@ -456,8 +504,12 @@ const StaffMailScreen = () => {
                   value={composeForm.to}
                   onChange={(event) => setComposeForm((current) => ({ ...current, to: event.target.value }))}
                   placeholder="Para"
+                  list="staff-mail-contacts"
                   required
                 />
+                <datalist id="staff-mail-contacts">
+                  {contacts.map((contact) => <option key={contact} value={contact} />)}
+                </datalist>
                 <input
                   className={mailStyles.composeInput}
                   value={composeForm.subject}
@@ -484,8 +536,8 @@ const StaffMailScreen = () => {
               <div className={mailStyles.emptyState}>
                 <div>
                   <div className={mailStyles.emptyIcon}><i className="fas fa-inbox"></i></div>
-                  <h2>{messages.length ? 'Sin resultados' : 'Conecta tu bandeja'}</h2>
-                  <p>{messages.length ? 'Prueba con otra busqueda.' : 'Escribe tu correo y contrasena para cargar tus mensajes.'}</p>
+                  <h2>{messages.length ? 'Sin resultados' : 'Sin correos aqui'}</h2>
+                  <p>{messages.length ? 'Prueba con otra busqueda.' : 'Esta carpeta no tiene mensajes cargados.'}</p>
                 </div>
               </div>
             ) : filteredMessages.map((message) => (

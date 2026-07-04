@@ -1,6 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 
 const MAIL_DOMAIN = 'tecnotitlan.com.mx';
 const MAIL_HOST = 'mail.tecnotitlan.com.mx';
@@ -36,6 +37,31 @@ const connectImap = async (credentials) => {
   return client;
 };
 
+const folderAliases = {
+  INBOX: ['INBOX'],
+  SENT: ['Sent', 'INBOX.Sent', 'Sent Messages', 'Sent Items', 'Enviados', 'INBOX.Enviados'],
+};
+
+const listMailboxes = async (client) => {
+  const boxes = [];
+  for await (const mailbox of client.list()) {
+    boxes.push(mailbox.path);
+  }
+  return boxes;
+};
+
+const resolveMailbox = async (client, mailbox = 'INBOX') => {
+  if (!mailbox || mailbox === 'INBOX') return 'INBOX';
+  const aliases = folderAliases[mailbox] || [mailbox];
+  const mailboxes = await listMailboxes(client);
+  const normalized = new Map(mailboxes.map((path) => [path.toLowerCase(), path]));
+  for (const alias of aliases) {
+    const match = normalized.get(alias.toLowerCase());
+    if (match) return match;
+  }
+  return aliases[0];
+};
+
 const parseAddressList = (addresses = []) => addresses
   .map((address) => ({
     name: address.name || '',
@@ -62,7 +88,8 @@ const listMessages = async ({ email, password, mailbox = 'INBOX', limit = 20 }) 
   const client = await connectImap({ email, password });
   let lock;
   try {
-    const selected = await client.mailboxOpen(mailbox);
+    const mailboxPath = await resolveMailbox(client, mailbox);
+    const selected = await client.mailboxOpen(mailboxPath);
     if (!selected.exists) return [];
 
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
@@ -88,7 +115,8 @@ const listMessages = async ({ email, password, mailbox = 'INBOX', limit = 20 }) 
 const getMessage = async ({ email, password, uid, mailbox = 'INBOX' }) => {
   const client = await connectImap({ email, password });
   try {
-    await client.mailboxOpen(mailbox);
+    const mailboxPath = await resolveMailbox(client, mailbox);
+    await client.mailboxOpen(mailboxPath);
     const message = await client.fetchOne(String(uid), {
       uid: true,
       flags: true,
@@ -138,15 +166,47 @@ const sendMessage = async ({ email, password, to, subject, text, html, inReplyTo
     },
   });
 
-  return transporter.sendMail({
+  const sentAt = new Date();
+  const messageId = `<${crypto.randomUUID()}@${MAIL_DOMAIN}>`;
+  const mail = {
     from: `"Tecnotitlan" <${credentials.email}>`,
     to,
     subject,
     text,
     html,
+    messageId,
+    date: sentAt,
     inReplyTo: inReplyTo || undefined,
     references: inReplyTo || undefined,
-  });
+  };
+
+  const result = await transporter.sendMail(mail);
+
+  const imapClient = await connectImap(credentials);
+  try {
+    const sentFolder = await resolveMailbox(imapClient, 'SENT');
+    const rawMessage = [
+      `From: "Tecnotitlan" <${credentials.email}>`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      `Date: ${sentAt.toUTCString()}`,
+      `Message-ID: ${messageId}`,
+      inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
+      inReplyTo ? `References: ${inReplyTo}` : null,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      text,
+    ].filter(Boolean).join('\r\n');
+
+    await imapClient.append(sentFolder, Buffer.from(rawMessage, 'utf8'), ['\\Seen'], sentAt);
+  } catch (error) {
+    result.sentCopyWarning = error.message;
+  } finally {
+    await imapClient.logout().catch(() => {});
+  }
+
+  return result;
 };
 
 export {

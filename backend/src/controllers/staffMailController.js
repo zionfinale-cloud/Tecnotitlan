@@ -36,6 +36,7 @@ const sendStaffMessage = asyncHandler(async (req, res, next) => {
         messageId: result.messageId,
         accepted: result.accepted,
         rejected: result.rejected,
+        sentCopyWarning: result.sentCopyWarning || null,
       },
     });
   } catch (error) {
