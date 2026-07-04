@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Row, Col, ListGroup, Image, Form, Button, Card, Container } from 'react-bootstrap';
 // Contextos necesarios
 import { CartContext } from '../context/CartContext';
+import { AuthContext } from '../context/AuthContext';
 import { SettingsContext } from '../context/SettingsContext';
 // Componentes de feedback
 import Message from '../components/Message'; 
@@ -13,6 +14,7 @@ import styles from './CartScreen.module.css';
 const CartScreen = () => {
     const navigate = useNavigate();
     const { cartItems, removeFromCart, updateCartItemQty } = useContext(CartContext);
+    const { userInfo } = useContext(AuthContext);
     const { settings } = useContext(SettingsContext);
     const currencySymbol = settings.currencySymbol || '$';
 
@@ -21,8 +23,8 @@ const CartScreen = () => {
     const totalPrice = cartItems.reduce((acc, item) => acc + item.qty * item.price, 0);
 
     const checkoutHandler = () => {
-        // Redirige al login. Si ya está logueado, ProtectedRoute lo enviará a /shipping.
-        navigate('/login?redirect=/shipping');
+        // Si ya hay sesion, avanza directo al flujo de compra.
+        navigate(userInfo ? '/shipping' : '/login?redirect=/shipping');
     };
     
     // Función para cambiar la cantidad en el carrito

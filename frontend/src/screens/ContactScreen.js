@@ -7,6 +7,9 @@ const initialForm = { name: '', email: '', phone: '', subject: '', message: '' }
 
 const ContactScreen = () => {
   const { settings } = useContext(SettingsContext);
+  const contactEmail = settings.contact_email === 'contacto@tecnotitlan.com.mx'
+    ? 'hola@tecnotitlan.com.mx'
+    : settings.contact_email || 'hola@tecnotitlan.com.mx';
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -37,7 +40,7 @@ const ContactScreen = () => {
           ) : (
             <div><i className="fab fa-whatsapp"></i><span><strong>WhatsApp</strong><small>Asistente automatizado disponible próximamente</small></span></div>
           )}
-          <a href={`mailto:${settings.contact_email || 'contacto@tecnotitlan.com.mx'}`}><i className="fas fa-envelope"></i><span><strong>Correo electrónico</strong><small>{settings.contact_email || 'contacto@tecnotitlan.com.mx'}</small></span></a>
+          <a href={`mailto:${contactEmail}`}><i className="fas fa-envelope"></i><span><strong>Correo electrónico</strong><small>{contactEmail}</small></span></a>
           <div><i className="fas fa-ticket-alt"></i><span><strong>Seguimiento por ticket</strong><small>Conserva tu folio para futuras consultas</small></span></div>
           <div className={styles.flow}><b>Así funciona</b><ol><li>Recibimos tu solicitud.</li><li>El asistente intenta resolverla.</li><li>Si hace falta, escala a una persona.</li><li>Te acompañamos hasta cerrarla.</li></ol></div>
         </aside>

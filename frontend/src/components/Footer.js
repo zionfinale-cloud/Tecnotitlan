@@ -8,7 +8,9 @@ import styles from './Footer.module.css';
 const Footer = () => {
   const { settings } = useContext(SettingsContext);
   const siteName = settings?.siteName || 'Tecnotitlan';
-  const contactEmail = settings.contact_email || 'contacto@tecnotitlan.com.mx';
+  const contactEmail = settings.contact_email === 'contacto@tecnotitlan.com.mx'
+    ? 'hola@tecnotitlan.com.mx'
+    : settings.contact_email || 'hola@tecnotitlan.com.mx';
   const socials = {
     social_facebook: { icon: <FaFacebookF />, name: 'Facebook' },
     social_instagram: { icon: <FaInstagram />, name: 'Instagram' },

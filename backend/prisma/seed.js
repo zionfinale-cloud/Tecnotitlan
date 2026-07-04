@@ -129,7 +129,7 @@ async function main() {
   const initialSettings = [
     { key: 'site_name', value: 'Tecnotitlan', type: 'string' },
     { key: 'site_slogan', value: 'Tecnología con Raíces, Poder sin Límites.', type: 'string' },
-    { key: 'contact_email', value: 'contacto@tecnotitlan.com.mx', type: 'string' },
+    { key: 'contact_email', value: 'hola@tecnotitlan.com.mx', type: 'string' },
     { key: 'social_facebook', value: 'https://www.facebook.com/tecnotitlan', type: 'string' },
     { key: 'social_instagram', value: 'https://www.instagram.com/tecnotitlan', type: 'string' },
     { key: 'social_tiktok', value: 'https://www.tiktok.com/@tecnotitlan', type: 'string' },

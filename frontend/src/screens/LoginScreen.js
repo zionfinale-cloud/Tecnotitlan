@@ -20,7 +20,8 @@ const LoginScreen = () => {
     const { showNotification } = useContext(NotificationContext);
 
     // Obtener la URL de redirección (por defecto es la raíz)
-    const redirect = location.state?.from?.pathname || '/';
+    const searchParams = new URLSearchParams(location.search);
+    const redirect = location.state?.from?.pathname || searchParams.get('redirect') || '/';
 
     // Efecto para redirigir si el usuario ya está logueado
     useEffect(() => {
