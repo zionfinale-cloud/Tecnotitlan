@@ -1,5 +1,7 @@
 // backend/src/controllers/productController.js @productController.js
 import asyncHandler from 'express-async-handler';
+import fs from 'fs/promises';
+import path from 'path';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
 import { NotFoundError, BadRequestError } from '../utils/errorUtils.js';
 import * as meliService from '../services/mercadoLibreService.js';
@@ -87,6 +89,78 @@ const normalizeMediaPayload = (media = []) =>
         }))
     : [];
 
+const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+
+const getPublicBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
+
+const localUploadPathFromUrl = (url) => {
+  try {
+    const parsed = new URL(url, 'http://local');
+    const pathname = decodeURIComponent(parsed.pathname);
+
+    if (!pathname.startsWith('/uploads/')) return null;
+
+    const relativePath = pathname
+      .replace(/^\/uploads\//, '')
+      .split('/')
+      .filter(Boolean)
+      .join(path.sep);
+    const absolutePath = path.resolve(uploadsRoot, relativePath);
+
+    return absolutePath.startsWith(uploadsRoot) ? absolutePath : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const moveFileSafely = async (sourcePath, destinationPath) => {
+  if (sourcePath === destinationPath) return;
+
+  await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+  await fs.rm(destinationPath, { force: true });
+
+  try {
+    await fs.rename(sourcePath, destinationPath);
+  } catch (error) {
+    if (error.code !== 'EXDEV') throw error;
+    await fs.copyFile(sourcePath, destinationPath);
+    await fs.unlink(sourcePath);
+  }
+};
+
+const organizeProductMedia = async ({ media, sku, req }) => {
+  const normalizedMedia = normalizeMediaPayload(media);
+  if (!normalizedMedia.length || !sku) return normalizedMedia;
+
+  const prefix = sku.split('-')[0] || 'GEN';
+  const productUploadDir = path.join(uploadsRoot, prefix, sku);
+  const publicBaseUrl = getPublicBaseUrl(req);
+
+  return Promise.all(
+    normalizedMedia.map(async (item, index) => {
+      const sourcePath = localUploadPathFromUrl(item.url);
+      if (!sourcePath) return item;
+
+      try {
+        await fs.access(sourcePath);
+      } catch (error) {
+        return item;
+      }
+
+      const extension = (path.extname(sourcePath) || '.jpg').toLowerCase();
+      const filename = `${sku}-${String(index + 1).padStart(2, '0')}${extension}`;
+      const destinationPath = path.join(productUploadDir, filename);
+
+      await moveFileSafely(sourcePath, destinationPath);
+
+      return {
+        ...item,
+        url: `${publicBaseUrl}/uploads/${prefix}/${sku}/${filename}`,
+      };
+    })
+  );
+};
+
 const normalizeCharacteristicsPayload = (characteristics = []) =>
   Array.isArray(characteristics)
     ? characteristics
@@ -169,7 +243,6 @@ const createProduct = asyncHandler(async (req, res, next) => {
         lengthCm: parseOptionalFloat(lengthCm),
         widthCm: parseOptionalFloat(widthCm),
         heightCm: parseOptionalFloat(heightCm),
-        media: { create: normalizeMediaPayload(media) },
         characteristics: { create: normalizeCharacteristicsPayload(characteristics) },
       },
     });
@@ -197,7 +270,23 @@ const createProduct = asyncHandler(async (req, res, next) => {
     return product;
   });
 
-  res.status(201).json({ status: 'success', data: { product: createdProduct } });
+  const organizedMedia = await organizeProductMedia({ media, sku: createdProduct.sku, req });
+
+  if (organizedMedia.length) {
+    await prisma.media.createMany({
+      data: organizedMedia.map((item) => ({
+        ...item,
+        productId: createdProduct.id,
+      })),
+    });
+  }
+
+  const productWithMedia = await prisma.product.findUnique({
+    where: { id: createdProduct.id },
+    include: { media: true, characteristics: true },
+  });
+
+  res.status(201).json({ status: 'success', data: { product: productWithMedia } });
 });
 
 // @desc    Obtener todos los productos con paginación y búsqueda
@@ -334,6 +423,10 @@ const updateProduct = asyncHandler(async (req, res, next) => {
   const product = await prisma.product.findUnique({ where: { sku: req.params.sku.toUpperCase() } });
 
   if (product) {
+    const organizedMedia = Array.isArray(media)
+      ? await organizeProductMedia({ media, sku: product.sku, req })
+      : undefined;
+
     const updatedProduct = await prisma.$transaction(async (tx) => {
       if (Array.isArray(media)) {
         await tx.media.deleteMany({ where: { productId: product.id } });
@@ -362,7 +455,7 @@ const updateProduct = asyncHandler(async (req, res, next) => {
           lengthCm: parseOptionalFloat(lengthCm),
           widthCm: parseOptionalFloat(widthCm),
           heightCm: parseOptionalFloat(heightCm),
-          ...(Array.isArray(media) ? { media: { create: normalizeMediaPayload(media) } } : {}),
+          ...(Array.isArray(media) ? { media: { create: organizedMedia } } : {}),
           ...(Array.isArray(characteristics) ? { characteristics: { create: normalizeCharacteristicsPayload(characteristics) } } : {}),
         },
         include: { media: true, characteristics: true },
