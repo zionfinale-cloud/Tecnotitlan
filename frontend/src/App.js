@@ -35,6 +35,7 @@ import InvestmentsScreen from './screens/admin/InvestmentsScreen';
 import InventoryScreen from './screens/admin/InventoryScreen';
 import ChannelsScreen from './screens/admin/ChannelsScreen';
 import OrderListScreen from './screens/admin/OrderListScreen';
+import StaffMailScreen from './screens/admin/StaffMailScreen';
 import UserListScreen from './screens/admin/UserListScreen';
 import ProductEditScreen from './screens/admin/ProductEditScreen';
 import UserEditScreen from './screens/admin/UserEditScreen';
@@ -101,6 +102,7 @@ function App() {
                                                 <Route path="inventory" element={<InventoryScreen />} />
                                                 <Route path="channels" element={<ChannelsScreen />} />
                                                 <Route path="orderlist" element={<OrderListScreen />} />
+                                                <Route path="mail" element={<StaffMailScreen />} />
                                                 <Route path="userlist" element={<UserListScreen />} />
                                                 <Route path="product/create" element={<ProductEditScreen />} />
                                                 <Route path="product/:id/edit" element={<ProductEditScreen />} />

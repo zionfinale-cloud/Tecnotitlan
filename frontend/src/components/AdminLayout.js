@@ -12,6 +12,7 @@ const navLinks = [
     { to: '/admin/inventory', icon: 'fa-warehouse', text: 'Inventario' },
     { to: '/admin/channels', icon: 'fa-store', text: 'Canales' },
     { to: '/admin/orderlist', icon: 'fa-shipping-fast', text: 'Pedidos' },
+    { to: '/admin/mail', icon: 'fa-envelope', text: 'Correo' },
     { to: '/admin/userlist', icon: 'fa-users', text: 'Usuarios' },
     { to: '/admin/categorylist', icon: 'fa-list-alt', text: 'Categorías' }, // Agregamos Categorías
     { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles' },
