@@ -283,6 +283,14 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
   });
 
   if (order) {
+    const manualPaymentMethods = ['BANK_TRANSFER', 'MERCADO_LIBRE', 'WHATSAPP'];
+    const userPermissions = new Set((req.user?.role?.permissions || []).map(permission => permission.name));
+    const canManageOrders = req.user?.role?.name === 'SUPER_ADMIN' || userPermissions.has('order:update');
+
+    if (manualPaymentMethods.includes(order.paymentMethod) && !canManageOrders) {
+      return next(new BadRequestError('Solo administradores pueden confirmar pagos manuales.', 403));
+    }
+
     const isDropshippingOrder = order.orderItems.some(
       item => item.product.productType === 'DROPSHIPPING'
     );

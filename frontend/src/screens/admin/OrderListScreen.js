@@ -27,6 +27,14 @@ const statusLabel = STATUS_OPTIONS.reduce((labels, option) => {
   return labels;
 }, {});
 
+const paymentLabels = {
+  BANK_TRANSFER: 'Transferencia / SPEI',
+  MERCADO_LIBRE: 'Mercado Libre',
+  WHATSAPP: 'WhatsApp',
+  Stripe: 'Stripe',
+  PayPal: 'PayPal',
+};
+
 const OrderListScreen = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +91,28 @@ const OrderListScreen = () => {
       await loadOrders();
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo marcar como entregado.');
+    } finally {
+      setSavingId('');
+    }
+  };
+
+  const confirmPayment = async (order) => {
+    setSavingId(order.id);
+    setError('');
+    setSuccess('');
+    try {
+      await api.put(`/orders/${order.id}/pay`, {
+        paymentResult: {
+          id: `manual-${order.orderNumber}`,
+          status: 'COMPLETED',
+          update_time: new Date().toISOString(),
+          payer: { email_address: order.user?.email || '' },
+        },
+      });
+      setSuccess(`Pago confirmado para ${order.orderNumber}.`);
+      await loadOrders();
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo confirmar el pago.');
     } finally {
       setSavingId('');
     }
@@ -182,7 +212,7 @@ const OrderListScreen = () => {
                     <td>
                       {order.isPaid ? 'Pagado' : 'Pendiente'}
                       <br />
-                      <span className={styles.muted}>{order.paymentMethod}</span>
+                      <span className={styles.muted}>{paymentLabels[order.paymentMethod] || order.paymentMethod}</span>
                     </td>
                     <td>
                       <form onSubmit={(event) => submitTracking(event, order)} className={styles.actions}>
@@ -227,6 +257,16 @@ const OrderListScreen = () => {
                             </option>
                           ))}
                         </select>
+                        {!order.isPaid && (
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={() => confirmPayment(order)}
+                            disabled={savingId === order.id}
+                          >
+                            Confirmar pago
+                          </button>
+                        )}
                         {!order.isDelivered && (
                           <button
                             type="button"

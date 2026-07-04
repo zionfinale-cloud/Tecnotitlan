@@ -1,15 +1,97 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Container } from 'react-bootstrap';
+import { Link, useNavigate } from 'react-router-dom';
+import { getPaymentMethod, savePaymentMethod } from '../utils/checkoutStorage';
+import styles from './Checkout.module.css';
+
+const paymentMethods = [
+  {
+    id: 'BANK_TRANSFER',
+    title: 'Transferencia bancaria / SPEI',
+    description: 'Registramos tu pedido y te compartimos los datos para confirmar el pago.',
+  },
+  {
+    id: 'MERCADO_LIBRE',
+    title: 'Pago por Mercado Libre',
+    description: 'Te damos seguimiento para pagarlo por Mercado Libre cuando convenga usar esa proteccion.',
+  },
+  {
+    id: 'WHATSAPP',
+    title: 'Confirmar por WhatsApp',
+    description: 'Ideal si quieres resolver dudas antes de pagar o coordinar una compra especial.',
+  },
+];
+
+const futureMethods = [
+  {
+    id: 'Stripe',
+    title: 'Tarjeta con Stripe',
+    description: 'Integracion preparada en el sistema. Se activara cuando quede lista la cuenta fiscal.',
+  },
+];
 
 const PaymentScreen = () => {
+  const navigate = useNavigate();
+  const [selectedMethod, setSelectedMethod] = useState(getPaymentMethod());
+
+  const submitHandler = (event) => {
+    event.preventDefault();
+    savePaymentMethod(selectedMethod);
+    navigate('/placeorder');
+  };
+
   return (
-    <Container className="py-5" style={{ minHeight: '80vh', backgroundColor: 'var(--secondary-bg-color)' }}>
-        <h1 className="text-4xl font-bold mb-4 border-b pb-2 text-slate-800">Método de Pago</h1>
-        <div className="p-5 bg-white rounded-xl shadow-lg text-center">
-            <i className="fas fa-credit-card fa-5x text-gray-400 mb-3"></i>
-            <h3 className="font-bold text-slate-800">Paso 2: Pago</h3>
-            <p className="text-gray-600">Selección del método de pago (PayPal, Stripe, etc.).</p>
-        </div>
+    <Container className={styles.page}>
+      <h1 className={styles.title}>Metodo de pago</h1>
+      <p className={styles.subtitle}>Por ahora operaremos pagos manuales para salir rapido y sin meter friccion fiscal.</p>
+
+      <form className={styles.grid} onSubmit={submitHandler}>
+        <section className={styles.card}>
+          <h2 className={styles.cardTitle}>Elige como quieres pagar</h2>
+          <div className={styles.methods}>
+            {paymentMethods.map((method) => (
+              <label
+                key={method.id}
+                className={`${styles.method} ${selectedMethod === method.id ? styles.methodActive : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value={method.id}
+                  checked={selectedMethod === method.id}
+                  onChange={(event) => setSelectedMethod(event.target.value)}
+                />
+                <span>
+                  <strong>{method.title}</strong>
+                  <small>{method.description}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <div className={styles.actions}>
+            <Link className={styles.secondaryButton} to="/shipping">Volver a envio</Link>
+            <button className={styles.primaryButton} type="submit">Revisar pedido</button>
+          </div>
+        </section>
+
+        <aside className={styles.card}>
+          <h2 className={styles.cardTitle}>Preparado para crecer</h2>
+          {futureMethods.map((method) => (
+            <div key={method.id} className={`${styles.method} ${styles.methodDisabled}`}>
+              <i className="fas fa-lock" aria-hidden="true" />
+              <span>
+                <strong>{method.title}</strong>
+                <small>{method.description}</small>
+              </span>
+            </div>
+          ))}
+          <div className={styles.instructions}>
+            <h3>Stripe queda implementado</h3>
+            <p>El backend ya puede crear Payment Intents. Lo dejamos fuera del flujo visible hasta que actives la cuenta.</p>
+          </div>
+        </aside>
+      </form>
     </Container>
   );
 };
