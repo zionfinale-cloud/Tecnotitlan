@@ -54,6 +54,7 @@ const ProductEditScreen = () => {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [imageWarnings, setImageWarnings] = useState({});
 
   const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
 
@@ -143,12 +144,13 @@ const ProductEditScreen = () => {
     try {
       const uploaded = [];
       for (const file of files) {
+        const previewUrl = URL.createObjectURL(file);
         const formData = new FormData();
         formData.append('image', file);
         const { data } = await api.post('/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
-        uploaded.push({ type: 'IMAGE', url: data.filePath, altText: form.name || file.name });
+        uploaded.push({ type: 'IMAGE', url: data.filePath, previewUrl, altText: form.name || file.name });
       }
 
       setForm((current) => ({ ...current, media: [...current.media, ...uploaded] }));
@@ -183,7 +185,7 @@ const ProductEditScreen = () => {
       widthCm: form.widthCm === '' ? undefined : Number(form.widthCm),
       heightCm: form.heightCm === '' ? undefined : Number(form.heightCm),
       supplierInfo: form.productType === 'DROPSHIPPING' ? form.supplierInfo : '',
-      media: form.media,
+      media: form.media.map(({ type, url, altText }) => ({ type, url, altText })),
       characteristics: form.characteristics.filter((item) => item.key && item.value),
     };
 
@@ -317,13 +319,22 @@ const ProductEditScreen = () => {
                 {form.media.map((item, index) => (
                   <div key={`${item.url}-${index}`} className={styles.placeholderBox} style={{ width: 180 }}>
                     <img
-                      src={resolveAssetUrl(item.url)}
+                      src={item.previewUrl || resolveAssetUrl(item.url)}
                       alt={item.altText || form.name}
                       style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8 }}
                       onError={(event) => {
+                        setImageWarnings((current) => ({
+                          ...current,
+                          [index]: 'La imagen se ve localmente, pero la URL publica no esta disponible. Revisa volumen /app/uploads o usa almacenamiento externo.',
+                        }));
                         event.currentTarget.src = FALLBACK_PRODUCT_IMAGE;
                       }}
                     />
+                    {imageWarnings[index] && (
+                      <small className={styles.muted} style={{ display: 'block', marginTop: 6 }}>
+                        {imageWarnings[index]}
+                      </small>
+                    )}
                     <button className={styles.dangerButton} type="button" onClick={() => removeImage(index)} style={{ marginTop: 8 }}>
                       Quitar
                     </button>
