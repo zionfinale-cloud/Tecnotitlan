@@ -14,7 +14,7 @@ const paymentLabels = {
   BANK_TRANSFER: 'Transferencia bancaria / SPEI',
   MERCADO_LIBRE: 'Pago por Mercado Libre',
   WHATSAPP: 'Confirmar por WhatsApp',
-  Stripe: 'Tarjeta con Stripe',
+  Stripe: 'Tarjeta de credito/debito',
   PayPal: 'PayPal',
 };
 
@@ -34,7 +34,7 @@ const paymentInstructions = {
   ],
   Stripe: [
     'Tu pedido esta pendiente de pago con tarjeta.',
-    'Puedes continuar al pago seguro con Stripe desde el boton de esta pantalla.',
+    'Puedes continuar al pago seguro con tarjeta desde el boton de esta pantalla.',
   ],
 };
 

@@ -59,7 +59,7 @@ export const config = {
   SMTP_PORT: process.env.SMTP_PORT,
   SMTP_USER: process.env.SMTP_USER,
   SMTP_PASS: process.env.SMTP_PASS,
-  EMAIL_FROM: process.env.EMAIL_FROM || '"Tecnotitlan" <noreply@tecnotitlan.com.mx>',
+  EMAIL_FROM: process.env.EMAIL_FROM || 'Tecnotitlan NoReply <noreply@tecnotitlan.com.mx>',
   N8N_ORDER_WEBHOOK_URL: process.env.N8N_ORDER_WEBHOOK_URL,
   N8N_SUPPORT_WEBHOOK_URL: process.env.N8N_SUPPORT_WEBHOOK_URL,
   SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,

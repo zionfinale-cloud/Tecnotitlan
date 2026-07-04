@@ -33,7 +33,7 @@ const StripePaymentForm = ({ order, clientSecret, paymentIntentId }) => {
     });
 
     if (result.error) {
-      setError(result.error.message || 'Stripe no pudo confirmar el pago.');
+      setError(result.error.message || 'No pudimos confirmar el pago con tarjeta.');
       setProcessing(false);
       return;
     }
@@ -89,7 +89,7 @@ const StripePaymentScreen = () => {
           return;
         }
         if (!publishableKey) {
-          setError('Stripe no esta configurado en el frontend.');
+          setError('El pago con tarjeta no esta configurado en el frontend.');
           return;
         }
 
@@ -97,7 +97,7 @@ const StripePaymentScreen = () => {
         setClientSecret(intentResponse.data.clientSecret);
         setPaymentIntentId(intentResponse.data.paymentIntentId);
       } catch (err) {
-        setError(err.response?.data?.message || 'No pudimos preparar el pago con Stripe.');
+        setError(err.response?.data?.message || 'No pudimos preparar el pago con tarjeta.');
       } finally {
         setLoading(false);
       }
@@ -122,7 +122,7 @@ const StripePaymentScreen = () => {
   return (
     <Container className={styles.page}>
       <h1 className={styles.title}>Pago seguro con tarjeta</h1>
-      <p className={styles.subtitle}>Procesado por Stripe. Tecnotitlan no guarda los datos de tu tarjeta.</p>
+      <p className={styles.subtitle}>Tecnotitlan no guarda los datos de tu tarjeta.</p>
 
       <div className={styles.grid}>
         <section className={styles.card}>

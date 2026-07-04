@@ -26,7 +26,7 @@ const paymentMethods = [
   {
     id: 'Stripe',
     title: 'Tarjeta de credito/debito',
-    description: 'Pago seguro procesado por Stripe. Tecnotitlan no guarda los datos de tu tarjeta.',
+    description: 'Pago seguro con tarjeta. Tecnotitlan no guarda los datos de tu tarjeta.',
   },
   ...manualPaymentMethods,
 ];
@@ -79,8 +79,8 @@ const PaymentScreen = () => {
         <aside className={styles.card}>
           <h2 className={styles.cardTitle}>Pagos seguros</h2>
           <div className={styles.instructions}>
-            <h3>Stripe activo para pruebas</h3>
-            <p>Si el entorno de Stripe no esta configurado, la pantalla de tarjeta mostrara el error exacto para corregirlo.</p>
+            <h3>Compra protegida</h3>
+            <p>Tus pagos con tarjeta se procesan en un entorno seguro. Tecnotitlan no almacena los datos de tu tarjeta.</p>
           </div>
         </aside>
       </form>

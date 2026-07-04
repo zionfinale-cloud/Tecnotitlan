@@ -16,7 +16,7 @@ const paymentLabels = {
   BANK_TRANSFER: 'Transferencia bancaria / SPEI',
   MERCADO_LIBRE: 'Pago por Mercado Libre',
   WHATSAPP: 'Confirmar por WhatsApp',
-  Stripe: 'Tarjeta con Stripe',
+  Stripe: 'Tarjeta de credito/debito',
   PayPal: 'PayPal',
 };
 

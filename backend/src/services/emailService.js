@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 import { getConfig } from './configService.js';
 import logger from '../utils/logger.js';
 
-const DEFAULT_EMAIL_FROM = 'Tecnotitlan <noreply@tecnotitlan.com.mx>';
+const DEFAULT_EMAIL_FROM = 'Tecnotitlan NoReply <noreply@tecnotitlan.com.mx>';
 
 const currency = new Intl.NumberFormat('es-MX', {
   style: 'currency',
