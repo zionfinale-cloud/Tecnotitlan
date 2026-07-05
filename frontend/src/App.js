@@ -83,6 +83,8 @@ function App() {
                                                 <Route path="verify-email" element={<VerifyAccountScreen />} />
                                                 <Route path="verify-email/:token" element={<VerifyAccountScreen />} />
                                                 <Route path="privacy-policy" element={<PrivacyPolicy />} />
+                                                <Route path="aviso-de-privacidad" element={<PrivacyPolicy />} />
+                                                <Route path="politica-de-privacidad" element={<PrivacyPolicy />} />
                                                 <Route path="terms-of-service" element={<TermsOfService />} />
                                                 <Route path="contact" element={<ContactScreen />} />
 
