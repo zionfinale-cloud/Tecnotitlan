@@ -1,6 +1,12 @@
 import path from 'path';
 import fs from 'fs/promises';
-import { DisconnectReason, fetchLatestBaileysVersion, makeWASocket, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import {
+    DisconnectReason,
+    downloadMediaMessage,
+    fetchLatestBaileysVersion,
+    makeWASocket,
+    useMultiFileAuthState,
+} from '@whiskeysockets/baileys';
 import pino from 'pino';
 import axios from 'axios';
 import prisma from '../config/prisma.js';
@@ -18,6 +24,26 @@ let reconnectTimer = null;
 let resetInProgress = false;
 
 const ignoredJids = new Set(['status@broadcast']);
+const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+
+const mediaTypeDefinitions = [
+    { key: 'imageMessage', type: 'image' },
+    { key: 'videoMessage', type: 'video' },
+    { key: 'audioMessage', type: 'audio' },
+    { key: 'documentMessage', type: 'document' },
+    { key: 'stickerMessage', type: 'sticker' },
+];
+
+const mimeExtensions = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'image/gif': '.gif',
+    'video/mp4': '.mp4',
+    'audio/ogg': '.ogg',
+    'audio/mpeg': '.mp3',
+    'application/pdf': '.pdf',
+};
 
 const getBaseAuthDir = () => (
     process.env.WHATSAPP_AUTH_DIR
@@ -88,8 +114,16 @@ const toJid = (value = '') => {
     return `${normalizePhone(value)}@s.whatsapp.net`;
 };
 
+const unwrapMessageContent = (content = {}) => (
+    content.ephemeralMessage?.message
+    || content.viewOnceMessage?.message
+    || content.viewOnceMessageV2?.message
+    || content.documentWithCaptionMessage?.message
+    || content
+);
+
 const getMessageText = (message = {}) => {
-    const content = message.message || {};
+    const content = unwrapMessageContent(message.message || {});
     return (
         content.conversation
         || content.extendedTextMessage?.text
@@ -99,8 +133,91 @@ const getMessageText = (message = {}) => {
         || content.buttonsResponseMessage?.selectedDisplayText
         || content.listResponseMessage?.title
         || content.templateButtonReplyMessage?.selectedDisplayText
-        || '[Mensaje no soportado]'
+        || null
     );
+};
+
+const getMediaDescriptor = (message = {}) => {
+    const content = unwrapMessageContent(message.message || {});
+    const definition = mediaTypeDefinitions.find((item) => content[item.key]);
+    if (!definition) return null;
+
+    const payload = content[definition.key] || {};
+    return {
+        type: definition.type,
+        mimeType: payload.mimetype || 'application/octet-stream',
+        fileName: payload.fileName,
+        caption: payload.caption,
+    };
+};
+
+const getExtension = (mimeType, fileName) => {
+    const fromFile = path.extname(fileName || '');
+    if (fromFile) return fromFile.toLowerCase();
+    return mimeExtensions[mimeType] || '.bin';
+};
+
+const sanitizeFilePart = (value) => String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 120);
+
+const saveMediaBuffer = async ({ buffer, jid, type, mimeType, fileName, messageId }) => {
+    if (!buffer?.length) return null;
+
+    const phone = sanitizeFilePart((jid || 'unknown').split('@')[0]);
+    const month = new Date().toISOString().slice(0, 7);
+    const targetDir = path.join(uploadsRoot, 'whatsapp', month, phone);
+    await fs.mkdir(targetDir, { recursive: true });
+
+    const extension = getExtension(mimeType, fileName);
+    const baseName = sanitizeFilePart(path.basename(fileName || '', extension))
+        || sanitizeFilePart(`${type || 'archivo'}-${messageId || Date.now()}`);
+    const finalName = `${baseName}-${Date.now()}${extension}`;
+    const absolutePath = path.join(targetDir, finalName);
+
+    await fs.writeFile(absolutePath, buffer);
+
+    return {
+        mediaUrl: `/uploads/whatsapp/${month}/${phone}/${finalName}`,
+        mediaType: type,
+        mediaMimeType: mimeType,
+        fileName: fileName || finalName,
+    };
+};
+
+const extractIncomingMedia = async (message, jid) => {
+    const descriptor = getMediaDescriptor(message);
+    if (!descriptor) return null;
+
+    try {
+        const buffer = await downloadMediaMessage(message, 'buffer', {}, {
+            logger: pino({ level: 'silent' }),
+            reuploadRequest: sock?.updateMediaMessage,
+        });
+
+        return saveMediaBuffer({
+            buffer,
+            jid,
+            type: descriptor.type,
+            mimeType: descriptor.mimeType,
+            fileName: descriptor.fileName,
+            messageId: message.key?.id,
+        });
+    } catch (error) {
+        logger.error(`[WhatsApp] No se pudo descargar adjunto: ${error.message}`);
+        return null;
+    }
+};
+
+const getMediaLabel = (media) => {
+    if (!media) return '[Mensaje no soportado]';
+    if (media.mediaType === 'image') return '[Imagen]';
+    if (media.mediaType === 'video') return '[Video]';
+    if (media.mediaType === 'audio') return '[Audio]';
+    if (media.mediaType === 'sticker') return '[Sticker]';
+    return media.fileName ? `[Archivo: ${media.fileName}]` : '[Archivo]';
 };
 
 const getMessageDate = (timestamp) => {
@@ -117,7 +234,19 @@ const getChatName = (jid, pushName) => {
     return phone.startsWith('521') ? `+${phone}` : phone;
 };
 
-const persistMessage = async ({ jid, messageId, text, fromMe, pushName, createdAt, sentBy }) => {
+const persistMessage = async ({
+    jid,
+    messageId,
+    text,
+    fromMe,
+    pushName,
+    createdAt,
+    sentBy,
+    mediaUrl,
+    mediaType,
+    mediaMimeType,
+    fileName,
+}) => {
     if (!jid || ignoredJids.has(jid) || jid.endsWith('@g.us')) return null;
 
     const direction = fromMe ? 'OUTGOING' : 'INCOMING';
@@ -150,6 +279,10 @@ const persistMessage = async ({ jid, messageId, text, fromMe, pushName, createdA
                 direction,
                 fromMe,
                 text,
+                mediaUrl,
+                mediaType,
+                mediaMimeType,
+                fileName,
                 status: fromMe ? 'SENT' : 'RECEIVED',
                 sentBy,
                 createdAt,
@@ -253,10 +386,11 @@ export const initialize = async () => {
         sock.ev.on('messages.upsert', async ({ messages = [] }) => {
             for (const message of messages) {
                 const jid = message.key?.remoteJid;
-                const text = getMessageText(message);
-                if (!jid || !text || ignoredJids.has(jid) || jid.endsWith('@g.us')) continue;
+                if (!jid || ignoredJids.has(jid) || jid.endsWith('@g.us')) continue;
 
                 try {
+                    const media = await extractIncomingMedia(message, jid);
+                    const text = getMessageText(message) || getMediaLabel(media);
                     await persistMessage({
                         jid,
                         messageId: message.key?.id,
@@ -264,6 +398,7 @@ export const initialize = async () => {
                         fromMe: Boolean(message.key?.fromMe),
                         pushName: message.pushName,
                         createdAt: getMessageDate(message.messageTimestamp),
+                        ...media,
                     });
                 } catch (error) {
                     logger.error(`[WhatsApp] No se pudo guardar mensaje: ${error.message}`);
@@ -357,6 +492,62 @@ export const sendMessage = async (number, message, sentBy = null) => {
         fromMe: true,
         createdAt: new Date(),
         sentBy,
+    });
+
+    return result;
+};
+
+const getOutgoingMediaPayload = (file, caption = '') => {
+    const mimeType = file?.mimetype || 'application/octet-stream';
+    const fileName = file?.originalname || 'archivo';
+    const cleanCaption = String(caption || '').trim();
+
+    if (mimeType.startsWith('image/')) {
+        return { payload: { image: file.buffer, mimetype: mimeType, caption: cleanCaption }, type: 'image' };
+    }
+    if (mimeType.startsWith('video/')) {
+        return { payload: { video: file.buffer, mimetype: mimeType, caption: cleanCaption }, type: 'video' };
+    }
+    if (mimeType.startsWith('audio/')) {
+        return { payload: { audio: file.buffer, mimetype: mimeType }, type: 'audio' };
+    }
+    return {
+        payload: {
+            document: file.buffer,
+            mimetype: mimeType,
+            fileName,
+            caption: cleanCaption,
+        },
+        type: 'document',
+    };
+};
+
+export const sendMediaMessage = async (number, file, caption = '', sentBy = null) => {
+    if (!sock || connectionStatus !== 'READY') {
+        throw new BadRequestError('WhatsApp no esta conectado. Escanea el QR desde Configuracion.');
+    }
+    if (!file?.buffer?.length) throw new BadRequestError('Selecciona un archivo para enviar.');
+
+    const jid = toJid(number);
+    const cleanCaption = String(caption || '').trim();
+    const { payload, type } = getOutgoingMediaPayload(file, cleanCaption);
+    const savedMedia = await saveMediaBuffer({
+        buffer: file.buffer,
+        jid,
+        type,
+        mimeType: file.mimetype,
+        fileName: file.originalname,
+    });
+
+    const result = await sock.sendMessage(jid, payload);
+    await persistMessage({
+        jid,
+        messageId: result?.key?.id,
+        text: cleanCaption || getMediaLabel(savedMedia),
+        fromMe: true,
+        createdAt: new Date(),
+        sentBy,
+        ...savedMedia,
     });
 
     return result;

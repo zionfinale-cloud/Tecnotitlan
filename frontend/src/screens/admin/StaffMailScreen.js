@@ -25,6 +25,29 @@ const stripHtml = (value = '') => value.replace(/<style[\s\S]*?<\/style>/gi, ' '
   .replace(/\s+/g, ' ')
   .trim();
 
+const playMailSound = () => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(740, context.currentTime);
+    oscillator.frequency.setValueAtTime(980, context.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.07, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.2);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.22);
+  } catch (error) {
+    // El navegador puede bloquear audio hasta que haya interaccion del usuario.
+  }
+};
+
 const baseFolderItems = [
   { id: 'INBOX', label: 'Recibidos', icon: 'fa-inbox' },
   { id: 'STARRED', label: 'Destacados', icon: 'fa-star', disabled: true },
@@ -90,8 +113,15 @@ const StaffMailScreen = () => {
   };
 
   const maybeNotify = (newMessages) => {
-    if (!notificationsEnabled || !newMessages.length) return;
-    if (lastInboxCount.current > 0 && newMessages.length > lastInboxCount.current && Notification.permission === 'granted') {
+    if (!newMessages.length) {
+      lastInboxCount.current = 0;
+      return;
+    }
+    const hasNewMail = lastInboxCount.current > 0 && newMessages.length > lastInboxCount.current;
+    if (hasNewMail) {
+      playMailSound();
+    }
+    if (notificationsEnabled && hasNewMail && Notification.permission === 'granted') {
       new Notification('Tecnotitlan Mail', {
         body: `Tienes ${newMessages.length - lastInboxCount.current} correo(s) nuevo(s).`,
       });
@@ -141,7 +171,7 @@ const StaffMailScreen = () => {
       setMessages(nextMessages);
       setLastSyncedAt(new Date());
       setIsConnected(true);
-      maybeNotify(nextMessages);
+      if (mailbox === 'INBOX') maybeNotify(nextMessages);
       if (!silent) showSuccess(mailbox === 'SENT' ? 'Enviados actualizados.' : 'Bandeja actualizada.');
     } catch (err) {
       if (!silent) setError(err.response?.data?.message || 'No se pudo conectar al correo.');

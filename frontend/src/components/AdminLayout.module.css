@@ -101,6 +101,7 @@
   transition: all 0.2s ease;
   font-weight: 700;
   min-height: 48px;
+  position: relative;
 }
 
 .navLink:hover {
@@ -121,6 +122,42 @@
   text-align: center;
   margin-right: 12px;
   flex-shrink: 0;
+  position: relative;
+}
+
+.notificationBadge {
+  position: absolute;
+  top: -0.7rem;
+  right: -0.65rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #00dca2;
+  color: #052016;
+  border: 2px solid #101827;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  animation: notificationPulse 1.35s ease-in-out infinite;
+}
+
+@keyframes notificationPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 220, 162, 0.55);
+  }
+  70% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 8px rgba(0, 220, 162, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 220, 162, 0);
+  }
 }
 
 .linkText {

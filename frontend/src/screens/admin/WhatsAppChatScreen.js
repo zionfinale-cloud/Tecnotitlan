@@ -8,12 +8,22 @@ const dateFormat = new Intl.DateTimeFormat('es-MX', {
 });
 
 const getDisplayName = (chat) => chat?.name || chat?.phone || chat?.jid || 'Cliente';
+const API_ORIGIN = (process.env.REACT_APP_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+const resolveMediaUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('/uploads/')) return `${API_ORIGIN}${url}`;
+  return url;
+};
+
+const getFileLabel = (message) => message.fileName || message.text || 'Archivo adjunto';
 
 const WhatsAppChatScreen = () => {
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
+  const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -61,17 +71,24 @@ const WhatsAppChatScreen = () => {
   const send = async (event) => {
     event.preventDefault();
     const cleanText = text.trim();
-    if (!selectedChat?.jid || !cleanText) return;
+    if (!selectedChat?.jid || (!cleanText && !file)) return;
 
     setSending(true);
     setError('');
     try {
-      const { data } = await api.post(`/integrations/whatsapp/chats/${encodeURIComponent(selectedChat.jid)}/messages`, {
-        text: cleanText,
-      });
+      const endpoint = `/integrations/whatsapp/chats/${encodeURIComponent(selectedChat.jid)}`;
+      const { data } = file
+        ? await api.post(`${endpoint}/media`, (() => {
+          const formData = new FormData();
+          formData.append('media', file);
+          formData.append('caption', cleanText);
+          return formData;
+        })(), { headers: { 'Content-Type': 'multipart/form-data' } })
+        : await api.post(`${endpoint}/messages`, { text: cleanText });
       setMessages(data.data.messages || []);
       setSelectedChat(data.data.chat || selectedChat);
       setText('');
+      setFile(null);
       await loadChats({ silent: true });
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo enviar el mensaje.');
@@ -136,6 +153,22 @@ const WhatsAppChatScreen = () => {
                     className={`${styles.message} ${message.fromMe ? styles.outgoing : styles.incoming}`}
                     key={message.id}
                   >
+                    {message.mediaUrl && (
+                      message.mediaType === 'image' || message.mediaMimeType?.startsWith('image/') ? (
+                        <a href={resolveMediaUrl(message.mediaUrl)} target="_blank" rel="noreferrer">
+                          <img
+                            className={styles.mediaImage}
+                            src={resolveMediaUrl(message.mediaUrl)}
+                            alt={getFileLabel(message)}
+                          />
+                        </a>
+                      ) : (
+                        <a className={styles.mediaLink} href={resolveMediaUrl(message.mediaUrl)} target="_blank" rel="noreferrer">
+                          <i className="fas fa-paperclip"></i>
+                          {getFileLabel(message)}
+                        </a>
+                      )
+                    )}
                     <p className={styles.messageText}>{message.text}</p>
                     <div className={styles.messageMeta}>
                       {message.sentBy && <span>{message.sentBy}</span>}
@@ -147,13 +180,34 @@ const WhatsAppChatScreen = () => {
               </div>
 
               <form className={styles.composer} onSubmit={send}>
-                <textarea
-                  className={styles.composerInput}
-                  value={text}
-                  onChange={(event) => setText(event.target.value)}
-                  placeholder="Escribe una respuesta..."
-                />
-                <button className={styles.primaryButton} type="submit" disabled={sending || !text.trim()}>
+                <div className={styles.composerBody}>
+                  <textarea
+                    className={styles.composerInput}
+                    value={text}
+                    onChange={(event) => setText(event.target.value)}
+                    placeholder="Escribe una respuesta..."
+                  />
+                  <div className={styles.composerTools}>
+                    <label className={styles.fileButton}>
+                      <i className="fas fa-paperclip"></i>
+                      Adjuntar
+                      <input
+                        type="file"
+                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+                        onChange={(event) => setFile(event.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {file && (
+                      <span className={styles.filePill}>
+                        {file.name}
+                        <button type="button" onClick={() => setFile(null)} aria-label="Quitar archivo">
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button className={styles.primaryButton} type="submit" disabled={sending || (!text.trim() && !file)}>
                   {sending ? 'Enviando...' : 'Enviar'}
                 </button>
               </form>

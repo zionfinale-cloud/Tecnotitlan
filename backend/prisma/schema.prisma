@@ -379,6 +379,10 @@ model WhatsAppMessage {
   direction   String
   fromMe      Boolean      @default(false) @map("from_me")
   text        String       @db.Text
+  mediaUrl    String?      @db.Text @map("media_url")
+  mediaType   String?      @map("media_type")
+  mediaMimeType String?    @map("media_mime_type")
+  fileName    String?      @map("file_name")
   status      String       @default("RECEIVED")
   sentBy      String?      @map("sent_by")
   createdAt   DateTime     @default(now()) @map("created_at")

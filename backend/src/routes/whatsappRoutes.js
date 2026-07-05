@@ -1,11 +1,16 @@
 import express from 'express';
 import asyncHandler from 'express-async-handler';
+import multer from 'multer';
 import * as whatsappService from '../services/whatsappService.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
 import { ForbiddenError } from '../utils/errorUtils.js';
 
 const router = express.Router();
+const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024 },
+});
 
 const superAdminOnly = (req, res, next) => {
   if (req.user?.role?.name === 'SUPER_ADMIN') return next();
@@ -48,6 +53,17 @@ router.post('/chats/:jid/messages', canAttendWhatsApp, asyncHandler(async (req, 
   await whatsappService.sendMessage(
     decodeURIComponent(req.params.jid),
     req.body.text,
+    req.user?.name || req.user?.email || 'Panel Tecnotitlan',
+  );
+  const data = await whatsappService.listMessages(decodeURIComponent(req.params.jid));
+  res.status(201).json({ status: 'success', data });
+}));
+
+router.post('/chats/:jid/media', canAttendWhatsApp, mediaUpload.single('media'), asyncHandler(async (req, res) => {
+  await whatsappService.sendMediaMessage(
+    decodeURIComponent(req.params.jid),
+    req.file,
+    req.body.caption,
     req.user?.name || req.user?.email || 'Panel Tecnotitlan',
   );
   const data = await whatsappService.listMessages(decodeURIComponent(req.params.jid));

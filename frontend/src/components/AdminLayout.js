@@ -1,8 +1,9 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import styles from './AdminLayout.module.css';
 import { SettingsContext } from '../context/SettingsContext';
 import { AuthContext } from '../context/AuthContext';
+import api from '../services/apiService';
 
 const navLinks = [
     { to: '/admin/dashboard', icon: 'fa-tachometer-alt', text: 'Dashboard' },
@@ -20,10 +21,35 @@ const navLinks = [
     { to: '/admin/settings', icon: 'fa-cogs', text: 'Configuracion', superAdminOnly: true },
 ];
 
+const playNotificationSound = () => {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const context = new AudioContext();
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, context.currentTime);
+        oscillator.frequency.setValueAtTime(660, context.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.0001, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.18);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + 0.2);
+    } catch (error) {
+        // El navegador puede bloquear audio hasta que haya interaccion del usuario.
+    }
+};
+
 const AdminLayout = () => {
     const { settings } = useContext(SettingsContext);
     const { userInfo } = useContext(AuthContext);
     const [collapsed, setCollapsed] = useState(() => localStorage.getItem('tecnotitlan-admin-sidebar') === 'collapsed');
+    const [whatsappUnread, setWhatsappUnread] = useState(0);
+    const previousWhatsappUnread = useRef(0);
     const isSuperAdmin = userInfo?.role === 'SUPER_ADMIN' || userInfo?.role?.name === 'SUPER_ADMIN';
     const userPermissions = userInfo?.permissions || [];
 
@@ -41,6 +67,50 @@ const AdminLayout = () => {
         if (item.anyPermission && !item.anyPermission.some((permission) => userPermissions.includes(permission))) return false;
         return true;
     });
+
+    const canPollWhatsApp = visibleLinks.some((item) => item.to === '/admin/whatsapp-chat');
+
+    useEffect(() => {
+        if (!canPollWhatsApp) return undefined;
+
+        const loadWhatsAppUnread = async () => {
+            try {
+                const { data } = await api.get('/integrations/whatsapp/chats');
+                const totalUnread = (data.data || []).reduce((sum, chat) => sum + (Number(chat.unreadCount) || 0), 0);
+                if (previousWhatsappUnread.current > 0 && totalUnread > previousWhatsappUnread.current) {
+                    playNotificationSound();
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification('Tecnotitlan WhatsApp', {
+                            body: `Tienes ${totalUnread - previousWhatsappUnread.current} mensaje(s) nuevo(s).`,
+                        });
+                    }
+                }
+                previousWhatsappUnread.current = totalUnread;
+                setWhatsappUnread(totalUnread);
+            } catch (error) {
+                // Si la migracion aun no esta aplicada o el usuario no tiene permiso, no bloqueamos el panel.
+            }
+        };
+
+        loadWhatsAppUnread();
+        const timer = window.setInterval(loadWhatsAppUnread, 15000);
+        return () => window.clearInterval(timer);
+    }, [canPollWhatsApp]);
+
+    const renderLinkContent = (item) => {
+        const unreadCount = item.to === '/admin/whatsapp-chat' ? whatsappUnread : 0;
+        return (
+            <>
+                <div className={styles.iconContainer}>
+                    <i className={`fas ${item.icon}`}></i>
+                    {unreadCount > 0 && (
+                        <span className={styles.notificationBadge}>{unreadCount > 99 ? '99+' : unreadCount}</span>
+                    )}
+                </div>
+                <span className={styles.linkText}>{item.text}</span>
+            </>
+        );
+    };
 
     return (
         <div className={styles.container}>
@@ -77,20 +147,14 @@ const AdminLayout = () => {
                                         rel="noreferrer"
                                         className={styles.navLink}
                                     >
-                                        <div className={styles.iconContainer}>
-                                            <i className={`fas ${item.icon}`}></i>
-                                        </div>
-                                        <span className={styles.linkText}>{item.text}</span>
+                                        {renderLinkContent(item)}
                                     </a>
                                 ) : (
                                     <NavLink
                                         to={item.to}
                                         className={({ isActive }) => `${styles.navLink} ${isActive ? styles.activeLink : ''}`}
                                     >
-                                        <div className={styles.iconContainer}>
-                                            <i className={`fas ${item.icon}`}></i>
-                                        </div>
-                                        <span className={styles.linkText}>{item.text}</span>
+                                        {renderLinkContent(item)}
                                     </NavLink>
                                 )}
                             </li>

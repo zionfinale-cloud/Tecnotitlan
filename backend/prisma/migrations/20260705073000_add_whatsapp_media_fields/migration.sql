@@ -1,0 +1,5 @@
+ALTER TABLE "whatsapp_messages"
+ADD COLUMN IF NOT EXISTS "media_url" TEXT,
+ADD COLUMN IF NOT EXISTS "media_type" TEXT,
+ADD COLUMN IF NOT EXISTS "media_mime_type" TEXT,
+ADD COLUMN IF NOT EXISTS "file_name" TEXT;
