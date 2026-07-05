@@ -15,6 +15,17 @@ const toDateRange = (startDate, endDate) => {
 
 const SALES_CHANNELS = ['MERCADOLIBRE', 'TIKTOK_SHOP', 'AMAZON'];
 
+const canViewCosts = (user) => {
+  if (user?.role?.name === 'SUPER_ADMIN') return true;
+  return (user?.role?.permissions || []).some((permission) => permission.name === 'finance:read_costs');
+};
+
+const stripMovementCosts = (movement) => {
+  if (!movement) return movement;
+  const { unitCost, totalCost, investment, investmentId, ...safeMovement } = movement;
+  return safeMovement;
+};
+
 const getInvestments = asyncHandler(async (req, res) => {
   const investments = await prisma.inventoryInvestment.findMany({
     include: {
@@ -342,7 +353,9 @@ const getMovements = asyncHandler(async (req, res) => {
     take: Number(req.query.limit) || 100,
   });
 
-  res.status(200).json({ status: 'success', data: { movements } });
+  const safeMovements = canViewCosts(req.user) ? movements : movements.map(stripMovementCosts);
+
+  res.status(200).json({ status: 'success', data: { movements: safeMovements } });
 });
 
 const getInventoryOverview = asyncHandler(async (req, res) => {
@@ -364,6 +377,7 @@ const getInventoryOverview = asyncHandler(async (req, res) => {
     orderBy: { sku: 'asc' },
   });
 
+  const showCosts = canViewCosts(req.user);
   const rows = products.map((product) => {
     const channelStock = {
       WEB: product.countInStock,
@@ -388,7 +402,7 @@ const getInventoryOverview = asyncHandler(async (req, res) => {
       brand: product.brand,
       category: product.category?.name || null,
       totalPhysicalStock: product.countInStock,
-      costPrice: product.costPrice || 0,
+      ...(showCosts ? { costPrice: product.costPrice || 0 } : {}),
       webPrice: product.price,
       channelStock,
       channelPrices,

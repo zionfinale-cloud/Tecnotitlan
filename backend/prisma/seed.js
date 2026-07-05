@@ -36,6 +36,8 @@ const permissions = [
   { name: 'order:update', description: 'Actualizar estado de pedidos' },
   // Reportes
   { name: 'report:read', description: 'Ver reportes de ventas y ganancias' },
+  // Finanzas y costos
+  { name: 'finance:read_costs', description: 'Ver costos, inversiones, margenes y utilidad' },
   // Configuraciones
   { name: 'setting:read', description: 'Ver configuraciones del sitio' },
   { name: 'setting:update', description: 'Actualizar configuraciones del sitio' },

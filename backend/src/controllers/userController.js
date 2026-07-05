@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
-import { AppError, BadRequestError, NotFoundError, UnauthorizedError } from '../utils/errorUtils.js';
+import { AppError, BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errorUtils.js';
 import { verifyCaptcha } from '../services/captchaService.js';
 import { sendVerificationEmail } from '../services/emailService.js';
 
@@ -399,7 +399,14 @@ const getUserById = asyncHandler(async (req, res, next) => {
   const user = await prisma.user.findUnique({
     where: { id: req.params.id },
     include: {
-      role: { select: { name: true } }
+      role: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          permissions: { select: { id: true, name: true, description: true } },
+        },
+      },
     },
   });
   if (user) {
@@ -426,14 +433,27 @@ const updateUser = asyncHandler(async (req, res, next) => {
       email: req.body.email ? req.body.email.toLowerCase() : user.email,
     };
 
-    if (req.body.roleId) {
+    if (req.body.roleId && req.body.roleId !== user.roleId) {
+      if (req.params.id === req.user.id && user.role.name === 'SUPER_ADMIN') {
+        throw new BadRequestError('No puedes cambiar tu propio rol de Super Admin.');
+      }
+
+      const nextRole = await prisma.role.findUnique({ where: { id: req.body.roleId } });
+      if (!nextRole) {
+        throw new BadRequestError('El rol seleccionado no existe.');
+      }
+
+      if (nextRole.name === 'SUPER_ADMIN' && req.user.role.name !== 'SUPER_ADMIN') {
+        throw new ForbiddenError('Solo un Super Admin puede asignar el rol SUPER_ADMIN.');
+      }
+
       dataToUpdate.roleId = req.body.roleId;
     }
 
     const updatedUser = await prisma.user.update({
       where: { id: req.params.id },
       data: dataToUpdate,
-      include: { role: true },
+      include: { role: { include: { permissions: { select: { name: true } } } } },
     });
 
     res.status(200).json({
@@ -444,6 +464,8 @@ const updateUser = asyncHandler(async (req, res, next) => {
         name: `${updatedUser.firstName} ${updatedUser.lastName}`,
         email: updatedUser.email,
         role: updatedUser.role.name,
+        roleId: updatedUser.roleId,
+        permissions: updatedUser.role.permissions.map((permission) => permission.name),
       },
     });
   } else {

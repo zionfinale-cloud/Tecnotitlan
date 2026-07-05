@@ -1,9 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/apiService';
+import { canViewCosts } from '../../utils/permissions';
 import styles from './ProductListScreen.module.css';
 
 const ProductListScreen = () => {
+  const { userInfo } = useContext(AuthContext);
+  const showCosts = canViewCosts(userInfo);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
@@ -117,7 +121,7 @@ const ProductListScreen = () => {
                   <th>Producto</th>
                   <th>Categoría</th>
                   <th>Precio</th>
-                  <th>Costo</th>
+                  {showCosts && <th>Costo</th>}
                   <th>Stock</th>
                   <th>Estado</th>
                   <th>Acciones</th>
@@ -130,7 +134,7 @@ const ProductListScreen = () => {
                     <td>{product.name}</td>
                     <td>{product.category?.name || 'Sin categoría'}</td>
                     <td>${Number(product.price || 0).toFixed(2)}</td>
-                    <td>${Number(product.costPrice || 0).toFixed(2)}</td>
+                    {showCosts && <td>${Number(product.costPrice || 0).toFixed(2)}</td>}
                     <td>{product.countInStock}</td>
                     <td>{product.isArchived ? 'Archivado' : 'Activo'}</td>
                     <td>

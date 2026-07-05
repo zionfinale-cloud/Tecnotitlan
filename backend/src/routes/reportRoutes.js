@@ -26,7 +26,7 @@ router.get('/top-selling-products', protect, checkPermission('report:read'), asy
 // @route   GET /api/reports/profit-summary
 // @desc    Obtener reporte de ganancias
 // @access  Private/Admin
-router.get('/profit-summary', protect, checkPermission('report:read'), asyncHandler(getProfitReport));
+router.get('/profit-summary', protect, checkPermission('finance:read_costs'), asyncHandler(getProfitReport));
 
 router.get('/stock-levels', protect, checkPermission('report:read'), asyncHandler(getStockLevels));
 

@@ -78,6 +78,19 @@ const parseOptionalFloat = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const canViewCosts = (user) => {
+  if (user?.role?.name === 'SUPER_ADMIN') return true;
+  return (user?.role?.permissions || []).some((permission) => permission.name === 'finance:read_costs');
+};
+
+const stripCostFields = (record) => {
+  if (!record) return record;
+  const { costPrice, ...safeRecord } = record;
+  return safeRecord;
+};
+
+const stripCostFieldsFromList = (records = []) => records.map(stripCostFields);
+
 const normalizeMediaPayload = (media = []) =>
   Array.isArray(media)
     ? media
@@ -223,6 +236,7 @@ const createProduct = asyncHandler(async (req, res, next) => {
     const generatedSku = `${categoryPrefix}-${formattedSeq}`;
 
     // 5. Crear el producto
+    const parsedCostPrice = canViewCosts(req.user) && costPrice ? parseFloat(costPrice) : null;
     const product = await tx.product.create({
       data: {
         userId: req.user.id,
@@ -230,7 +244,7 @@ const createProduct = asyncHandler(async (req, res, next) => {
         name,
         description,
         price: parseFloat(price), // Convertir a número
-        costPrice: costPrice ? parseFloat(costPrice) : null, // Convertir a número, si existe
+        costPrice: parsedCostPrice,
         brand,
         categoryId,
         countInStock: parseInt(countInStock, 10) || 0, // Convertir a número entero
@@ -248,7 +262,7 @@ const createProduct = asyncHandler(async (req, res, next) => {
     });
 
     const initialQuantity = parseInt(countInStock, 10) || 0;
-    const initialUnitCost = costPrice ? parseFloat(costPrice) : 0;
+    const initialUnitCost = parsedCostPrice || 0;
     if (initialQuantity > 0) {
       await tx.inventoryMovement.create({
         data: {
@@ -355,10 +369,12 @@ const getProducts = asyncHandler(async (req, res, next) => {
     skip: pageSize * (page - 1),
   });
 
+  const safeProducts = canViewCosts(req.user) ? products : stripCostFieldsFromList(products);
+
   res.status(200).json({
     status: 'success',
     data: {
-      products,
+      products: safeProducts,
       page,
       pages: Math.ceil(count / pageSize),
     }
@@ -389,7 +405,10 @@ const getProductById = asyncHandler(async (req, res, next) => {
   });
 
   if (product) {
-    res.status(200).json({ status: 'success', data: { product } });
+    res.status(200).json({
+      status: 'success',
+      data: { product: canViewCosts(req.user) ? product : stripCostFields(product) },
+    });
   } else {
     return next(new NotFoundError('Producto no encontrado'));
   }
@@ -444,7 +463,9 @@ const updateProduct = asyncHandler(async (req, res, next) => {
           price: parseFloat(price),
           countInStock: parseInt(countInStock, 10) || 0,
           categoryId,
-          costPrice: costPrice === '' || costPrice === undefined || costPrice === null ? null : parseFloat(costPrice),
+          ...(canViewCosts(req.user)
+            ? { costPrice: costPrice === '' || costPrice === undefined || costPrice === null ? null : parseFloat(costPrice) }
+            : {}),
           brand,
           productType: productType || product.productType,
           supplierInfo,
@@ -949,4 +970,3 @@ export {
   exportProductsToCSV,
   bulkUpdateProducts,
 };
-

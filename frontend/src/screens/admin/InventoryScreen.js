@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/apiService';
+import { canViewCosts } from '../../utils/permissions';
 import styles from './ProductListScreen.module.css';
 
 const currency = new Intl.NumberFormat('es-MX', {
@@ -28,6 +30,8 @@ const getWeekStart = () => {
 };
 
 const InventoryScreen = () => {
+  const { userInfo } = useContext(AuthContext);
+  const showCosts = canViewCosts(userInfo);
   const [products, setProducts] = useState([]);
   const [investments, setInvestments] = useState([]);
   const [inventoryOverview, setInventoryOverview] = useState([]);
@@ -72,19 +76,27 @@ const InventoryScreen = () => {
     setLoading(true);
     setError('');
     try {
-      const [productsResponse, investmentsResponse, overviewResponse, movementsResponse, cutResponse] = await Promise.all([
+      const [productsResponse, overviewResponse, movementsResponse] = await Promise.all([
         api.get('/products', { params: { pageSize: 250 } }),
-        api.get('/inventory/investments'),
         api.get('/inventory/overview'),
         api.get('/inventory/movements', { params: { limit: 25 } }),
-        api.get('/inventory/cut', { params: dateRange }),
       ]);
 
       setProducts(productsResponse.data.data.products || []);
-      setInvestments(investmentsResponse.data.data.investments || []);
       setInventoryOverview(overviewResponse.data.data.inventory || []);
       setMovements(movementsResponse.data.data.movements || []);
-      setCut(cutResponse.data.data || null);
+
+      if (showCosts) {
+        const [investmentsResponse, cutResponse] = await Promise.all([
+          api.get('/inventory/investments'),
+          api.get('/inventory/cut', { params: dateRange }),
+        ]);
+        setInvestments(investmentsResponse.data.data.investments || []);
+        setCut(cutResponse.data.data || null);
+      } else {
+        setInvestments([]);
+        setCut(null);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo cargar el inventario.');
     } finally {
@@ -95,10 +107,11 @@ const InventoryScreen = () => {
   useEffect(() => {
     loadInventory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showCosts]);
 
   const refreshCut = async (event) => {
     event.preventDefault();
+    if (!showCosts) return;
     setError('');
     try {
       const { data } = await api.get('/inventory/cut', { params: dateRange });
@@ -110,6 +123,7 @@ const InventoryScreen = () => {
 
   const createStockEntry = async (event) => {
     event.preventDefault();
+    if (!showCosts) return;
     setError('');
     setSuccess('');
     try {
@@ -192,6 +206,7 @@ const InventoryScreen = () => {
       {success && <div className={styles.success}>{success}</div>}
 
       <div className={styles.formGrid}>
+        {showCosts && (
         <section className={styles.card}>
           <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Entrada de mercancia</h2>
           <form onSubmit={createStockEntry}>
@@ -267,6 +282,7 @@ const InventoryScreen = () => {
             </div>
           </form>
         </section>
+        )}
 
         <section className={styles.card}>
           <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Registrar venta / salida</h2>
@@ -446,7 +462,7 @@ const InventoryScreen = () => {
                 <th>Mercado Libre</th>
                 <th>TikTok Shop</th>
                 <th>Amazon</th>
-                <th>Costo prom.</th>
+                {showCosts && <th>Costo prom.</th>}
                 <th>Recompra</th>
               </tr>
             </thead>
@@ -461,13 +477,13 @@ const InventoryScreen = () => {
                   <td>{item.channelStock?.MERCADOLIBRE ?? 0}</td>
                   <td>{item.channelStock?.TIKTOK_SHOP ?? 0}</td>
                   <td>{item.channelStock?.AMAZON ?? 0}</td>
-                  <td>{currency.format(item.costPrice || 0)}</td>
+                  {showCosts && <td>{currency.format(item.costPrice || 0)}</td>}
                   <td>{item.reorderSuggested ? 'Revisar' : 'OK'}</td>
                 </tr>
               ))}
               {!loading && inventoryOverview.length === 0 && (
                 <tr>
-                  <td colSpan="10" className={styles.empty}>Aun no hay productos activos para inventario.</td>
+                  <td colSpan={showCosts ? 10 : 9} className={styles.empty}>Aun no hay productos activos para inventario.</td>
                 </tr>
               )}
             </tbody>
@@ -475,6 +491,7 @@ const InventoryScreen = () => {
         </div>
       </section>
 
+      {showCosts && (
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
         <div className={styles.toolbar}>
           <div>
@@ -577,6 +594,7 @@ const InventoryScreen = () => {
           </table>
         </div>
       </section>
+      )}
 
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
         <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Historial de compras y salidas</h2>
@@ -589,7 +607,7 @@ const InventoryScreen = () => {
                 <th>Producto</th>
                 <th>Canal</th>
                 <th>Cantidad</th>
-                <th>Costo</th>
+                {showCosts && <th>Costo</th>}
                 <th>Venta</th>
                 <th>Stock</th>
               </tr>
@@ -602,14 +620,14 @@ const InventoryScreen = () => {
                   <td>{movement.product?.sku} - {movement.product?.name}</td>
                   <td>{movement.channel || '-'}</td>
                   <td>{movement.quantity}</td>
-                  <td>{currency.format(movement.totalCost || 0)}</td>
+                  {showCosts && <td>{currency.format(movement.totalCost || 0)}</td>}
                   <td>{currency.format(movement.totalRevenue || 0)}</td>
                   <td>{movement.stockBefore} -> {movement.stockAfter}</td>
                 </tr>
               ))}
               {!loading && movements.length === 0 && (
                 <tr>
-                  <td colSpan="8" className={styles.empty}>Aun no hay compras ni salidas registradas.</td>
+                  <td colSpan={showCosts ? 8 : 7} className={styles.empty}>Aun no hay compras ni salidas registradas.</td>
                 </tr>
               )}
             </tbody>

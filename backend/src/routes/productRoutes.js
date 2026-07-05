@@ -30,7 +30,7 @@ const router = express.Router();
 router.get('/inventory/levels', protect, checkPermission('product:read'), getProductStockLevels);
 router.get('/inventory/low-stock', protect, checkPermission('report:read'), getLowStockProducts);
 router.get('/count', protect, checkPermission('product:read'), countProducts);
-router.get('/export/csv', protect, checkPermission('product:read'), exportProductsToCSV);
+router.get('/export/csv', protect, checkPermission('finance:read_costs'), exportProductsToCSV);
 router.put('/bulk-update', protect, checkPermission('product:update'), bulkUpdateProducts);
 
 // --- Rutas Públicas Especiales ---
@@ -39,7 +39,7 @@ router.get('/most-stock', getMostStockedProducts);
 
 // --- Rutas CRUD principales (sin parámetros dinámicos) ---
 router.route('/')
-  .get(getProducts) // Público
+  .get(optionalProtect, getProducts) // Publico con sesion opcional para datos administrativos
   .post(protect, checkPermission('product:create'), validateProduct, createProduct); // Admin
 
 // --- Rutas específicas por SKU o ID (deben ir antes de la genérica) ---

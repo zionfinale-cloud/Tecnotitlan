@@ -23,6 +23,10 @@ const getAllPermissions = asyncHandler(async (req, res) => {
 const getAllRoles = asyncHandler(async (req, res) => {
   const roles = await prisma.role.findMany({
     include: {
+      permissions: {
+        select: { id: true, name: true, description: true },
+        orderBy: { name: 'asc' },
+      },
       _count: {
         select: { users: true },
       },
@@ -60,7 +64,7 @@ const getRoleById = asyncHandler(async (req, res) => {
  * @access  Private/Admin (requiere permiso 'role:create')
  */
 const createRole = asyncHandler(async (req, res) => {
-  const { name, description, permissionIds } = req.body;
+  const { name, description, permissionIds = [] } = req.body;
 
   if (!name) {
     throw new BadRequestError('El nombre del rol es requerido.');
@@ -76,9 +80,10 @@ const createRole = asyncHandler(async (req, res) => {
       name,
       description,
       permissions: {
-        connect: permissionIds.map(id => ({ id })),
+        connect: permissionIds.map((id) => ({ id })),
       },
     },
+    include: { permissions: true },
   });
 
   res.status(201).json({ status: 'success', data: { role: newRole } });
@@ -90,7 +95,7 @@ const createRole = asyncHandler(async (req, res) => {
  * @access  Private/Admin (requiere permiso 'role:update')
  */
 const updateRole = asyncHandler(async (req, res) => {
-  const { name, description, permissionIds } = req.body;
+  const { name, description, permissionIds = [] } = req.body;
   const { id } = req.params;
 
   const role = await prisma.role.findUnique({ where: { id } });
@@ -109,9 +114,10 @@ const updateRole = asyncHandler(async (req, res) => {
       name,
       description,
       permissions: {
-        set: permissionIds.map(id => ({ id })), // Sincroniza los permisos
+        set: permissionIds.map((permissionId) => ({ id: permissionId })), // Sincroniza los permisos
       },
     },
+    include: { permissions: true },
   });
 
   res.status(200).json({ status: 'success', data: { role: updatedRole } });

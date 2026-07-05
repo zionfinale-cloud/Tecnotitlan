@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/apiService';
 import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../../utils/assetUrl';
+import { canViewCosts } from '../../utils/permissions';
 import styles from './ProductListScreen.module.css';
 
 const SKU_PREFIXES = [
@@ -47,6 +49,8 @@ const flattenCategories = (categories = [], depth = 0) =>
 const ProductEditScreen = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { userInfo } = useContext(AuthContext);
+  const showCosts = canViewCosts(userInfo);
   const isEditing = Boolean(id);
   const [form, setForm] = useState(emptyProduct);
   const [categories, setCategories] = useState([]);
@@ -177,7 +181,6 @@ const ProductEditScreen = () => {
     const payload = {
       ...form,
       price: Number(form.price),
-      costPrice: form.costPrice === '' ? undefined : Number(form.costPrice),
       countInStock: Number(form.countInStock || 0),
       shippingCostEstimate: form.shippingCostEstimate === '' ? undefined : Number(form.shippingCostEstimate),
       weightKg: form.weightKg === '' ? undefined : Number(form.weightKg),
@@ -188,6 +191,10 @@ const ProductEditScreen = () => {
       media: form.media.map(({ type, url, altText }) => ({ type, url, altText })),
       characteristics: form.characteristics.filter((item) => item.key && item.value),
     };
+
+    if (showCosts) {
+      payload.costPrice = form.costPrice === '' ? undefined : Number(form.costPrice);
+    }
 
     try {
       if (isEditing) {
@@ -269,10 +276,12 @@ const ProductEditScreen = () => {
               <label className={styles.label} htmlFor="product-price">Precio venta web</label>
               <input id="product-price" className={styles.input} type="number" step="0.01" min="0" value={form.price} onChange={(event) => updateField('price', event.target.value)} required />
             </div>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="product-cost">Costo referencia</label>
-              <input id="product-cost" className={styles.input} type="number" step="0.01" min="0" value={form.costPrice} onChange={(event) => updateField('costPrice', event.target.value)} placeholder="El costo real se confirma en Inventario" />
-            </div>
+            {showCosts && (
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="product-cost">Costo referencia</label>
+                <input id="product-cost" className={styles.input} type="number" step="0.01" min="0" value={form.costPrice} onChange={(event) => updateField('costPrice', event.target.value)} placeholder="El costo real se confirma en Inventario" />
+              </div>
+            )}
             <div className={styles.field}>
               <label className={styles.label} htmlFor="product-stock">Stock inicial</label>
               <input id="product-stock" className={styles.input} type="number" min="0" value={form.countInStock} onChange={(event) => updateField('countInStock', event.target.value)} />

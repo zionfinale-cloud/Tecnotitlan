@@ -18,12 +18,12 @@ router.use(protect);
 
 router
   .route('/investments')
-  .get(checkPermission('report:read', 'product:read'), getInvestments)
-  .post(checkPermission('product:update'), createInvestment);
+  .get(checkPermission('finance:read_costs'), getInvestments)
+  .post(checkPermission('finance:read_costs'), createInvestment);
 
 router
   .route('/entries')
-  .post(checkPermission('product:update'), createStockEntry);
+  .post(checkPermission('finance:read_costs'), createStockEntry);
 
 router
   .route('/transfers')
@@ -43,6 +43,6 @@ router
 
 router
   .route('/cut')
-  .get(checkPermission('report:read'), getInventoryCut);
+  .get(checkPermission('finance:read_costs'), getInventoryCut);
 
 export default router;
