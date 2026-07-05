@@ -1,5 +1,5 @@
 import path from 'path';
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { DisconnectReason, makeWASocket, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import axios from 'axios';
 import prisma from '../config/prisma.js';
