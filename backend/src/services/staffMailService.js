@@ -47,9 +47,19 @@ const folderAliases = {
 
 const listMailboxes = async (client) => {
   const boxes = [];
-  for await (const mailbox of client.list()) {
+
+  const mailboxList = await client.list();
+  if (mailboxList?.[Symbol.asyncIterator]) {
+    for await (const mailbox of mailboxList) {
+      boxes.push(mailbox.path);
+    }
+    return boxes;
+  }
+
+  for (const mailbox of mailboxList || []) {
     boxes.push(mailbox.path);
   }
+
   return boxes;
 };
 

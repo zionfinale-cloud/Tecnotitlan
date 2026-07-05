@@ -94,6 +94,8 @@ function App() {
                                                 </Route>
                                             </Route>
 
+                                            <Route path="/mail" element={<StaffMailScreen standalone />} />
+
                                             {/* --- Rutas de Administrador (Usan el AdminLayout) --- */}
                                             <Route 
                                                 path="/admin" 
@@ -105,7 +107,7 @@ function App() {
                                                 <Route path="inventory" element={<InventoryScreen />} />
                                                 <Route path="channels" element={<ChannelsScreen />} />
                                                 <Route path="orderlist" element={<OrderListScreen />} />
-                                                <Route path="mail" element={<StaffMailScreen />} />
+                                                <Route path="mail" element={<Navigate to="/mail" replace />} />
                                                 <Route path="userlist" element={<UserListScreen />} />
                                                 <Route path="product/create" element={<ProductEditScreen />} />
                                                 <Route path="product/:id/edit" element={<ProductEditScreen />} />

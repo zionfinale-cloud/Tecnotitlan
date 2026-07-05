@@ -1,20 +1,30 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   createTicketFromMail,
   getInboxMessage,
   getInboxMessages,
   sendStaffMessage,
 } from '../controllers/staffMailController.js';
-import { protect } from '../middleware/authMiddleware.js';
-import { checkPermission } from '../middleware/permissionMiddleware.js';
 
 const router = express.Router();
 
-router.use(protect);
+const staffMailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    message: 'Demasiados intentos de correo desde esta IP. Intenta de nuevo en unos minutos.',
+  },
+});
 
-router.post('/messages', checkPermission('mail:read', 'access:admin_panel'), getInboxMessages);
-router.post('/messages/:uid', checkPermission('mail:read', 'access:admin_panel'), getInboxMessage);
-router.post('/send', checkPermission('mail:send', 'access:admin_panel'), sendStaffMessage);
-router.post('/tickets', checkPermission('support:update', 'mail:read', 'access:admin_panel'), createTicketFromMail);
+router.use(staffMailLimiter);
+
+router.post('/messages', getInboxMessages);
+router.post('/messages/:uid', getInboxMessage);
+router.post('/send', sendStaffMessage);
+router.post('/tickets', createTicketFromMail);
 
 export default router;
