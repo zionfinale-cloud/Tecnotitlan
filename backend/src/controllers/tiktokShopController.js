@@ -38,4 +38,24 @@ const disconnect = asyncHandler(async (req, res) => {
   res.json({ status: 'success', message: 'TikTok Shop desconectado correctamente.' });
 });
 
-export { getStatus, getAuthUrl, handleCallback, disconnect };
+const handleWebhook = asyncHandler(async (req, res) => {
+  await tiktokShopService.recordWebhookEvent({
+    payload: req.body || {},
+    headers: {
+      'content-type': req.headers['content-type'],
+      'user-agent': req.headers['user-agent'],
+      'x-tts-signature': req.headers['x-tts-signature'],
+      'x-tts-timestamp': req.headers['x-tts-timestamp'],
+      'x-tts-nonce': req.headers['x-tts-nonce'],
+    },
+  });
+
+  res.status(200).json({ code: 0, message: 'success' });
+});
+
+const listWebhookEvents = asyncHandler(async (req, res) => {
+  const data = await tiktokShopService.listWebhookEvents({ limit: req.query.limit });
+  res.json({ status: 'success', data });
+});
+
+export { getStatus, getAuthUrl, handleCallback, disconnect, handleWebhook, listWebhookEvents };

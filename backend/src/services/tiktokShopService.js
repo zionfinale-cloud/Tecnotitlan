@@ -117,3 +117,62 @@ export const getStatus = async () => {
 export const disconnect = async () => {
   await prisma.tikTokShopIntegration.deleteMany({});
 };
+
+const pickFirst = (...values) => values.find((value) => value !== undefined && value !== null && String(value) !== '');
+
+export const recordWebhookEvent = async ({ payload = {}, headers = {} }) => {
+  const eventType = pickFirst(
+    payload.type,
+    payload.event_type,
+    payload.event,
+    payload.eventType,
+    payload.message_type,
+    payload.data?.type,
+  );
+  const category = pickFirst(payload.category, payload.event_category, payload.data?.category);
+  const shopId = pickFirst(payload.shop_id, payload.shopId, payload.data?.shop_id, payload.data?.shopId);
+  const shopCipher = pickFirst(payload.shop_cipher, payload.shopCipher, payload.data?.shop_cipher, payload.data?.shopCipher);
+  const messageId = pickFirst(
+    payload.message_id,
+    payload.messageId,
+    payload.msg_id,
+    payload.id,
+    payload.data?.message_id,
+    payload.data?.messageId,
+  );
+
+  const data = {
+    eventType: eventType ? String(eventType) : null,
+    category: category ? String(category) : null,
+    shopId: shopId ? String(shopId) : null,
+    shopCipher: shopCipher ? String(shopCipher) : null,
+    messageId: messageId ? String(messageId) : null,
+    payload,
+    headers,
+  };
+
+  if (data.messageId) {
+    return prisma.tikTokShopWebhookEvent.upsert({
+      where: { messageId: data.messageId },
+      update: {
+        payload,
+        headers,
+        eventType: data.eventType,
+        category: data.category,
+        shopId: data.shopId,
+        shopCipher: data.shopCipher,
+      },
+      create: data,
+    });
+  }
+
+  return prisma.tikTokShopWebhookEvent.create({ data });
+};
+
+export const listWebhookEvents = async ({ limit = 50 } = {}) => {
+  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  return prisma.tikTokShopWebhookEvent.findMany({
+    orderBy: { receivedAt: 'desc' },
+    take: safeLimit,
+  });
+};

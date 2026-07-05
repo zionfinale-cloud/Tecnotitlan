@@ -15,6 +15,7 @@ const TikTokShopSettingsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState(null);
+  const [webhookEvents, setWebhookEvents] = useState([]);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -22,6 +23,8 @@ const TikTokShopSettingsScreen = () => {
     try {
       const { data } = await api.get('/tiktok/status');
       setStatus(data.data);
+      const eventsResponse = await api.get('/tiktok/webhook-events?limit=10');
+      setWebhookEvents(eventsResponse.data.data || []);
     } catch (error) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudo cargar el estado de TikTok Shop.' });
     } finally {
@@ -112,6 +115,41 @@ const TikTokShopSettingsScreen = () => {
         <code style={{ display: 'block', marginTop: '.75rem', padding: '1rem', background: '#f1f5f9', borderRadius: '12px' }}>
           https://api.tecnotitlan.com.mx/api/tiktok/callback
         </code>
+      </section>
+
+      <section className={styles.card} style={{ marginTop: '1rem' }}>
+        <h3 className={styles.cardTitle}>Webhook URL</h3>
+        <p className={styles.subtitle}>Pega esta URL en Manage Webhook para recibir cambios de pedidos, productos, paquetes y autorizacion.</p>
+        <code style={{ display: 'block', marginTop: '.75rem', padding: '1rem', background: '#f1f5f9', borderRadius: '12px' }}>
+          https://api.tecnotitlan.com.mx/api/tiktok/webhook
+        </code>
+      </section>
+
+      <section className={styles.card} style={{ marginTop: '1rem' }}>
+        <div className={styles.header} style={{ padding: 0 }}>
+          <div>
+            <h3 className={styles.cardTitle}>Ultimos webhooks recibidos</h3>
+            <p className={styles.subtitle}>Sirve para confirmar que TikTok esta notificando a Tecnotitlan.</p>
+          </div>
+          <button className={styles.secondaryButton} type="button" onClick={loadStatus}>
+            Actualizar
+          </button>
+        </div>
+        {webhookEvents.length === 0 ? (
+          <p className={styles.subtitle} style={{ marginTop: '1rem' }}>Aun no hay eventos recibidos.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: '.75rem', marginTop: '1rem' }}>
+            {webhookEvents.map((event) => (
+              <div key={event.id} style={{ border: '1px solid #dbe4ee', borderRadius: '12px', padding: '.85rem' }}>
+                <strong>{event.eventType || 'Evento sin tipo'}</strong>
+                <p className={styles.subtitle}>
+                  {event.category || 'Sin categoria'} · {formatDate(event.receivedAt)}
+                </p>
+                <small style={{ color: '#64748b' }}>ID: {event.messageId || event.id}</small>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {status?.isConnected && (

@@ -313,6 +313,25 @@ model TikTokShopIntegration {
   @@map("tiktok_shop_integrations")
 }
 
+model TikTokShopWebhookEvent {
+  id          String   @id @default(cuid())
+  eventType   String?  @map("event_type")
+  category    String?
+  shopId      String?  @map("shop_id")
+  shopCipher  String?  @db.Text @map("shop_cipher")
+  messageId   String?  @unique @map("message_id")
+  status      String   @default("RECEIVED")
+  payload     Json
+  headers     Json?
+  receivedAt  DateTime @default(now()) @map("received_at")
+  processedAt DateTime? @map("processed_at")
+  error       String?  @db.Text
+
+  @@index([eventType, receivedAt])
+  @@index([shopId])
+  @@map("tiktok_shop_webhook_events")
+}
+
 // --- MODELOS AUXILIARES ---
 
 model Counter {
