@@ -36,6 +36,9 @@ const SettingsPage = () => {
             <ListGroup.Item as={NavLink} to="/admin/settings/whatsapp" className={itemClass}>
               <i className="fab fa-whatsapp me-2"></i> WhatsApp QR
             </ListGroup.Item>
+            <ListGroup.Item as={NavLink} to="/admin/settings/tiktok" className={itemClass}>
+              <i className="fab fa-tiktok me-2"></i> TikTok Shop
+            </ListGroup.Item>
             <ListGroup.Item as={NavLink} to="/admin/settings/legal" className={itemClass}>
               <i className="fas fa-gavel me-2"></i> Paginas legales
             </ListGroup.Item>

@@ -46,6 +46,11 @@ const SENSITIVE_SETTING_DEFINITIONS = [
     { key: 'MERCADOLIBRE_APP_ID', label: 'Mercado Libre app ID', type: 'string' },
     { key: 'MERCADOLIBRE_CLIENT_SECRET', label: 'Mercado Libre secret', type: 'password' },
     { key: 'MERCADOLIBRE_REDIRECT_URI', label: 'Mercado Libre redirect URI', type: 'string' },
+    { key: 'TIKTOK_SHOP_APP_KEY', label: 'TikTok Shop app key', type: 'string' },
+    { key: 'TIKTOK_SHOP_APP_SECRET', label: 'TikTok Shop app secret', type: 'password' },
+    { key: 'TIKTOK_SHOP_REDIRECT_URI', label: 'TikTok Shop redirect URI', type: 'string' },
+    { key: 'TIKTOK_SHOP_AUTH_BASE_URL', label: 'TikTok Shop auth base URL', type: 'string' },
+    { key: 'TIKTOK_SHOP_API_BASE_URL', label: 'TikTok Shop API base URL', type: 'string' },
 ];
 
 const SENSITIVE_SETTING_KEYS = new Set(SENSITIVE_SETTING_DEFINITIONS.map((setting) => setting.key));

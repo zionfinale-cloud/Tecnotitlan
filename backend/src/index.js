@@ -31,6 +31,7 @@ import inventoryRoutes from './routes/inventoryRoutes.js';
 import marketplaceRoutes from './routes/marketplaceRoutes.js';
 import staffMailRoutes from './routes/staffMailRoutes.js';
 import stripeWebhookRoutes from './routes/stripeWebhookRoutes.js';
+import tiktokShopRoutes from './routes/tiktokShopRoutes.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
@@ -159,6 +160,7 @@ app.use(express.json());
     app.use('/api/inventory', inventoryRoutes);
     app.use('/api/marketplaces', marketplaceRoutes);
     app.use('/api/staff-mail', staffMailRoutes);
+    app.use('/api/tiktok', tiktokShopRoutes);
 
     const __dirname = path.resolve();
     app.use('/uploads', express.static(path.join(__dirname, '/uploads')));

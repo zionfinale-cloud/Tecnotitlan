@@ -15,8 +15,8 @@ const sections = [
   },
   {
     title: 'Pagos y marketplaces',
-    description: 'Credenciales privadas para Stripe, PayPal y Mercado Libre.',
-    keys: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'PAYPAL_CLIENT_ID', 'MERCADOLIBRE_APP_ID', 'MERCADOLIBRE_CLIENT_SECRET', 'MERCADOLIBRE_REDIRECT_URI'],
+    description: 'Credenciales privadas para Stripe, PayPal, Mercado Libre y TikTok Shop.',
+    keys: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'PAYPAL_CLIENT_ID', 'MERCADOLIBRE_APP_ID', 'MERCADOLIBRE_CLIENT_SECRET', 'MERCADOLIBRE_REDIRECT_URI', 'TIKTOK_SHOP_APP_KEY', 'TIKTOK_SHOP_APP_SECRET', 'TIKTOK_SHOP_REDIRECT_URI', 'TIKTOK_SHOP_AUTH_BASE_URL', 'TIKTOK_SHOP_API_BASE_URL'],
   },
 ];
 

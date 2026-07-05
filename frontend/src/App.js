@@ -44,6 +44,7 @@ import CategoryListScreen from './screens/admin/CategoryListScreen';
 import RoleListScreen from './screens/admin/RoleListScreen';
 import WhatsappSettingsScreen from './screens/admin/WhatsappSettingsScreen';
 import WhatsAppChatScreen from './screens/admin/WhatsAppChatScreen';
+import TikTokShopSettingsScreen from './screens/admin/TikTokShopSettingsScreen';
 import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-rutas
 import SystemSettingsScreen from './screens/admin/SystemSettingsScreen';
 import StorefrontSettingsScreen from './screens/admin/StorefrontSettingsScreen';
@@ -126,6 +127,7 @@ function App() {
                                                     <Route path="storefront" element={<StorefrontSettingsScreen />} />
                                                     <Route path="legal" element={<LegalPagesScreen />} />
                                                     <Route path="whatsapp" element={<WhatsappSettingsScreen />} />
+                                                    <Route path="tiktok" element={<TikTokShopSettingsScreen />} />
                                                 </Route>
 
                                             </Route>

@@ -293,6 +293,26 @@ model Setting {
   @@map("settings")
 }
 
+model TikTokShopIntegration {
+  id                    String    @id @default(cuid())
+  openId                String?   @map("open_id")
+  sellerName            String?   @map("seller_name")
+  sellerId              String?   @map("seller_id")
+  shopName              String?   @map("shop_name")
+  shopCipher            String?   @db.Text @map("shop_cipher")
+  accessToken           String    @db.Text @map("access_token")
+  refreshToken          String?   @db.Text @map("refresh_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  connectedBy           String?   @map("connected_by")
+  rawData               Json?     @map("raw_data")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([openId])
+  @@map("tiktok_shop_integrations")
+}
+
 // --- MODELOS AUXILIARES ---
 
 model Counter {
