@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Container, Spinner } from 'react-bootstrap';
+import { Container, Spinner } from 'react-bootstrap';
 import useApi from '../hooks/useApi';
 
 const defaultPrivacyPolicy = `
@@ -49,11 +49,13 @@ const defaultPrivacyPolicy = `
 `;
 
 const PrivacyPolicy = () => {
-  const { data, loading, error, request } = useApi();
+  const { data, loading, request } = useApi();
   const [content, setContent] = useState(defaultPrivacyPolicy);
 
   useEffect(() => {
-    request('get', '/api/settings/public');
+    request('get', '/settings/public').catch(() => {
+      setContent(defaultPrivacyPolicy);
+    });
   }, [request]);
 
   useEffect(() => {
@@ -75,8 +77,6 @@ const PrivacyPolicy = () => {
             <span className="visually-hidden">Cargando...</span>
           </Spinner>
         </div>
-      ) : error ? (
-        <Alert variant="danger">{error}</Alert>
       ) : (
         <div dangerouslySetInnerHTML={{ __html: content }} />
       )}

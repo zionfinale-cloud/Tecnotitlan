@@ -23,6 +23,10 @@ const api = axios.create({
 // -------------------------------------------------------------------
 api.interceptors.request.use(
     (config) => {
+        if (typeof config.url === 'string' && config.url.startsWith('/api/')) {
+            config.url = config.url.replace(/^\/api/, '');
+        }
+
         // Obtenemos la información de sesión del almacenamiento local
         const userInfo = localStorage.getItem(AUTH_STORAGE_KEY); // No change here, just for context
         // Verificamos que userInfo exista y no sea la cadena "undefined" (error común)
