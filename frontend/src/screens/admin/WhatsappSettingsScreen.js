@@ -17,6 +17,7 @@ const WhatsappSettingsScreen = () => {
   const [qr, setQr] = useState('');
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [message, setMessage] = useState(null);
 
   const loadStatus = async () => {
@@ -55,6 +56,24 @@ const WhatsappSettingsScreen = () => {
     }
   };
 
+  const reset = async () => {
+    const confirmed = window.confirm('Esto cerrara la sesion actual de WhatsApp y borrara las credenciales guardadas para generar un QR nuevo. ¿Continuamos?');
+    if (!confirmed) return;
+
+    setResetting(true);
+    setMessage(null);
+    try {
+      const { data } = await api.post('/integrations/whatsapp/reset');
+      setStatus(data.data);
+      setMessage({ type: 'success', text: 'Sesion reiniciada. Espera unos segundos para que aparezca el QR nuevo.' });
+      await loadStatus();
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudo reiniciar la sesion de WhatsApp.' });
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (loading) return <div>Cargando WhatsApp...</div>;
 
   return (
@@ -67,6 +86,9 @@ const WhatsappSettingsScreen = () => {
         <button className={styles.primaryButton} type="button" onClick={start} disabled={starting}>
           {starting ? 'Iniciando...' : 'Iniciar / regenerar QR'}
         </button>
+        <button className={styles.secondaryButton} type="button" onClick={reset} disabled={resetting || starting}>
+          {resetting ? 'Reiniciando...' : 'Borrar sesion y pedir QR'}
+        </button>
       </div>
 
       {message && <div className={`${styles.notice} ${message.type === 'success' ? styles.success : styles.error}`}>{message.text}</div>}
@@ -77,6 +99,7 @@ const WhatsappSettingsScreen = () => {
           <div style={{ display: 'grid', gap: '.75rem' }}>
             <p><strong>Estado:</strong> {statusLabels[status?.status] || status?.status || 'Sin estado'}</p>
             <p><strong>Conectado:</strong> {status?.connected ? 'Si' : 'No'}</p>
+            {status?.lastError && <p><strong>Ultimo error:</strong> {status.lastError}</p>}
             {status?.user?.id && <p><strong>Cuenta:</strong> {status.user.id}</p>}
             <p className={styles.subtitle}>
               Para que no se pierda la sesion en redeploys, el VPS debe montar un volumen persistente en <code>/app/auth_info_baileys</code> o definir <code>WHATSAPP_AUTH_DIR</code>.

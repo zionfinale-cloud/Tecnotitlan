@@ -29,6 +29,11 @@ router.post('/initialize', superAdminOnly, checkPermission('system:configure'), 
   res.status(202).json({ status: 'success', data: status });
 }));
 
+router.post('/reset', superAdminOnly, checkPermission('system:configure'), asyncHandler(async (req, res) => {
+  const status = await whatsappService.resetSession();
+  res.status(202).json({ status: 'success', data: status });
+}));
+
 router.get('/chats', canAttendWhatsApp, asyncHandler(async (req, res) => {
   const chats = await whatsappService.listChats();
   res.json({ status: 'success', data: chats });

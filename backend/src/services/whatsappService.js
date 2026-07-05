@@ -1,5 +1,6 @@
 import path from 'path';
-import { DisconnectReason, makeWASocket, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import fs from 'fs/promises';
+import { DisconnectReason, fetchLatestBaileysVersion, makeWASocket, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import axios from 'axios';
 import prisma from '../config/prisma.js';
@@ -12,6 +13,9 @@ let io;
 let latestQr = null;
 let connectionStatus = 'DISCONNECTED';
 let isInitializing = false;
+let lastError = null;
+let reconnectTimer = null;
+let resetInProgress = false;
 
 const ignoredJids = new Set(['status@broadcast']);
 
@@ -133,6 +137,7 @@ export const getStatus = () => ({
     user: sock?.user || null,
     hasQr: Boolean(latestQr),
     isInitializing,
+    lastError,
 });
 
 export const getLatestQr = () => latestQr;
@@ -140,20 +145,30 @@ export const getLatestQr = () => latestQr;
 export const initialize = async () => {
     if (isInitializing) return getStatus();
 
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+
     isInitializing = true;
     connectionStatus = 'INITIALIZING';
     latestQr = null;
+    lastError = null;
     emitStatus();
 
     try {
         logger.info('Initializing WhatsApp Service (Baileys)...');
         const { state, saveCreds } = await useMultiFileAuthState(getAuthDir());
+        const { version } = await fetchLatestBaileysVersion();
 
         sock = makeWASocket({
+            version,
             auth: state,
             printQRInTerminal: true,
             logger: pino({ level: 'silent' }),
             browser: ['Tecnotitlan', 'Chrome', '1.0.0'],
+            connectTimeoutMs: 60000,
+            markOnlineOnConnect: false,
         });
 
         sock.ev.on('connection.update', (update) => {
@@ -168,14 +183,16 @@ export const initialize = async () => {
             }
 
             if (connection === 'close') {
-                const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-                logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}`);
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                lastError = lastDisconnect?.error?.message || `Conexion cerrada${statusCode ? ` (${statusCode})` : ''}`;
+                const shouldReconnect = !resetInProgress && statusCode !== DisconnectReason.loggedOut;
+                logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}. Reason: ${lastError}`);
                 connectionStatus = shouldReconnect ? 'RECONNECTING' : 'DISCONNECTED';
                 isInitializing = false;
                 emitStatus();
 
                 if (shouldReconnect) {
-                    setTimeout(() => initialize().catch((error) => logger.error(`[WhatsApp] Reconnect failed: ${error.message}`)), 3000);
+                    reconnectTimer = setTimeout(() => initialize().catch((error) => logger.error(`[WhatsApp] Reconnect failed: ${error.message}`)), 5000);
                 }
             }
 
@@ -183,6 +200,7 @@ export const initialize = async () => {
                 latestQr = null;
                 connectionStatus = 'READY';
                 isInitializing = false;
+                lastError = null;
                 logger.info('WhatsApp connection opened');
                 emitStatus();
             }
@@ -221,6 +239,36 @@ export const initialize = async () => {
 };
 
 export const getClient = () => sock;
+
+export const resetSession = async () => {
+    resetInProgress = true;
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+
+    latestQr = null;
+    lastError = null;
+    isInitializing = false;
+    connectionStatus = 'RESETTING';
+    emitStatus();
+
+    try {
+        sock?.end?.(new Error('WhatsApp session reset requested'));
+        sock?.ws?.close?.();
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo cerrar socket antes de reset: ${error.message}`);
+    }
+
+    sock = undefined;
+
+    const authDir = getAuthDir();
+    await fs.rm(authDir, { recursive: true, force: true });
+    logger.warn(`[WhatsApp] Sesion eliminada en ${authDir}. Se generara QR nuevo.`);
+
+    resetInProgress = false;
+    return initialize();
+};
 
 export const listChats = async () => {
     const chats = await prisma.whatsAppChat.findMany({
