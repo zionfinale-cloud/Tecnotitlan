@@ -357,6 +357,38 @@ model SupportTicket {
   @@map("support_tickets")
 }
 
+model WhatsAppChat {
+  id             String            @id @default(cuid())
+  jid            String            @unique
+  phone          String?
+  name           String?
+  lastMessage    String?           @db.Text @map("last_message")
+  unreadCount    Int               @default(0) @map("unread_count")
+  lastMessageAt  DateTime?         @map("last_message_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  messages       WhatsAppMessage[]
+
+  @@index([lastMessageAt])
+  @@map("whatsapp_chats")
+}
+
+model WhatsAppMessage {
+  id          String       @id @default(cuid())
+  messageId   String?      @unique @map("message_id")
+  direction   String
+  fromMe      Boolean      @default(false) @map("from_me")
+  text        String       @db.Text
+  status      String       @default("RECEIVED")
+  sentBy      String?      @map("sent_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  chat        WhatsAppChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chatId      String       @map("chat_id")
+
+  @@index([chatId, createdAt])
+  @@map("whatsapp_messages")
+}
+
 // --- ENUMS ---
 
 enum ProductType {

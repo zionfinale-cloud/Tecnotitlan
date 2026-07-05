@@ -1,43 +1,51 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { Row, Col, ListGroup } from 'react-bootstrap';
+import { AuthContext } from '../../context/AuthContext';
 
 const SettingsPage = () => {
+  const { userInfo } = useContext(AuthContext);
+  const isSuperAdmin = userInfo?.role === 'SUPER_ADMIN' || userInfo?.role?.name === 'SUPER_ADMIN';
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="p-4 border rounded-xl bg-white shadow-sm">
+        <h1 className="fw-bold">Configuracion restringida</h1>
+        <p className="text-muted mb-0">Solo el Super Admin puede ver y modificar configuraciones de la pagina.</p>
+      </div>
+    );
+  }
+
+  const itemClass = ({ isActive }) => `cursor-pointer ${isActive ? 'bg-primary text-white fw-bold' : ''}`;
+
   return (
     <>
-      <h1 className="text-3xl font-bold mb-4 border-b pb-2">Configuración del Sistema</h1>
-      <p className="text-gray-600 mb-5">Administra los ajustes globales de la tienda, integraciones y notificaciones.</p>
-      
+      <h1 className="fw-bold mb-2 border-bottom pb-2">Configuracion de la pagina</h1>
+      <p className="text-muted mb-4">Ajustes sensibles, storefront, integraciones y contenido legal.</p>
+
       <Row>
-        {/* Sidebar de Configuración */}
         <Col md={3}>
           <ListGroup className="rounded-xl shadow-sm border-0">
-            <ListGroup.Item className="bg-gray-50 fw-bold border-b text-slate-800">Ajustes</ListGroup.Item>
-            <ListGroup.Item 
-                as={NavLink} 
-                to="/admin/settings/storefront" 
-                className={({ isActive }) => `cursor-pointer ${isActive ? 'bg-primary text-white font-bold' : ''}`}
-            >
-                <i className="fas fa-store me-2"></i> Storefront / Home
+            <ListGroup.Item className="bg-light fw-bold text-slate-800">Ajustes</ListGroup.Item>
+            <ListGroup.Item as={NavLink} to="/admin/settings/system" className={itemClass}>
+              <i className="fas fa-cogs me-2"></i> Sistema
             </ListGroup.Item>
-            <ListGroup.Item 
-                as={NavLink} 
-                to="/admin/settings/whatsapp" 
-                className={({ isActive }) => `cursor-pointer ${isActive ? 'bg-primary text-white font-bold' : ''}`}
-            >
-                <i className="fab fa-whatsapp me-2"></i> Integración WhatsApp
+            <ListGroup.Item as={NavLink} to="/admin/settings/storefront" className={itemClass}>
+              <i className="fas fa-store me-2"></i> Storefront / Home
             </ListGroup.Item>
-            <ListGroup.Item as={NavLink} to="/admin/settings/general">
-                <i className="fas fa-paint-brush me-2"></i> Apariencia & Datos
+            <ListGroup.Item as={NavLink} to="/admin/settings/whatsapp" className={itemClass}>
+              <i className="fab fa-whatsapp me-2"></i> WhatsApp QR
+            </ListGroup.Item>
+            <ListGroup.Item as={NavLink} to="/admin/settings/legal" className={itemClass}>
+              <i className="fas fa-gavel me-2"></i> Paginas legales
             </ListGroup.Item>
           </ListGroup>
         </Col>
-        
-        {/* Contenido de la Sub-ruta */}
+
         <Col md={9}>
-            <div className="p-4 border rounded-xl bg-white shadow-sm min-h-[500px]">
-                <Outlet /> {/* Aquí se renderiza WhatsappSettingsScreen */}
-            </div>
+          <div className="p-4 border rounded-xl bg-white shadow-sm min-h-[500px]">
+            <Outlet />
+          </div>
         </Col>
       </Row>
     </>

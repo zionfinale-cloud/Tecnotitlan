@@ -47,6 +47,8 @@ const permissions = [
   { name: 'support:update', description: 'Atender y actualizar tickets de soporte' },
   { name: 'mail:read', description: 'Leer correo corporativo del equipo' },
   { name: 'mail:send', description: 'Enviar respuestas desde correo corporativo' },
+  { name: 'whatsapp:chat', description: 'Atender conversaciones de WhatsApp desde el panel' },
+  { name: 'system:configure', description: 'Ver y modificar configuracion sensible del sistema' },
 ];
 
 async function main() {

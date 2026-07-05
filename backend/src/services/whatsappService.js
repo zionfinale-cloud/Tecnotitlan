@@ -1,69 +1,273 @@
+import path from 'path';
 import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import axios from 'axios';
+import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
+import { BadRequestError } from '../utils/errorUtils.js';
 import { getConfig } from './configService.js';
 
 let sock;
 let io;
+let latestQr = null;
+let connectionStatus = 'DISCONNECTED';
+let isInitializing = false;
+
+const ignoredJids = new Set(['status@broadcast']);
+
+const getAuthDir = () => (
+    process.env.WHATSAPP_AUTH_DIR
+    || getConfig().WHATSAPP_AUTH_DIR
+    || path.resolve(process.cwd(), 'auth_info_baileys')
+);
+
+const emitStatus = () => {
+    const payload = getStatus();
+    if (!io) return;
+    io.emit('whatsapp:status', payload);
+    io.emit('status', payload.status);
+};
+
+const emitQr = (qr) => {
+    if (!io) return;
+    io.emit('whatsapp:qr', qr);
+    io.emit('qr', qr);
+};
+
+const normalizePhone = (value = '') => String(value).replace(/\D/g, '');
+
+const toJid = (value = '') => {
+    if (!value) throw new BadRequestError('El numero de WhatsApp es requerido.');
+    if (value.includes('@')) return value;
+    return `${normalizePhone(value)}@s.whatsapp.net`;
+};
+
+const getMessageText = (message = {}) => {
+    const content = message.message || {};
+    return (
+        content.conversation
+        || content.extendedTextMessage?.text
+        || content.imageMessage?.caption
+        || content.videoMessage?.caption
+        || content.documentMessage?.caption
+        || content.buttonsResponseMessage?.selectedDisplayText
+        || content.listResponseMessage?.title
+        || content.templateButtonReplyMessage?.selectedDisplayText
+        || '[Mensaje no soportado]'
+    );
+};
+
+const getMessageDate = (timestamp) => {
+    if (!timestamp) return new Date();
+    const value = typeof timestamp === 'number'
+        ? timestamp
+        : Number(timestamp?.low || timestamp?.toString?.() || Date.now() / 1000);
+    return new Date(value * 1000);
+};
+
+const getChatName = (jid, pushName) => {
+    if (pushName) return pushName;
+    const phone = jid.split('@')[0] || jid;
+    return phone.startsWith('521') ? `+${phone}` : phone;
+};
+
+const persistMessage = async ({ jid, messageId, text, fromMe, pushName, createdAt, sentBy }) => {
+    if (!jid || ignoredJids.has(jid) || jid.endsWith('@g.us')) return null;
+
+    const direction = fromMe ? 'OUTGOING' : 'INCOMING';
+    const phone = jid.split('@')[0] || null;
+
+    const chat = await prisma.whatsAppChat.upsert({
+        where: { jid },
+        update: {
+            phone,
+            name: getChatName(jid, pushName),
+            lastMessage: text,
+            lastMessageAt: createdAt,
+            unreadCount: fromMe ? 0 : { increment: 1 },
+        },
+        create: {
+            jid,
+            phone,
+            name: getChatName(jid, pushName),
+            lastMessage: text,
+            lastMessageAt: createdAt,
+            unreadCount: fromMe ? 0 : 1,
+        },
+    });
+
+    try {
+        const savedMessage = await prisma.whatsAppMessage.create({
+            data: {
+                chatId: chat.id,
+                messageId,
+                direction,
+                fromMe,
+                text,
+                status: fromMe ? 'SENT' : 'RECEIVED',
+                sentBy,
+                createdAt,
+            },
+            include: { chat: true },
+        });
+
+        if (io) {
+            io.emit('whatsapp:message', savedMessage);
+            io.emit('whatsapp:chat-updated', savedMessage.chat);
+        }
+
+        return savedMessage;
+    } catch (error) {
+        if (error.code === 'P2002') return null;
+        throw error;
+    }
+};
 
 export const setSocketIO = (socketIoInstance) => {
     io = socketIoInstance;
 };
 
+export const getStatus = () => ({
+    status: connectionStatus,
+    connected: Boolean(sock?.user && connectionStatus === 'READY'),
+    user: sock?.user || null,
+    hasQr: Boolean(latestQr),
+    isInitializing,
+});
+
+export const getLatestQr = () => latestQr;
+
 export const initialize = async () => {
-    logger.info('Initializing WhatsApp Service (Baileys)...');
-    
-    // Carpeta para guardar credenciales de sesión
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    if (isInitializing) return getStatus();
 
-    sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true,
-        logger: pino({ level: 'silent' }),
-        browser: ['Tecnotitlan', 'Chrome', '1.0.0'],
-    });
+    isInitializing = true;
+    connectionStatus = 'INITIALIZING';
+    latestQr = null;
+    emitStatus();
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
+    try {
+        logger.info('Initializing WhatsApp Service (Baileys)...');
+        const { state, saveCreds } = await useMultiFileAuthState(getAuthDir());
 
-        if (qr) {
-            logger.info('QR Code received');
-            if (io) {
-                io.emit('qr', qr); // Enviamos el QR al frontend
-                io.emit('status', 'QR_RECEIVED');
+        sock = makeWASocket({
+            auth: state,
+            printQRInTerminal: true,
+            logger: pino({ level: 'silent' }),
+            browser: ['Tecnotitlan', 'Chrome', '1.0.0'],
+        });
+
+        sock.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect, qr } = update;
+
+            if (qr) {
+                latestQr = qr;
+                connectionStatus = 'QR_RECEIVED';
+                logger.info('QR Code received');
+                emitQr(qr);
+                emitStatus();
             }
-        }
 
-        if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            logger.warn(`Connection closed. Reconnecting: ${shouldReconnect}`);
-            
-            if (shouldReconnect) {
-                initialize();
-            } else {
-                if(io) io.emit('status', 'DISCONNECTED');
-            }
-        } else if (connection === 'open') {
-            logger.info('WhatsApp connection opened');
-            if (io) {
-                io.emit('status', 'READY');
-            }
-        }
-    });
+            if (connection === 'close') {
+                const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+                logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}`);
+                connectionStatus = shouldReconnect ? 'RECONNECTING' : 'DISCONNECTED';
+                isInitializing = false;
+                emitStatus();
 
-    sock.ev.on('creds.update', saveCreds);
+                if (shouldReconnect) {
+                    setTimeout(() => initialize().catch((error) => logger.error(`[WhatsApp] Reconnect failed: ${error.message}`)), 3000);
+                }
+            }
+
+            if (connection === 'open') {
+                latestQr = null;
+                connectionStatus = 'READY';
+                isInitializing = false;
+                logger.info('WhatsApp connection opened');
+                emitStatus();
+            }
+        });
+
+        sock.ev.on('messages.upsert', async ({ messages = [] }) => {
+            for (const message of messages) {
+                const jid = message.key?.remoteJid;
+                const text = getMessageText(message);
+                if (!jid || !text || ignoredJids.has(jid) || jid.endsWith('@g.us')) continue;
+
+                try {
+                    await persistMessage({
+                        jid,
+                        messageId: message.key?.id,
+                        text,
+                        fromMe: Boolean(message.key?.fromMe),
+                        pushName: message.pushName,
+                        createdAt: getMessageDate(message.messageTimestamp),
+                    });
+                } catch (error) {
+                    logger.error(`[WhatsApp] No se pudo guardar mensaje: ${error.message}`);
+                }
+            }
+        });
+
+        sock.ev.on('creds.update', saveCreds);
+        return getStatus();
+    } catch (error) {
+        connectionStatus = 'ERROR';
+        isInitializing = false;
+        emitStatus();
+        logger.error(`[WhatsApp] No se pudo inicializar: ${error.message}`);
+        throw error;
+    }
 };
 
 export const getClient = () => sock;
 
-export const sendMessage = async (number, message) => {
-    if (!sock) {
-        throw new Error('WhatsApp client not initialized');
+export const listChats = async () => {
+    const chats = await prisma.whatsAppChat.findMany({
+        orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+        take: 100,
+    });
+    return chats;
+};
+
+export const listMessages = async (jid) => {
+    const chat = await prisma.whatsAppChat.findUnique({ where: { jid } });
+    if (!chat) return { chat: null, messages: [] };
+
+    await prisma.whatsAppChat.update({
+        where: { jid },
+        data: { unreadCount: 0 },
+    });
+
+    const messages = await prisma.whatsAppMessage.findMany({
+        where: { chatId: chat.id },
+        orderBy: { createdAt: 'asc' },
+        take: 300,
+    });
+
+    return { chat: { ...chat, unreadCount: 0 }, messages };
+};
+
+export const sendMessage = async (number, message, sentBy = null) => {
+    if (!sock || connectionStatus !== 'READY') {
+        throw new BadRequestError('WhatsApp no esta conectado. Escanea el QR desde Configuracion.');
     }
-    // Formatear el número para Baileys (ej: 5215512345678@s.whatsapp.net)
-    const jid = number.includes('@s.whatsapp.net') ? number : `${number}@s.whatsapp.net`;
-    return await sock.sendMessage(jid, { text: message });
+
+    const jid = toJid(number);
+    const text = String(message || '').trim();
+    if (!text) throw new BadRequestError('El mensaje no puede estar vacio.');
+
+    const result = await sock.sendMessage(jid, { text });
+    await persistMessage({
+        jid,
+        messageId: result?.key?.id,
+        text,
+        fromMe: true,
+        createdAt: new Date(),
+        sentBy,
+    });
+
+    return result;
 };
 
 export const sendAdminOrderPaidNotification = async (order) => {
@@ -78,9 +282,9 @@ export const sendAdminOrderPaidNotification = async (order) => {
         const orderNumber = order?.orderNumber || order?.id || 'sin folio';
         const message = `Pago confirmado en Tecnotitlan\nPedido: ${orderNumber}\nTotal: ${total}`;
 
-        if (adminWhatsappNumber && sock) {
-            await sendMessage(adminWhatsappNumber, message);
-        } else if (adminWhatsappNumber && !sock) {
+        if (adminWhatsappNumber && sock && connectionStatus === 'READY') {
+            await sendMessage(adminWhatsappNumber, message, 'Sistema');
+        } else if (adminWhatsappNumber) {
             logger.warn(`[WhatsApp] No se envio aviso de pago ${orderNumber}: cliente no inicializado.`);
         }
 

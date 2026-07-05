@@ -43,7 +43,9 @@ import UserEditScreen from './screens/admin/UserEditScreen';
 import CategoryListScreen from './screens/admin/CategoryListScreen';
 import RoleListScreen from './screens/admin/RoleListScreen';
 import WhatsappSettingsScreen from './screens/admin/WhatsappSettingsScreen';
+import WhatsAppChatScreen from './screens/admin/WhatsAppChatScreen';
 import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-rutas
+import SystemSettingsScreen from './screens/admin/SystemSettingsScreen';
 import StorefrontSettingsScreen from './screens/admin/StorefrontSettingsScreen';
 import LegalPagesScreen from './screens/admin/LegalPagesScreen';
 import PrivacyPolicy from './screens/PrivacyPolicy';
@@ -108,6 +110,7 @@ function App() {
                                                 <Route path="channels" element={<ChannelsScreen />} />
                                                 <Route path="orderlist" element={<OrderListScreen />} />
                                                 <Route path="mail" element={<Navigate to="/mail" replace />} />
+                                                <Route path="whatsapp-chat" element={<WhatsAppChatScreen />} />
                                                 <Route path="userlist" element={<UserListScreen />} />
                                                 <Route path="product/create" element={<ProductEditScreen />} />
                                                 <Route path="product/:id/edit" element={<ProductEditScreen />} />
@@ -118,7 +121,8 @@ function App() {
                                                 
                                                 {/* Sub-rutas de Configuración */}
                                                 <Route path="settings" element={<SettingsPage />}>
-                                                    <Route index element={<Navigate to="storefront" replace />} />
+                                                    <Route index element={<Navigate to="system" replace />} />
+                                                    <Route path="system" element={<SystemSettingsScreen />} />
                                                     <Route path="storefront" element={<StorefrontSettingsScreen />} />
                                                     <Route path="legal" element={<LegalPagesScreen />} />
                                                     <Route path="whatsapp" element={<WhatsappSettingsScreen />} />
