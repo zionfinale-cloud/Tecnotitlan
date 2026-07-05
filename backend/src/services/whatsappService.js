@@ -19,11 +19,53 @@ let resetInProgress = false;
 
 const ignoredJids = new Set(['status@broadcast']);
 
-const getAuthDir = () => (
+const getBaseAuthDir = () => (
     process.env.WHATSAPP_AUTH_DIR
     || getConfig().WHATSAPP_AUTH_DIR
     || path.resolve(process.cwd(), 'auth_info_baileys')
 );
+
+let activeAuthDir = null;
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const sanitizeSessionName = (value) => {
+    const safe = String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    return safe || 'current';
+};
+
+const getActiveSessionFile = () => path.join(getBaseAuthDir(), 'active-session.txt');
+
+const ensureActiveAuthDir = async () => {
+    if (activeAuthDir) return activeAuthDir;
+
+    const baseDir = getBaseAuthDir();
+    await fs.mkdir(baseDir, { recursive: true });
+
+    let sessionName = 'current';
+    try {
+        const savedSessionName = await fs.readFile(getActiveSessionFile(), 'utf8');
+        sessionName = sanitizeSessionName(savedSessionName.trim());
+    } catch (error) {
+        await fs.writeFile(getActiveSessionFile(), sessionName, 'utf8');
+    }
+
+    activeAuthDir = path.join(baseDir, sessionName);
+    await fs.mkdir(activeAuthDir, { recursive: true });
+    return activeAuthDir;
+};
+
+const rotateActiveAuthDir = async () => {
+    const baseDir = getBaseAuthDir();
+    await fs.mkdir(baseDir, { recursive: true });
+
+    const sessionName = `session-${Date.now()}`;
+    await fs.writeFile(getActiveSessionFile(), sessionName, 'utf8');
+    activeAuthDir = path.join(baseDir, sessionName);
+    await fs.mkdir(activeAuthDir, { recursive: true });
+
+    return activeAuthDir;
+};
 
 const emitStatus = () => {
     const payload = getStatus();
@@ -138,6 +180,7 @@ export const getStatus = () => ({
     hasQr: Boolean(latestQr),
     isInitializing,
     lastError,
+    authDir: activeAuthDir,
 });
 
 export const getLatestQr = () => latestQr;
@@ -158,7 +201,8 @@ export const initialize = async () => {
 
     try {
         logger.info('Initializing WhatsApp Service (Baileys)...');
-        const { state, saveCreds } = await useMultiFileAuthState(getAuthDir());
+        const authDir = await ensureActiveAuthDir();
+        const { state, saveCreds } = await useMultiFileAuthState(authDir);
         const { version } = await fetchLatestBaileysVersion();
 
         sock = makeWASocket({
@@ -261,10 +305,10 @@ export const resetSession = async () => {
     }
 
     sock = undefined;
+    await delay(1200);
 
-    const authDir = getAuthDir();
-    await fs.rm(authDir, { recursive: true, force: true });
-    logger.warn(`[WhatsApp] Sesion eliminada en ${authDir}. Se generara QR nuevo.`);
+    const authDir = await rotateActiveAuthDir();
+    logger.warn(`[WhatsApp] Sesion nueva activa en ${authDir}. Se generara QR nuevo.`);
 
     resetInProgress = false;
     return initialize();

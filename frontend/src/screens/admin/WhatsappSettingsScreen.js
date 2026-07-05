@@ -9,6 +9,7 @@ const statusLabels = {
   INITIALIZING: 'Inicializando',
   RECONNECTING: 'Reconectando',
   DISCONNECTED: 'Desconectado',
+  RESETTING: 'Reiniciando sesion',
   ERROR: 'Error',
 };
 
@@ -101,6 +102,7 @@ const WhatsappSettingsScreen = () => {
             <p><strong>Conectado:</strong> {status?.connected ? 'Si' : 'No'}</p>
             {status?.lastError && <p><strong>Ultimo error:</strong> {status.lastError}</p>}
             {status?.user?.id && <p><strong>Cuenta:</strong> {status.user.id}</p>}
+            {status?.authDir && <p><strong>Sesion activa:</strong> <code>{status.authDir}</code></p>}
             <p className={styles.subtitle}>
               Para que no se pierda la sesion en redeploys, el VPS debe montar un volumen persistente en <code>/app/auth_info_baileys</code> o definir <code>WHATSAPP_AUTH_DIR</code>.
             </p>
