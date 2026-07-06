@@ -32,6 +32,8 @@ import marketplaceRoutes from './routes/marketplaceRoutes.js';
 import staffMailRoutes from './routes/staffMailRoutes.js';
 import stripeWebhookRoutes from './routes/stripeWebhookRoutes.js';
 import tiktokShopRoutes from './routes/tiktokShopRoutes.js';
+import tecatlPublicRoutes from './routes/tecatlPublicRoutes.js';
+import tecatlAdminRoutes from './routes/tecatlAdminRoutes.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
@@ -161,6 +163,8 @@ app.use(express.json());
     app.use('/api/marketplaces', marketplaceRoutes);
     app.use('/api/staff-mail', staffMailRoutes);
     app.use('/api/tiktok', tiktokShopRoutes);
+    app.use('/api/chat/tecatl', tecatlPublicRoutes);
+    app.use('/api/admin/tecatl', tecatlAdminRoutes);
 
     const __dirname = path.resolve();
     app.use('/uploads', express.static(path.join(__dirname, '/uploads')));

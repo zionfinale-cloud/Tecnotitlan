@@ -51,6 +51,11 @@ const permissions = [
   { name: 'mail:send', description: 'Enviar respuestas desde correo corporativo' },
   { name: 'whatsapp:chat', description: 'Atender conversaciones de WhatsApp desde el panel' },
   { name: 'system:configure', description: 'Ver y modificar configuracion sensible del sistema' },
+  { name: 'tecatl:read', description: 'Ver conversaciones y estado de Tecatl' },
+  { name: 'tecatl:manage', description: 'Configurar perfil y reglas de Tecatl' },
+  { name: 'tecatl:reply', description: 'Responder conversaciones de Tecatl como humano' },
+  { name: 'tecatl:knowledge', description: 'Administrar base de conocimiento de Tecatl' },
+  { name: 'tecatl:handoff', description: 'Gestionar escalamientos de Tecatl a humano' },
 ];
 
 const rolePermissionTemplates = {
@@ -82,6 +87,10 @@ const rolePermissionTemplates = {
     'mail:read',
     'mail:send',
     'whatsapp:chat',
+    'tecatl:read',
+    'tecatl:reply',
+    'tecatl:knowledge',
+    'tecatl:handoff',
   ],
   SUPERVISOR: [
     'access:admin_panel',
@@ -95,6 +104,9 @@ const rolePermissionTemplates = {
     'mail:read',
     'mail:send',
     'whatsapp:chat',
+    'tecatl:read',
+    'tecatl:reply',
+    'tecatl:handoff',
   ],
   VENDEDOR: [
     'access:admin_panel',
@@ -107,6 +119,9 @@ const rolePermissionTemplates = {
     'mail:read',
     'mail:send',
     'whatsapp:chat',
+    'tecatl:read',
+    'tecatl:reply',
+    'tecatl:handoff',
   ],
 };
 
@@ -256,6 +271,45 @@ async function main() {
     });
   }
   console.log(`${initialSettings.length} settings are set up.`);
+
+  await prisma.assistantProfile.upsert({
+    where: { storeId: 'default' },
+    update: {},
+    create: {
+      storeId: 'default',
+      name: 'Tecatl',
+      avatarUrl: '/images/logo2.png',
+      tone: 'amable, mexicano neutro, natural, breve, vendedor sin ser insistente, tecnico cuando hace falta, confiable',
+      welcomeMessage: 'Hola. Soy Tecatl, asesor de Tecnotitlan. Estoy aqui para ayudarte a elegir el producto correcto, revisar pedidos o resolver cualquier duda.',
+      fallbackMessage: 'No quiero inventarte informacion. Te paso con un asesor humano para revisarlo bien.',
+      isActive: true,
+    },
+  });
+
+  await prisma.knowledgeArticle.createMany({
+    data: [
+      {
+        id: 'knowledge_tecatl_garantias_default',
+        storeId: 'default',
+        title: 'Garantias y devoluciones',
+        category: 'garantias',
+        content: 'Tecnotitlan revisa cada caso de garantia y devolucion con el equipo de soporte. Para ayudar mejor, se solicita numero de pedido, correo de compra y evidencia del producto cuando aplique.',
+        tags: ['garantia', 'devolucion', 'cambio'],
+        isActive: true,
+      },
+      {
+        id: 'knowledge_tecatl_envios_default',
+        storeId: 'default',
+        title: 'Envios',
+        category: 'envios',
+        content: 'Los tiempos de envio dependen del destino y del metodo seleccionado. Tecnotitlan comparte la guia cuando el pedido pasa a enviado.',
+        tags: ['envio', 'guia', 'rastreo'],
+        isActive: true,
+      },
+    ],
+    skipDuplicates: true,
+  });
+  console.log('Tecatl assistant defaults are set up.');
 
   console.log('Seeding finished.');
 

@@ -15,6 +15,7 @@ const navLinks = [
     { to: '/admin/orderlist', icon: 'fa-shipping-fast', text: 'Pedidos', permission: 'order:read' },
     { to: '/mail', icon: 'fa-envelope', text: 'Correo', anyPermission: ['mail:read', 'mail:send'] },
     { to: '/admin/whatsapp-chat', icon: 'fa-comments', text: 'WhatsApp', anyPermission: ['whatsapp:chat', 'support:update'] },
+    { to: '/admin/tecatl', icon: 'fa-robot', text: 'Tecatl', anyPermission: ['tecatl:read', 'tecatl:reply', 'tecatl:knowledge'] },
     { to: '/admin/userlist', icon: 'fa-users', text: 'Usuarios', permission: 'user:read' },
     { to: '/admin/categorylist', icon: 'fa-list-alt', text: 'Categorias', permission: 'category:read' },
     { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles', permission: 'role:read' },

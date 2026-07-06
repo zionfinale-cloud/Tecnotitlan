@@ -44,6 +44,7 @@ import CategoryListScreen from './screens/admin/CategoryListScreen';
 import RoleListScreen from './screens/admin/RoleListScreen';
 import WhatsappSettingsScreen from './screens/admin/WhatsappSettingsScreen';
 import WhatsAppChatScreen from './screens/admin/WhatsAppChatScreen';
+import TecatlAdminScreen from './screens/admin/TecatlAdminScreen';
 import TikTokShopSettingsScreen from './screens/admin/TikTokShopSettingsScreen';
 import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-rutas
 import SystemSettingsScreen from './screens/admin/SystemSettingsScreen';
@@ -114,6 +115,7 @@ function App() {
                                                 <Route path="orderlist" element={<OrderListScreen />} />
                                                 <Route path="mail" element={<Navigate to="/mail" replace />} />
                                                 <Route path="whatsapp-chat" element={<WhatsAppChatScreen />} />
+                                                <Route path="tecatl" element={<TecatlAdminScreen />} />
                                                 <Route path="userlist" element={<UserListScreen />} />
                                                 <Route path="product/create" element={<ProductEditScreen />} />
                                                 <Route path="product/:id/edit" element={<ProductEditScreen />} />

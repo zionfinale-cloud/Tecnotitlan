@@ -5,6 +5,7 @@ import Header from './Header';
 import Footer from './Footer';
 import Notification from './Notification';
 import ToastNotification from './ToastNotification';
+import TecatlChatWidget from './TecatlChatWidget';
 
 const Layout = () => {
   return (
@@ -23,6 +24,7 @@ const Layout = () => {
       </main>
       <Footer />
       <ToastNotification />
+      <TecatlChatWidget />
     </div>
   );
 };

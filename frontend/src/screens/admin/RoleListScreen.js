@@ -23,6 +23,9 @@ const rolePresets = {
     'mail:read',
     'mail:send',
     'whatsapp:chat',
+    'tecatl:read',
+    'tecatl:reply',
+    'tecatl:handoff',
   ],
   SUPERVISOR: [
     'access:admin_panel',
@@ -36,6 +39,9 @@ const rolePresets = {
     'mail:read',
     'mail:send',
     'whatsapp:chat',
+    'tecatl:read',
+    'tecatl:reply',
+    'tecatl:handoff',
   ],
   ADMIN: [
     'access:admin_panel',
@@ -65,6 +71,10 @@ const rolePresets = {
     'mail:read',
     'mail:send',
     'whatsapp:chat',
+    'tecatl:read',
+    'tecatl:reply',
+    'tecatl:knowledge',
+    'tecatl:handoff',
   ],
 };
 
@@ -169,6 +179,17 @@ const permissionMatrix = [
     module: 'WhatsApp',
     description: 'Chat de ventas/soporte desde el dashboard.',
     actions: [{ label: 'Atender chat', permission: 'whatsapp:chat' }],
+  },
+  {
+    module: 'Tecatl',
+    description: 'Asistente conversacional, conversaciones, conocimiento y escalamiento humano.',
+    actions: [
+      { label: 'Ver conversaciones', permission: 'tecatl:read' },
+      { label: 'Responder', permission: 'tecatl:reply' },
+      { label: 'Base conocimiento', permission: 'tecatl:knowledge' },
+      { label: 'Escalamientos', permission: 'tecatl:handoff' },
+      { label: 'Configurar perfil', permission: 'tecatl:manage', danger: true },
+    ],
   },
   {
     module: 'Storefront y configuracion',

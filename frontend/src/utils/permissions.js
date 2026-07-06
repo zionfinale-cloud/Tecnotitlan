@@ -13,6 +13,7 @@ const adminPanelPermissionPrefixes = [
   'support:',
   'mail:',
   'whatsapp:',
+  'tecatl:',
   'integration:',
 ];
 

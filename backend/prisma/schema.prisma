@@ -42,6 +42,8 @@ model User {
   supportTickets    SupportTicket[]
   inventoryInvestments InventoryInvestment[]
   inventoryMovements   InventoryMovement[]
+  tecatlConversations   ChatConversation[]
+  tecatlHandoffs        ConversationHandoff[] @relation("TecatlHandoffAssignee")
 
   @@map("users")
 }
@@ -108,6 +110,101 @@ model Product {
   marketplaceListings MarketplaceListing[]
 
   @@map("products")
+}
+
+model AssistantProfile {
+  id             String   @id @default(cuid())
+  storeId        String   @default("default") @map("store_id")
+  name           String   @default("Tecatl")
+  avatarUrl      String?  @db.Text @map("avatar_url")
+  tone           String   @default("amable, mexicano neutro, breve, confiable")
+  welcomeMessage String   @db.Text @map("welcome_message")
+  fallbackMessage String  @db.Text @map("fallback_message")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([storeId])
+  @@map("assistant_profiles")
+}
+
+model ChatConversation {
+  id             String                  @id @default(cuid())
+  storeId        String                  @default("default") @map("store_id")
+  channel        ChatChannel
+  customer       User?                   @relation(fields: [customerId], references: [id])
+  customerId     String?                 @map("customer_id")
+  externalUserId String?                 @map("external_user_id")
+  customerName   String?                 @map("customer_name")
+  customerEmail  String?                 @map("customer_email")
+  status         ChatConversationStatus  @default(OPEN)
+  intent         String?
+  lastMessageAt  DateTime?               @map("last_message_at")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+  messages       ChatMessage[]
+  handoffs       ConversationHandoff[]
+
+  @@index([channel, status])
+  @@index([customerId])
+  @@index([lastMessageAt])
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id             String           @id @default(cuid())
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String           @map("conversation_id")
+  role           ChatMessageRole
+  content        String           @db.Text
+  metadata       Json?
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
+}
+
+model KnowledgeArticle {
+  id        String   @id @default(cuid())
+  storeId   String   @default("default") @map("store_id")
+  title     String
+  category  String
+  content   String   @db.Text
+  tags      String[] @default([])
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([category, isActive])
+  @@map("knowledge_articles")
+}
+
+model ConversationHandoff {
+  id             String                @id @default(cuid())
+  conversation   ChatConversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String                @map("conversation_id")
+  reason         String                @db.Text
+  status         ConversationHandoffStatus @default(OPEN)
+  assignedUser   User?                 @relation("TecatlHandoffAssignee", fields: [assignedTo], references: [id])
+  assignedTo     String?               @map("assigned_to")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  resolvedAt     DateTime?             @map("resolved_at")
+
+  @@index([status, createdAt])
+  @@map("conversation_handoffs")
+}
+
+model AssistantSetting {
+  id        String   @id @default(cuid())
+  storeId   String   @default("default") @map("store_id")
+  key       String
+  value     String   @db.Text
+  type      String   @default("string")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([storeId, key])
+  @@map("assistant_settings")
 }
 
 model Category {
@@ -505,4 +602,29 @@ enum TicketPriority {
   NORMAL
   HIGH
   URGENT
+}
+
+enum ChatChannel {
+  WEB
+  WHATSAPP
+  ADMIN
+}
+
+enum ChatConversationStatus {
+  OPEN
+  HUMAN_REQUIRED
+  CLOSED
+}
+
+enum ChatMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  HUMAN
+}
+
+enum ConversationHandoffStatus {
+  OPEN
+  ASSIGNED
+  RESOLVED
 }
