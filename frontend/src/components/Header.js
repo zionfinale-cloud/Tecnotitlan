@@ -7,6 +7,7 @@ import { SettingsContext } from '../context/SettingsContext';
 import SearchBox from './SearchBox';
 import HeaderSkeleton from './HeaderSkeleton';
 import styles from './Header.module.css';
+import { canAccessAdminPanel } from '../utils/permissions';
 
 const Header = () => {
   const [theme, setTheme] = useState(() => localStorage.getItem('tecnotitlan-theme') || 'dark');
@@ -23,7 +24,7 @@ const Header = () => {
   if (authLoading || settingsLoading) return <HeaderSkeleton />;
 
   const totalCartItems = cartItems.reduce((acc, item) => acc + item.qty, 0);
-  const canAccessAdminPanel = user?.permissions?.includes('access:admin_panel');
+  const canAccessPanel = canAccessAdminPanel(user);
   const siteName = (settings?.siteName || 'TECNOTITLÁN').toUpperCase();
   const logoutHandler = () => { logout(); navigate('/login'); };
 
@@ -49,7 +50,7 @@ const Header = () => {
               <Dropdown.Toggle as="button" className={styles.accountButton}><i className="fas fa-user-circle"></i><span>{user.name}</span></Dropdown.Toggle>
               <Dropdown.Menu className={styles.dropdownMenu}>
                 <Dropdown.Item as={Link} to="/profile">Mi cuenta</Dropdown.Item>
-                {canAccessAdminPanel && <Dropdown.Item as={Link} to="/admin/dashboard">Panel administrativo</Dropdown.Item>}
+                {canAccessPanel && <Dropdown.Item as={Link} to="/admin/dashboard">Panel de trabajo</Dropdown.Item>}
                 <Dropdown.Divider /><Dropdown.Item onClick={logoutHandler}>Cerrar sesión</Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>

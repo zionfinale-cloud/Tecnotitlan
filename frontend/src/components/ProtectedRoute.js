@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 // Importación directa del componente de carga
 import LoadingSpinner from './LoadingSpinner'; 
+import { canAccessAdminPanel } from '../utils/permissions';
 
 /**
  * Componente de Ruta Protegida.
@@ -27,7 +28,7 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 
     // 3. Verificación de Administrador (si se requiere)
     // Asumimos que 'access:admin_panel' es el permiso requerido.
-    const canAccessAdmin = user.permissions?.includes('access:admin_panel');
+    const canAccessAdmin = canAccessAdminPanel(user);
 
     if (adminOnly && !canAccessAdmin) {
         // Si no tiene el permiso de admin, lo enviamos al Home.

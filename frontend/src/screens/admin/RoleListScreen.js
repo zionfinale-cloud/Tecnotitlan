@@ -149,7 +149,8 @@ const RoleListScreen = () => {
         <div>
           <h1 className={styles.title}>Roles y permisos</h1>
           <p className={styles.subtitle}>
-            Define que puede ver cada equipo. Para vendedores no marques "Finanzas y costos".
+            Define que puede ver cada equipo. Un vendedor puede entrar al panel con permisos operativos,
+            pero no marques "Finanzas y costos" si no debe ver costos, inversiones o utilidad.
           </p>
         </div>
         <button className={styles.secondaryButton} type="button" onClick={startCreate}>
