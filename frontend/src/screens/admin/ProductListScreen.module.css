@@ -173,8 +173,83 @@
     margin-bottom: 1rem;
 }
 
+.permissionMatrix {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
+.permissionRow {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.9fr) 2fr;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    background: #f8fafc;
+}
+
+.permissionModule {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    color: #0f172a;
+}
+
+.permissionModule small {
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.permissionActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.permissionSwitch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    padding: 0.45rem 0.65rem;
+    background: #ffffff;
+    color: #334155;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.permissionSwitch input {
+    accent-color: #00d084;
+}
+
+.permissionSwitchOn {
+    border-color: #00d084;
+    background: #ecfdf5;
+    color: #065f46;
+}
+
+.permissionSwitchDanger.permissionSwitchOn {
+    border-color: #fb7185;
+    background: #fff1f2;
+    color: #9f1239;
+}
+
+.permissionSwitch:has(input:disabled) {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
 @media (max-width: 800px) {
     .formGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .permissionRow {
         grid-template-columns: 1fr;
     }
 }

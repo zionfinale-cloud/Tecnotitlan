@@ -53,6 +53,63 @@ const permissions = [
   { name: 'system:configure', description: 'Ver y modificar configuracion sensible del sistema' },
 ];
 
+const rolePermissionTemplates = {
+  ADMIN: [
+    'access:admin_panel',
+    'user:read',
+    'user:update',
+    'role:create',
+    'role:read',
+    'role:update',
+    'product:create',
+    'product:read',
+    'product:update',
+    'product:delete',
+    'category:create',
+    'category:read',
+    'category:update',
+    'category:delete',
+    'order:read',
+    'order:update',
+    'report:read',
+    'finance:read_costs',
+    'setting:read',
+    'setting:update',
+    'integration:read',
+    'integration:update',
+    'support:read',
+    'support:update',
+    'mail:read',
+    'mail:send',
+    'whatsapp:chat',
+  ],
+  SUPERVISOR: [
+    'access:admin_panel',
+    'product:read',
+    'product:update',
+    'category:read',
+    'order:read',
+    'order:update',
+    'support:read',
+    'support:update',
+    'mail:read',
+    'mail:send',
+    'whatsapp:chat',
+  ],
+  VENDEDOR: [
+    'access:admin_panel',
+    'product:read',
+    'category:read',
+    'order:read',
+    'order:update',
+    'support:read',
+    'support:update',
+    'mail:read',
+    'mail:send',
+    'whatsapp:chat',
+  ],
+};
+
 async function main() {
   console.log('Start seeding...');
 
@@ -99,6 +156,46 @@ async function main() {
     },
   });
   console.log('USER role is set up.');
+
+  console.log('Upserting operational roles...');
+  const permissionByName = new Map(createdPermissions.map((permission) => [permission.name, permission]));
+  const operationalRoles = [
+    {
+      name: 'ADMIN',
+      description: 'Administra operacion, catalogo, pedidos, inventario y costos sin acceso a configuracion sensible.',
+    },
+    {
+      name: 'SUPERVISOR',
+      description: 'Supervisa ventas, pedidos, inventario operativo y atencion sin ver costos por defecto.',
+    },
+    {
+      name: 'VENDEDOR',
+      description: 'Atiende clientes, pedidos, correo, WhatsApp y consulta inventario sin ver costos.',
+    },
+  ];
+
+  for (const role of operationalRoles) {
+    const rolePermissions = (rolePermissionTemplates[role.name] || [])
+      .map((permissionName) => permissionByName.get(permissionName))
+      .filter(Boolean);
+
+    await prisma.role.upsert({
+      where: { name: role.name },
+      update: {
+        description: role.description,
+        permissions: {
+          set: rolePermissions.map((permission) => ({ id: permission.id })),
+        },
+      },
+      create: {
+        ...role,
+        permissions: {
+          connect: rolePermissions.map((permission) => ({ id: permission.id })),
+        },
+      },
+    });
+  }
+  console.log('Operational roles are set up.');
 
   // 4. Crear el usuario SUPER_ADMIN
   const adminEmail = process.env.ADMIN_EMAIL;
