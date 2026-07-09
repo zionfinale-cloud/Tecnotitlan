@@ -60,10 +60,31 @@ const TecatlAdminScreen = () => {
     }
   };
 
+  const loadConversationsSilent = async () => {
+    try {
+      const { data } = await api.get('/admin/tecatl/conversations');
+      setConversations(data.data.conversations || []);
+      if (selectedConversation?.id) {
+        const detailResp = await api.get(`/admin/tecatl/conversations/${selectedConversation.id}`);
+        setSelectedConversation(detailResp.data.data.conversation);
+      }
+    } catch (err) {
+      console.error('Error al actualizar conversaciones de forma silenciosa:', err);
+    }
+  };
+
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadConversationsSilent();
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversation?.id]);
 
   const openConversation = async (conversation) => {
     setError('');

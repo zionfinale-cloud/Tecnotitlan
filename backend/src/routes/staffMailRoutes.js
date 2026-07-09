@@ -5,6 +5,7 @@ import {
   getInboxMessage,
   getInboxMessages,
   sendStaffMessage,
+  deleteMailMessage,
 } from '../controllers/staffMailController.js';
 
 const router = express.Router();
@@ -24,6 +25,7 @@ router.use(staffMailLimiter);
 
 router.post('/messages', getInboxMessages);
 router.post('/messages/:uid', getInboxMessage);
+router.post('/messages/:uid/delete', deleteMailMessage);
 router.post('/send', sendStaffMessage);
 router.post('/tickets', createTicketFromMail);
 

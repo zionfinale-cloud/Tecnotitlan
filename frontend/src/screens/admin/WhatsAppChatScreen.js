@@ -28,6 +28,11 @@ const WhatsAppChatScreen = () => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef(null);
+  const selectedChatRef = useRef(null);
+
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+  }, [selectedChat]);
 
   const loadChats = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -58,11 +63,14 @@ const WhatsAppChatScreen = () => {
     loadChats();
     const timer = window.setInterval(() => {
       loadChats({ silent: true });
-      if (selectedChat?.jid) loadMessages(selectedChat);
-    }, 10000);
+      const currentChat = selectedChatRef.current;
+      if (currentChat?.jid) {
+        loadMessages(currentChat);
+      }
+    }, 3000);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChat?.jid]);
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

@@ -15,8 +15,8 @@ const ProductListScreen = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const loadProducts = async () => {
-    setLoading(true);
+  const loadProducts = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const { data } = await api.get('/products', {
@@ -30,12 +30,16 @@ const ProductListScreen = () => {
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudieron cargar los productos.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadProducts();
+    const interval = setInterval(() => {
+      loadProducts({ silent: true });
+    }, 20000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArchived]);
 

@@ -243,8 +243,8 @@ const RoleListScreen = () => {
 
   const isLockedRole = lockedRoleNames.includes(form.name);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const [rolesResponse, permissionsResponse] = await Promise.all([
@@ -254,14 +254,18 @@ const RoleListScreen = () => {
       setRoles(rolesResponse.data.data.roles || []);
       setPermissions(permissionsResponse.data.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'No se pudieron cargar roles y permisos.');
+      if (!silent) setError(err.response?.data?.message || 'No se pudieron cargar roles y permisos.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(() => {
+      loadData({ silent: true });
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const startCreate = () => {

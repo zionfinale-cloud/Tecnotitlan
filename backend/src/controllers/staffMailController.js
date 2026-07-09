@@ -5,6 +5,7 @@ import {
   getMessage,
   listMessages,
   sendMessage,
+  deleteMessage,
   validateCredentials,
 } from '../services/staffMailService.js';
 
@@ -87,9 +88,22 @@ const createTicketFromMail = asyncHandler(async (req, res, next) => {
   res.status(201).json({ status: 'success', data: { ticket } });
 });
 
+const deleteMailMessage = asyncHandler(async (req, res, next) => {
+  const { email, password, mailbox } = req.body;
+  const { uid } = req.params;
+
+  try {
+    const result = await deleteMessage({ email, password, uid, mailbox });
+    res.json({ status: 'success', data: result });
+  } catch (error) {
+    return next(new BadRequestError(error.message || 'No se pudo eliminar el correo.'));
+  }
+});
+
 export {
   createTicketFromMail,
   getInboxMessage,
   getInboxMessages,
   sendStaffMessage,
+  deleteMailMessage,
 };

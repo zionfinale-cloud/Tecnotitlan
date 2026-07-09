@@ -11,20 +11,24 @@ const UserListScreen = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data } = await api.get('/users');
       setUsers(data.data.users);
-      setLoading(false);
     } catch (err) {
-      setError(err.response?.data?.message || err.message);
-      setLoading(false);
+      if (!silent) setError(err.response?.data?.message || err.message);
+    } finally {
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchUsers();
+    const interval = setInterval(() => {
+      fetchUsers({ silent: true });
+    }, 20000);
+    return () => clearInterval(interval);
   }, []);
 
   const deleteHandler = async (id) => {

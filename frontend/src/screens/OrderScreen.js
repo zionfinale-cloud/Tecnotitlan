@@ -43,10 +43,24 @@ const OrderScreen = () => {
   const [order, setOrder] = useState(null);
   const [error, setError] = useState('');
 
+  const loadOrder = async ({ silent = false } = {}) => {
+    try {
+      const { data } = await api.get(`/orders/${id}`);
+      setOrder(data.data.order);
+    } catch (err) {
+      if (!silent) {
+        setError('No pudimos cargar este pedido.');
+      }
+    }
+  };
+
   useEffect(() => {
-    api.get(`/orders/${id}`)
-      .then(({ data }) => setOrder(data.data.order))
-      .catch(() => setError('No pudimos cargar este pedido.'));
+    loadOrder();
+    const interval = setInterval(() => {
+      loadOrder({ silent: true });
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (error) return <Container className={styles.page}><div className={styles.notice}>{error}</div></Container>;

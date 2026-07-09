@@ -567,3 +567,23 @@
     border-bottom: 1px solid #e2e8f0;
   }
 }
+
+.dangerButton {
+  padding: 0 1rem;
+  background: #fecdd3;
+  color: #be123c;
+  border: 0;
+  border-radius: 999px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.dangerButton:hover {
+  background: #ffe4e6;
+}

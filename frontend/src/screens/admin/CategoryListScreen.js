@@ -19,21 +19,25 @@ const CategoryListScreen = () => {
 
   const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
 
-  const loadCategories = async () => {
-    setLoading(true);
+  const loadCategories = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const { data } = await api.get('/categories');
       setCategories(data.data.categories || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'No se pudieron cargar las categorías.');
+      if (!silent) setError(err.response?.data?.message || 'No se pudieron cargar las categorías.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadCategories();
+    const interval = setInterval(() => {
+      loadCategories({ silent: true });
+    }, 20000);
+    return () => clearInterval(interval);
   }, []);
 
   const resetForm = () => {

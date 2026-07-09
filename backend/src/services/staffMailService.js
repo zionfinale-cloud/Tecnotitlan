@@ -163,7 +163,7 @@ const getMessage = async ({ email, password, uid, mailbox = 'INBOX' }) => {
   }
 };
 
-const sendMessage = async ({ email, password, to, subject, text, html, inReplyTo }) => {
+const sendMessage = async ({ email, password, to, cc, bcc, subject, text, html, inReplyTo }) => {
   const credentials = validateCredentials({ email, password });
   if (!to?.trim() || !subject?.trim() || !text?.trim()) {
     throw new Error('Destinatario, asunto y mensaje son obligatorios.');
@@ -184,6 +184,8 @@ const sendMessage = async ({ email, password, to, subject, text, html, inReplyTo
   const mail = {
     from: `"Tecnotitlan" <${credentials.email}>`,
     to,
+    cc: cc?.trim() || undefined,
+    bcc: bcc?.trim() || undefined,
     subject,
     text,
     html,
@@ -198,19 +200,29 @@ const sendMessage = async ({ email, password, to, subject, text, html, inReplyTo
   const imapClient = await connectImap(credentials);
   try {
     const sentFolder = await resolveMailbox(imapClient, 'SENT');
-    const rawMessage = [
+    const rawMessageHeaders = [
       `From: "Tecnotitlan" <${credentials.email}>`,
       `To: ${to}`,
+    ];
+    if (cc?.trim()) rawMessageHeaders.push(`Cc: ${cc.trim()}`);
+    if (bcc?.trim()) rawMessageHeaders.push(`Bcc: ${bcc.trim()}`);
+    rawMessageHeaders.push(
       `Subject: ${subject}`,
       `Date: ${sentAt.toUTCString()}`,
-      `Message-ID: ${messageId}`,
-      inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
-      inReplyTo ? `References: ${inReplyTo}` : null,
+      `Message-ID: ${messageId}`
+    );
+    if (inReplyTo) {
+      rawMessageHeaders.push(`In-Reply-To: ${inReplyTo}`);
+      rawMessageHeaders.push(`References: ${inReplyTo}`);
+    }
+    rawMessageHeaders.push(
       'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=utf-8',
       '',
-      text,
-    ].filter(Boolean).join('\r\n');
+      text
+    );
+
+    const rawMessage = rawMessageHeaders.filter(Boolean).join('\r\n');
 
     await imapClient.append(sentFolder, Buffer.from(rawMessage, 'utf8'), ['\\Seen'], sentAt);
   } catch (error) {
@@ -222,11 +234,41 @@ const sendMessage = async ({ email, password, to, subject, text, html, inReplyTo
   return result;
 };
 
+const deleteMessage = async ({ email, password, uid, mailbox }) => {
+  const client = await connectImap({ email, password });
+  try {
+    const currentMailboxPath = await resolveMailbox(client, mailbox);
+    await client.mailboxOpen(currentMailboxPath);
+
+    // Si ya estamos en papelera, eliminar permanentemente
+    if (mailbox === 'TRASH') {
+      await client.messageFlagsAdd(String(uid), ['\\Deleted'], { uid: true });
+      await client.expunge();
+      return { success: true, deletedPermanently: true };
+    }
+
+    // De lo contrario, mover a la carpeta Trash
+    const trashFolder = await resolveMailbox(client, 'TRASH');
+    if (trashFolder && trashFolder !== currentMailboxPath) {
+      await client.messageMove(String(uid), trashFolder, { uid: true });
+      return { success: true, movedToTrash: true };
+    } else {
+      // Fallback: eliminar permanentemente si no hay papelera disponible
+      await client.messageFlagsAdd(String(uid), ['\\Deleted'], { uid: true });
+      await client.expunge();
+      return { success: true, deletedPermanently: true };
+    }
+  } finally {
+    await client.logout().catch(() => {});
+  }
+};
+
 export {
   MAIL_DOMAIN,
   MAIL_HOST,
   listMessages,
   getMessage,
   sendMessage,
+  deleteMessage,
   validateCredentials,
 };

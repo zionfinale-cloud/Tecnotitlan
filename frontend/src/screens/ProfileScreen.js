@@ -21,12 +21,26 @@ const ProfileScreen = () => {
   const [ordersError, setOrdersError] = useState('');
   const navigate = useNavigate();
 
+  const fetchMyOrders = async ({ silent = false } = {}) => {
+    if (!silent) setLoadingOrders(true);
+    try {
+      const { data } = await api.get('/orders/myorders');
+      setOrders(data.data.orders || []);
+    } catch (err) {
+      if (!silent) setOrdersError('No pudimos consultar tus pedidos en este momento.');
+    } finally {
+      if (!silent) setLoadingOrders(false);
+    }
+  };
+
   useEffect(() => {
     if (!userInfo) return;
-    api.get('/orders/myorders')
-      .then(({ data }) => setOrders(data.data.orders || []))
-      .catch(() => setOrdersError('No pudimos consultar tus pedidos en este momento.'))
-      .finally(() => setLoadingOrders(false));
+    fetchMyOrders();
+    const interval = setInterval(() => {
+      fetchMyOrders({ silent: true });
+    }, 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userInfo]);
 
   if (!userInfo) return null;

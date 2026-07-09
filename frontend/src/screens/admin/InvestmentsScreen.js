@@ -32,8 +32,8 @@ const InvestmentsScreen = () => {
     [investments]
   );
 
-  const loadInvestments = async () => {
-    setLoading(true);
+  const loadInvestments = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const { data } = await api.get('/inventory/investments');
@@ -41,12 +41,16 @@ const InvestmentsScreen = () => {
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudieron cargar las inversiones.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadInvestments();
+    const interval = setInterval(() => {
+      loadInvestments({ silent: true });
+    }, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const createInvestment = async (event) => {

@@ -49,8 +49,8 @@ const OrderListScreen = () => {
     return orders.filter((order) => order.status === statusFilter);
   }, [orders, statusFilter]);
 
-  const loadOrders = async () => {
-    setLoading(true);
+  const loadOrders = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const { data } = await api.get('/orders');
@@ -58,12 +58,16 @@ const OrderListScreen = () => {
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudieron cargar los pedidos.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadOrders();
+    const interval = setInterval(() => {
+      loadOrders({ silent: true });
+    }, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const updateOrder = async (orderId, payload, message) => {

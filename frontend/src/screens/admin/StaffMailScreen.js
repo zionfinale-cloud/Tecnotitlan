@@ -71,10 +71,12 @@ const StaffMailScreen = () => {
   const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [replyCc, setReplyCc] = useState('');
+  const [replyBcc, setReplyBcc] = useState('');
   const [search, setSearch] = useState('');
   const [activeFolder, setActiveFolder] = useState('INBOX');
   const [composeOpen, setComposeOpen] = useState(false);
-  const [composeForm, setComposeForm] = useState({ to: '', subject: '', text: '' });
+  const [composeForm, setComposeForm] = useState({ to: '', cc: '', bcc: '', subject: '', text: '' });
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [reading, setReading] = useState(false);
@@ -199,7 +201,7 @@ const StaffMailScreen = () => {
 
   useEffect(() => {
     if (!canConnect || messages.length === 0) return undefined;
-    const timer = window.setInterval(() => loadMailbox({ silent: true, mailbox: activeFolder }), 60000);
+    const timer = window.setInterval(() => loadMailbox({ silent: true, mailbox: activeFolder }), 10000);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canConnect, messages.length, notificationsEnabled, activeFolder]);
@@ -233,7 +235,7 @@ const StaffMailScreen = () => {
     }
   };
 
-  const sendMail = async ({ to, subject, text, inReplyTo }) => {
+  const sendMail = async ({ to, cc, bcc, subject, text, inReplyTo }) => {
     setSending(true);
     setError('');
     setSuccess('');
@@ -241,6 +243,8 @@ const StaffMailScreen = () => {
       const { data } = await api.post('/staff-mail/send', {
         ...credentials,
         to,
+        cc: cc || undefined,
+        bcc: bcc || undefined,
         subject,
         text,
         inReplyTo,
@@ -264,21 +268,52 @@ const StaffMailScreen = () => {
     if (!selectedMessage) return;
     const ok = await sendMail({
       to: firstAddress(selectedMessage.from),
+      cc: replyCc,
+      bcc: replyBcc,
       subject: selectedMessage.subject.startsWith('Re:')
         ? selectedMessage.subject
         : `Re: ${selectedMessage.subject}`,
       text: replyText,
       inReplyTo: selectedMessage.messageId,
     });
-    if (ok) setReplyText('');
+    if (ok) {
+      setReplyText('');
+      setReplyCc('');
+      setReplyBcc('');
+    }
   };
 
   const sendCompose = async (event) => {
     event.preventDefault();
     const ok = await sendMail(composeForm);
     if (ok) {
-      setComposeForm({ to: '', subject: '', text: '' });
+      setComposeForm({ to: '', cc: '', bcc: '', subject: '', text: '' });
       setComposeOpen(false);
+    }
+  };
+
+  const deleteSelectedMessage = async () => {
+    if (!selectedMessage) return;
+    const confirmMsg = activeFolder === 'TRASH' 
+      ? '¿Eliminar permanentemente este correo?' 
+      : '¿Mover este correo a la papelera?';
+    if (!window.confirm(confirmMsg)) return;
+
+    setSending(true);
+    setError('');
+    setSuccess('');
+    try {
+      await api.post(`/staff-mail/messages/${selectedMessage.uid}/delete`, {
+        ...credentials,
+        mailbox: activeFolder,
+      });
+      showSuccess(activeFolder === 'TRASH' ? 'Correo eliminado permanentemente.' : 'Correo movido a la papelera.');
+      setSelectedMessage(null);
+      await loadMailbox({ mailbox: activeFolder });
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo eliminar el correo.');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -336,6 +371,9 @@ const StaffMailScreen = () => {
             <button className={mailStyles.softButton} type="button" onClick={createTicket}>
               <i className="fas fa-ticket-alt"></i> Crear ticket
             </button>
+            <button className={mailStyles.dangerButton} type="button" onClick={deleteSelectedMessage} disabled={sending}>
+              <i className="fas fa-trash-alt"></i> {activeFolder === 'TRASH' ? 'Eliminar permanente' : 'Borrar'}
+            </button>
             <a className={mailStyles.softButton} href={`mailto:${firstAddress(selectedMessage.from)}`}>
               <i className="fas fa-external-link-alt"></i> Abrir externo
             </a>
@@ -362,6 +400,20 @@ const StaffMailScreen = () => {
         )}
 
         <form className={mailStyles.replyBox} onSubmit={sendReply}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <input
+              style={{ border: '1px solid #dbe5ef', borderRadius: '0.8rem', padding: '0.5rem', color: '#0f172a', fontSize: '0.85rem', outline: 0 }}
+              value={replyCc}
+              onChange={(event) => setReplyCc(event.target.value)}
+              placeholder="Cc (con copia)"
+            />
+            <input
+              style={{ border: '1px solid #dbe5ef', borderRadius: '0.8rem', padding: '0.5rem', color: '#0f172a', fontSize: '0.85rem', outline: 0 }}
+              value={replyBcc}
+              onChange={(event) => setReplyBcc(event.target.value)}
+              placeholder="Bcc (copia oculta)"
+            />
+          </div>
           <textarea
             value={replyText}
             onChange={(event) => setReplyText(event.target.value)}
@@ -550,6 +602,20 @@ const StaffMailScreen = () => {
                 <datalist id="staff-mail-contacts">
                   {contacts.map((contact) => <option key={contact} value={contact} />)}
                 </datalist>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <input
+                    className={mailStyles.composeInput}
+                    value={composeForm.cc}
+                    onChange={(event) => setComposeForm((current) => ({ ...current, cc: event.target.value }))}
+                    placeholder="Cc (con copia)"
+                  />
+                  <input
+                    className={mailStyles.composeInput}
+                    value={composeForm.bcc}
+                    onChange={(event) => setComposeForm((current) => ({ ...current, bcc: event.target.value }))}
+                    placeholder="Bcc (copia oculta)"
+                  />
+                </div>
                 <input
                   className={mailStyles.composeInput}
                   value={composeForm.subject}

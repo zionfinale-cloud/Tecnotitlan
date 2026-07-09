@@ -6,6 +6,9 @@ const getRelevantKnowledge = async (intent, message) => {
   const categoryByIntent = {
     garantia_devolucion: 'garantias',
     envio_tiempo: 'envios',
+    metodo_pago: 'pagos',
+    informacion_tienda: 'tienda',
+    facturacion: 'facturacion',
   };
 
   const where = {
@@ -17,7 +20,10 @@ const getRelevantKnowledge = async (intent, message) => {
     where.OR.push({ category: categoryByIntent[intent] });
   }
 
-  const possibleTags = ['garantia', 'devolucion', 'envio', 'guia', 'rastreo', 'compatibilidad'];
+  const possibleTags = [
+    'garantia', 'devolucion', 'envio', 'guia', 'rastreo', 
+    'compatibilidad', 'pago', 'pagar', 'tienda', 'factura', 'facturacion'
+  ];
   const tags = possibleTags.filter((tag) => normalized.includes(tag));
   if (tags.length) {
     where.OR.push({ tags: { hasSome: tags } });

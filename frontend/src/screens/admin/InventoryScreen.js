@@ -72,8 +72,8 @@ const InventoryScreen = () => {
     [products]
   );
 
-  const loadInventory = async () => {
-    setLoading(true);
+  const loadInventory = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const [productsResponse, overviewResponse, movementsResponse] = await Promise.all([
@@ -100,12 +100,16 @@ const InventoryScreen = () => {
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo cargar el inventario.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadInventory();
+    const interval = setInterval(() => {
+      loadInventory({ silent: true });
+    }, 15000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCosts]);
 

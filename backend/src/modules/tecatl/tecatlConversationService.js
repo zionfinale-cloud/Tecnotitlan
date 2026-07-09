@@ -107,9 +107,20 @@ const buildTemplateReply = async ({ intent, message, profile, conversationId }) 
 
   if (intent === 'consultar_pedido') return findOrderAnswer(message);
 
-  if (intent === 'garantia_devolucion' || intent === 'envio_tiempo') {
+  if (['garantia_devolucion', 'envio_tiempo', 'metodo_pago', 'informacion_tienda', 'facturacion'].includes(intent)) {
     const articles = await getRelevantKnowledge(intent, message);
     if (articles.length) return articles.map((article) => article.content).join('\n\n');
+
+    // Respuestas locales por defecto si no existen artículos en la base de datos
+    if (intent === 'metodo_pago') {
+      return 'Aceptamos varios metodos de pago en Tecnotitlan: Tarjetas de credito/debito (via Stripe), PayPal, transferencia electronica SPEI y pagos en efectivo en tiendas OXXO. ¿Con cual prefieres pagar?';
+    }
+    if (intent === 'informacion_tienda') {
+      return 'Somos una tienda 100% online, lo que nos permite ofrecerte mejores precios y envios rapidos y seguros a todo Mexico. No contamos con sucursal fisica para compras en persona.';
+    }
+    if (intent === 'facturacion') {
+      return '¡Claro que si! Facturamos todas tus compras. Una vez completado tu pedido, envianos tus datos fiscales (RFC, Razon Social, Regimen y Uso de CFDI) junto con tu correo y te la haremos llegar.';
+    }
   }
 
   if (intent === 'hablar_humano') {
