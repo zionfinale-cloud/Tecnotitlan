@@ -1,4 +1,4 @@
-import 'dotenv/config'; // Carga las variables de entorno inmediatamente, antes de otros imports
+import './config/env.js'; // Carga .env con override antes de inicializar Prisma/config.
 
 import path from 'path';
 import express from 'express';
@@ -131,12 +131,13 @@ app.use(express.json());
     // --- Seguridad: Rate Limiting ---
     const authLimiter = rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutos
-      max: 10, // Limita cada IP a 10 peticiones de login/registro por ventana de tiempo
+      max: 30, // Da margen para pruebas reales sin dejar abierto el login a fuerza bruta.
       standardHeaders: true,
       legacyHeaders: false,
+      skipSuccessfulRequests: true,
       message: {
         status: 'error',
-        message: 'Demasiadas peticiones desde esta IP, por favor intente de nuevo después de 15 minutos.',
+        message: 'Demasiados intentos de acceso desde esta IP. Espera 15 minutos o intenta desde otra red.',
       },
       skip: (req, res) => process.env.NODE_ENV === 'test',
     });
