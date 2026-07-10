@@ -1,18 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import api from '../../services/apiService';
 import styles from './ProductListScreen.module.css';
+import { permissionMatrix } from './RoleListScreen';
 
 const UserEditScreen = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [roles, setRoles] = useState([]);
+  const [permissions, setPermissions] = useState([]);
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
     secondLastName: '',
     email: '',
     roleId: '',
+    permissionGrantIds: [],
+    permissionDenyIds: [],
   });
   const [userMeta, setUserMeta] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,9 +28,10 @@ const UserEditScreen = () => {
       setLoading(true);
       setError('');
       try {
-        const [userResponse, rolesResponse] = await Promise.all([
+        const [userResponse, rolesResponse, permissionsResponse] = await Promise.all([
           api.get(`/users/${id}`),
           api.get('/roles'),
+          api.get('/roles/permissions'),
         ]);
         const user = userResponse.data.data.user;
         setForm({
@@ -36,9 +40,12 @@ const UserEditScreen = () => {
           secondLastName: user.secondLastName || '',
           email: user.email || '',
           roleId: user.roleId || user.role?.id || '',
+          permissionGrantIds: user.permissionGrantIds || [],
+          permissionDenyIds: user.permissionDenyIds || [],
         });
         setUserMeta(user);
         setRoles(rolesResponse.data.data.roles || []);
+        setPermissions(permissionsResponse.data.data || []);
       } catch (err) {
         setError(err.response?.data?.message || 'No se pudo cargar el usuario.');
       } finally {
@@ -55,14 +62,121 @@ const UserEditScreen = () => {
     setError('');
     setSuccess('');
     try {
-      await api.put(`/users/${id}`, form);
+      const { data } = await api.put(`/users/${id}`, form);
+      if (data.data?.user) {
+        setUserMeta(data.data.user);
+        setForm((current) => ({
+          ...current,
+          permissionGrantIds: data.data.user.permissionGrantIds || current.permissionGrantIds,
+          permissionDenyIds: data.data.user.permissionDenyIds || current.permissionDenyIds,
+        }));
+      }
       setSuccess('Usuario actualizado.');
-      window.setTimeout(() => navigate('/admin/userlist'), 700);
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo actualizar el usuario.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const selectedRole = useMemo(
+    () => roles.find((role) => role.id === form.roleId),
+    [form.roleId, roles]
+  );
+
+  const permissionByName = useMemo(
+    () => new Map(permissions.map((permission) => [permission.name, permission])),
+    [permissions]
+  );
+
+  const matrixPermissionNames = useMemo(
+    () => new Set(permissionMatrix.flatMap((row) => row.actions.map((action) => action.permission))),
+    []
+  );
+
+  const advancedPermissions = useMemo(
+    () => permissions.filter((permission) => !matrixPermissionNames.has(permission.name)),
+    [matrixPermissionNames, permissions]
+  );
+
+  const rolePermissionIds = useMemo(
+    () => new Set((selectedRole?.permissions || []).map((permission) => permission.id)),
+    [selectedRole]
+  );
+
+  const grantIds = useMemo(() => new Set(form.permissionGrantIds), [form.permissionGrantIds]);
+  const denyIds = useMemo(() => new Set(form.permissionDenyIds), [form.permissionDenyIds]);
+  const isSuperAdminTarget = selectedRole?.name === 'SUPER_ADMIN' || userMeta?.role?.name === 'SUPER_ADMIN';
+
+  const setPermissionMode = (permissionId, mode) => {
+    if (!permissionId || isSuperAdminTarget) return;
+
+    setForm((current) => {
+      const nextGrants = new Set(current.permissionGrantIds);
+      const nextDenies = new Set(current.permissionDenyIds);
+      nextGrants.delete(permissionId);
+      nextDenies.delete(permissionId);
+
+      if (mode === 'grant') nextGrants.add(permissionId);
+      if (mode === 'deny') nextDenies.add(permissionId);
+
+      return {
+        ...current,
+        permissionGrantIds: Array.from(nextGrants),
+        permissionDenyIds: Array.from(nextDenies),
+      };
+    });
+  };
+
+  const getPermissionMode = (permissionId) => {
+    if (denyIds.has(permissionId)) return 'deny';
+    if (grantIds.has(permissionId)) return 'grant';
+    return 'inherit';
+  };
+
+  const isEffectiveAllowed = (permissionId) => {
+    const mode = getPermissionMode(permissionId);
+    if (mode === 'deny') return false;
+    if (mode === 'grant') return true;
+    return rolePermissionIds.has(permissionId);
+  };
+
+  const renderPermissionControls = (permission, danger = false) => {
+    if (!permission) return <span className={styles.muted}>No existe</span>;
+    const mode = getPermissionMode(permission.id);
+    const effective = isEffectiveAllowed(permission.id);
+
+    return (
+      <div className={styles.overrideGroup} title={permission.description || permission.name}>
+        <button
+          type="button"
+          className={`${styles.overrideButton} ${mode === 'inherit' ? styles.overrideActive : ''}`}
+          onClick={() => setPermissionMode(permission.id, 'inherit')}
+          disabled={isSuperAdminTarget}
+        >
+          Rol: {rolePermissionIds.has(permission.id) ? 'Si' : 'No'}
+        </button>
+        <button
+          type="button"
+          className={`${styles.overrideButton} ${styles.overrideAllow} ${mode === 'grant' ? styles.overrideActive : ''}`}
+          onClick={() => setPermissionMode(permission.id, 'grant')}
+          disabled={isSuperAdminTarget}
+        >
+          Permitir
+        </button>
+        <button
+          type="button"
+          className={`${styles.overrideButton} ${styles.overrideDeny} ${mode === 'deny' ? styles.overrideActive : ''} ${danger ? styles.overrideDanger : ''}`}
+          onClick={() => setPermissionMode(permission.id, 'deny')}
+          disabled={isSuperAdminTarget}
+        >
+          Bloquear
+        </button>
+        <span className={`${styles.permissionResult} ${effective ? styles.permissionAllowed : styles.permissionBlocked}`}>
+          {effective ? 'Activo' : 'Sin acceso'}
+        </span>
+      </div>
+    );
   };
 
   if (loading) {
@@ -75,7 +189,7 @@ const UserEditScreen = () => {
         <div>
           <h1 className={styles.title}>Editar usuario</h1>
           <p className={styles.subtitle}>
-            Asigna el rol correcto. Un vendedor no debe tener "finance:read_costs".
+            Asigna el rol base y ajusta permisos individuales cuando una persona necesite mas o menos acceso.
           </p>
         </div>
         <Link className={styles.secondaryButton} to="/admin/userlist">Volver</Link>
@@ -149,9 +263,60 @@ const UserEditScreen = () => {
                 ))}
               </select>
               <small className={styles.muted}>
-                Para crear un vendedor: ve a Roles, crea VENDEDOR y marca solo productos/pedidos/canales/WhatsApp segun necesites.
+                El rol es la base. Abajo puedes permitir o bloquear permisos solo para este usuario.
               </small>
             </div>
+          </div>
+
+          <div className={styles.permissionMatrix}>
+            <div className={styles.placeholderBox} style={{ textAlign: 'left', color: '#0f172a', marginTop: 0 }}>
+              <strong>Permisos individuales</strong>
+              <p className={styles.placeholderText}>
+                "Rol" respeta lo que tiene el rol base. "Permitir" agrega acceso a esta persona. "Bloquear" le quita acceso aunque el rol lo tenga.
+              </p>
+              {isSuperAdminTarget && (
+                <p className={styles.placeholderText}>
+                  Los usuarios SUPER_ADMIN siempre tienen acceso completo y no aceptan bloqueos individuales para evitar perder el control del sistema.
+                </p>
+              )}
+            </div>
+
+            {permissionMatrix.map((row) => (
+              <div key={row.module} className={styles.permissionRow}>
+                <div className={styles.permissionModule}>
+                  <strong>{row.module}</strong>
+                  <small>{row.description}</small>
+                </div>
+                <div className={styles.permissionActions}>
+                  {row.actions.map((action) => {
+                    const permission = permissionByName.get(action.permission);
+                    return (
+                      <div key={action.permission} className={styles.permissionOverrideItem}>
+                        <span className={action.danger ? styles.dangerText : ''}>{action.label}</span>
+                        {renderPermissionControls(permission, action.danger)}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {advancedPermissions.length > 0 && (
+              <div className={styles.permissionRow}>
+                <div className={styles.permissionModule}>
+                  <strong>Permisos avanzados</strong>
+                  <small>Permisos nuevos o tecnicos que no estan en la matriz principal.</small>
+                </div>
+                <div className={styles.permissionActions}>
+                  {advancedPermissions.map((permission) => (
+                    <div key={permission.id} className={styles.permissionOverrideItem}>
+                      <span>{permission.name}</span>
+                      {renderPermissionControls(permission)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className={styles.actions}>

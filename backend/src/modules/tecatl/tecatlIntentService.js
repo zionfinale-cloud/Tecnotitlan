@@ -101,6 +101,15 @@ const intentRules = [
       'xml', 'pdf de factura', 'mi factura', 'requiero factura'
     ],
     priority: 5,
+  },
+  {
+    intent: 'mayoreo',
+    terms: [
+      'mayoreo', 'por mayoreo', 'precio de mayoreo', 'distribuidor',
+      'revender', 'lote', 'cantidad', 'cotizacion', 'cotizar',
+      '30 piezas', '50 piezas', '100 piezas'
+    ],
+    priority: 7,
   }
 ];
 

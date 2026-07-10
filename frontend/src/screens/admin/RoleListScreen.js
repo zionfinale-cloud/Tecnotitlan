@@ -78,7 +78,7 @@ const rolePresets = {
   ],
 };
 
-const permissionMatrix = [
+export const permissionMatrix = [
   {
     module: 'Acceso al panel',
     description: 'Permite entrar al dashboard de trabajo.',

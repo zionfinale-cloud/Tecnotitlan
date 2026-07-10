@@ -5,9 +5,9 @@ import { buildProductRecommendationText, searchProductsForMessage } from './teca
 
 const defaultProfile = {
   name: 'Tecatl',
-  avatarUrl: '/images/logo2.png',
-  welcomeMessage: 'Hola. Soy Tecatl, asesor de Tecnotitlan. Estoy aqui para ayudarte a elegir el producto correcto, revisar pedidos o resolver cualquier duda.',
-  fallbackMessage: 'No quiero inventarte informacion. Te paso con un asesor humano para revisarlo bien.',
+  avatarUrl: '/images/tecatl-bot.png',
+  welcomeMessage: 'Hola, soy Tecatl, el asistente de Tecnotitlan. Te ayudo a elegir productos, revisar pedidos, formas de pago, envios o garantias. Si algo requiere ojo humano, se lo paso al equipo.',
+  fallbackMessage: 'No quiero inventarte informacion. Ya deje esta conversacion lista para que un asesor humano la revise y te responda bien.',
   isActive: true,
 };
 
@@ -95,6 +95,11 @@ const createHandoff = async (conversationId, reason) => {
 const buildTemplateReply = async ({ intent, message, profile, conversationId }) => {
   if (intent === 'saludo') return profile.welcomeMessage;
 
+  if (intent === 'mayoreo') {
+    await createHandoff(conversationId, 'Cliente pregunto por mayoreo');
+    return 'Si buscas precio por mayoreo, dime producto, cantidad aproximada y ciudad de envio. Lo paso al equipo para cotizarte con margen real y disponibilidad.';
+  }
+
   if (['buscar_producto', 'recomendar_producto', 'comparar_productos'].includes(intent)) {
     const products = await searchProductsForMessage(message);
     return buildProductRecommendationText(products);
@@ -113,7 +118,7 @@ const buildTemplateReply = async ({ intent, message, profile, conversationId }) 
 
     // Respuestas locales por defecto si no existen artículos en la base de datos
     if (intent === 'metodo_pago') {
-      return 'Aceptamos varios metodos de pago en Tecnotitlan: Tarjetas de credito/debito (via Stripe), PayPal, transferencia electronica SPEI y pagos en efectivo en tiendas OXXO. ¿Con cual prefieres pagar?';
+      return 'Puedes pagar con tarjeta de credito o debito, transferencia SPEI, Mercado Libre o WhatsApp si necesitas coordinar algo especial. Tecnotitlan no guarda datos de tarjeta.';
     }
     if (intent === 'informacion_tienda') {
       return 'Somos una tienda 100% online, lo que nos permite ofrecerte mejores precios y envios rapidos y seguros a todo Mexico. No contamos con sucursal fisica para compras en persona.';
@@ -128,6 +133,7 @@ const buildTemplateReply = async ({ intent, message, profile, conversationId }) 
     return 'Claro, te paso con un asesor humano. Mientras tanto dejo registrada tu solicitud para que el equipo le de seguimiento.';
   }
 
+  await createHandoff(conversationId, 'Tecatl no encontro respuesta confiable');
   return profile.fallbackMessage;
 };
 

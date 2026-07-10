@@ -3,6 +3,7 @@ import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js';
 import { UnauthorizedError } from '../utils/errorUtils.js';
 import logger from '../utils/logger.js';
+import { applyEffectivePermissionsToUser } from '../utils/permissionUtils.js';
 
 const authenticate = async (req) => {
   const authorization = req.headers.authorization;
@@ -20,18 +21,24 @@ const authenticate = async (req) => {
         select: {
           id: true,
           name: true,
-          permissions: { select: { name: true } },
+          permissions: { select: { id: true, name: true, description: true } },
         },
+      },
+      permissionGrants: {
+        include: { permission: { select: { id: true, name: true, description: true } } },
+      },
+      permissionDenies: {
+        include: { permission: { select: { id: true, name: true, description: true } } },
       },
     },
   });
 
   if (!user) throw new UnauthorizedError('Usuario no encontrado.');
 
-  req.user = {
+  req.user = applyEffectivePermissionsToUser({
     ...user,
     name: `${user.firstName} ${user.lastName}`.trim(),
-  };
+  });
   return true;
 };
 

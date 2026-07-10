@@ -7,6 +7,7 @@ const STORAGE_KEY = 'tecnotitlan_tecatl_conversation_id';
 const quickMessages = [
   'Busco audifonos',
   'Quiero revisar mi pedido',
+  'Quiero precio por mayoreo',
   'Tengo duda de garantia',
 ];
 
@@ -75,7 +76,7 @@ const TecatlChatWidget = () => {
       {open && (
         <section className={styles.panel} aria-label="Chat de Tecatl">
           <header className={styles.header}>
-            <div className={styles.avatar}>T</div>
+            <img className={styles.avatar} src="/images/tecatl-bot.png" alt="Tecatl" />
             <div>
               <strong>Tecatl</strong>
               <span>Asesor de Tecnotitlan</span>
@@ -124,7 +125,7 @@ const TecatlChatWidget = () => {
 
       <button className={styles.bubble} type="button" onClick={() => setOpen((current) => !current)}>
         <span className={styles.pulse}></span>
-        <i className="fas fa-comments"></i>
+        <img className={styles.bubbleAvatar} src="/images/tecatl-bot.png" alt="" aria-hidden="true" />
         <span>Asistente</span>
       </button>
     </div>

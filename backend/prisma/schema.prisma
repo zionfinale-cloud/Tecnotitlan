@@ -15,35 +15,37 @@ datasource db {
 // --- MODELOS DE LA APLICACIÓN ---
 
 model User {
-  id                String          @id @default(cuid())
-  customerNumber    String?         @unique @map("customer_number")
-  firstName         String          @map("first_name")
-  lastName          String          @map("last_name")
-  secondLastName    String?         @map("second_last_name")
-  email             String          @unique
-  password          String
-  countryCode       String?         @map("country_code")
-  phone             String?
-  street            String?
-  neighborhood      String?
-  city              String?
-  state             String?
-  postalCode        String?         @map("postal_code")
-  isVerified        Boolean         @default(false) @map("is_verified")
-  verificationToken String?         @map("verification_token")
-  role              Role            @relation(fields: [roleId], references: [id])
-  roleId            String
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id                   String                @id @default(cuid())
+  customerNumber       String?               @unique @map("customer_number")
+  firstName            String                @map("first_name")
+  lastName             String                @map("last_name")
+  secondLastName       String?               @map("second_last_name")
+  email                String                @unique
+  password             String
+  countryCode          String?               @map("country_code")
+  phone                String?
+  street               String?
+  neighborhood         String?
+  city                 String?
+  state                String?
+  postalCode           String?               @map("postal_code")
+  isVerified           Boolean               @default(false) @map("is_verified")
+  verificationToken    String?               @map("verification_token")
+  role                 Role                  @relation(fields: [roleId], references: [id])
+  roleId               String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
   // Relaciones
-  products          Product[]
-  orders            Order[]
-  reviews           Review[]
-  supportTickets    SupportTicket[]
+  products             Product[]
+  orders               Order[]
+  reviews              Review[]
+  supportTickets       SupportTicket[]
   inventoryInvestments InventoryInvestment[]
   inventoryMovements   InventoryMovement[]
-  tecatlConversations   ChatConversation[]
-  tecatlHandoffs        ConversationHandoff[] @relation("TecatlHandoffAssignee")
+  tecatlConversations  ChatConversation[]
+  tecatlHandoffs       ConversationHandoff[] @relation("TecatlHandoffAssignee")
+  permissionGrants     UserPermissionGrant[]
+  permissionDenies     UserPermissionDeny[]
 
   @@map("users")
 }
@@ -61,87 +63,113 @@ model Role {
 }
 
 model Permission {
-  id          String   @id @default(cuid())
-  name        String   @unique // e.g., product:create, order:read
+  id          String                @id @default(cuid())
+  name        String                @unique // e.g., product:create, order:read
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
   roles       Role[]
+  userGrants  UserPermissionGrant[]
+  userDenies  UserPermissionDeny[]
 
   @@map("permissions")
 }
 
+model UserPermissionGrant {
+  userId       String     @map("user_id")
+  permissionId String     @map("permission_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@index([permissionId])
+  @@map("user_permission_grants")
+}
+
+model UserPermissionDeny {
+  userId       String     @map("user_id")
+  permissionId String     @map("permission_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@index([permissionId])
+  @@map("user_permission_denies")
+}
+
 model Product {
-  id                 String           @id @default(cuid())
-  sku                String           @unique
-  name               String
-  description        String           @db.Text
-  price              Float
-  costPrice          Float?           @default(0)
-  brand              String?
-  countInStock       Int              @default(0)
-  productType        ProductType      @default(IN_HOUSE)
-  supplierInfo       String?
-  shippingPayer      ShippingPayer    @default(CUSTOMER) @map("shipping_payer")
-  shippingCostEstimate Float?         @default(0) @map("shipping_cost_estimate")
-  weightKg           Float?           @map("weight_kg")
-  lengthCm           Float?           @map("length_cm")
-  widthCm            Float?           @map("width_cm")
-  heightCm           Float?           @map("height_cm")
-  isArchived         Boolean          @default(false)
-  rating             Float            @default(0)
-  numReviews         Int              @default(0)
-  meliItemId         String?          @unique
-  meliPublicationUrl String?
-  youtubeUrl         String?          @db.Text
-  lastMeliSync       DateTime?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                   String               @id @default(cuid())
+  sku                  String               @unique
+  name                 String
+  description          String               @db.Text
+  price                Float
+  costPrice            Float?               @default(0)
+  brand                String?
+  countInStock         Int                  @default(0)
+  productType          ProductType          @default(IN_HOUSE)
+  supplierInfo         String?
+  shippingPayer        ShippingPayer        @default(CUSTOMER) @map("shipping_payer")
+  shippingCostEstimate Float?               @default(0) @map("shipping_cost_estimate")
+  weightKg             Float?               @map("weight_kg")
+  lengthCm             Float?               @map("length_cm")
+  widthCm              Float?               @map("width_cm")
+  heightCm             Float?               @map("height_cm")
+  isArchived           Boolean              @default(false)
+  rating               Float                @default(0)
+  numReviews           Int                  @default(0)
+  meliItemId           String?              @unique
+  meliPublicationUrl   String?
+  youtubeUrl           String?              @db.Text
+  lastMeliSync         DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
   // Relaciones
-  user               User             @relation(fields: [userId], references: [id])
-  userId             String
-  category           Category         @relation(fields: [categoryId], references: [id])
-  categoryId         String
-  media              Media[]
-  characteristics    Characteristic[]
-  reviews            Review[]
-  orderItems         OrderItem[]
-  inventoryMovements InventoryMovement[]
-  marketplaceListings MarketplaceListing[]
+  user                 User                 @relation(fields: [userId], references: [id])
+  userId               String
+  category             Category             @relation(fields: [categoryId], references: [id])
+  categoryId           String
+  media                Media[]
+  characteristics      Characteristic[]
+  reviews              Review[]
+  orderItems           OrderItem[]
+  inventoryMovements   InventoryMovement[]
+  marketplaceListings  MarketplaceListing[]
 
   @@map("products")
 }
 
 model AssistantProfile {
-  id             String   @id @default(cuid())
-  storeId        String   @default("default") @map("store_id")
-  name           String   @default("Tecatl")
-  avatarUrl      String?  @db.Text @map("avatar_url")
-  tone           String   @default("amable, mexicano neutro, breve, confiable")
-  welcomeMessage String   @db.Text @map("welcome_message")
-  fallbackMessage String  @db.Text @map("fallback_message")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  storeId         String   @default("default") @map("store_id")
+  name            String   @default("Tecatl")
+  avatarUrl       String?  @map("avatar_url") @db.Text
+  tone            String   @default("amable, mexicano neutro, breve, confiable")
+  welcomeMessage  String   @map("welcome_message") @db.Text
+  fallbackMessage String   @map("fallback_message") @db.Text
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@unique([storeId])
   @@map("assistant_profiles")
 }
 
 model ChatConversation {
-  id             String                  @id @default(cuid())
-  storeId        String                  @default("default") @map("store_id")
+  id             String                 @id @default(cuid())
+  storeId        String                 @default("default") @map("store_id")
   channel        ChatChannel
-  customer       User?                   @relation(fields: [customerId], references: [id])
-  customerId     String?                 @map("customer_id")
-  externalUserId String?                 @map("external_user_id")
-  customerName   String?                 @map("customer_name")
-  customerEmail  String?                 @map("customer_email")
-  status         ChatConversationStatus  @default(OPEN)
+  customer       User?                  @relation(fields: [customerId], references: [id])
+  customerId     String?                @map("customer_id")
+  externalUserId String?                @map("external_user_id")
+  customerName   String?                @map("customer_name")
+  customerEmail  String?                @map("customer_email")
+  status         ChatConversationStatus @default(OPEN)
   intent         String?
-  lastMessageAt  DateTime?               @map("last_message_at")
-  createdAt      DateTime                @default(now()) @map("created_at")
-  updatedAt      DateTime                @updatedAt @map("updated_at")
+  lastMessageAt  DateTime?              @map("last_message_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
   messages       ChatMessage[]
   handoffs       ConversationHandoff[]
 
@@ -180,15 +208,15 @@ model KnowledgeArticle {
 }
 
 model ConversationHandoff {
-  id             String                @id @default(cuid())
-  conversation   ChatConversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  conversationId String                @map("conversation_id")
-  reason         String                @db.Text
+  id             String                    @id @default(cuid())
+  conversation   ChatConversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String                    @map("conversation_id")
+  reason         String                    @db.Text
   status         ConversationHandoffStatus @default(OPEN)
-  assignedUser   User?                 @relation("TecatlHandoffAssignee", fields: [assignedTo], references: [id])
-  assignedTo     String?               @map("assigned_to")
-  createdAt      DateTime              @default(now()) @map("created_at")
-  resolvedAt     DateTime?             @map("resolved_at")
+  assignedUser   User?                     @relation("TecatlHandoffAssignee", fields: [assignedTo], references: [id])
+  assignedTo     String?                   @map("assigned_to")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  resolvedAt     DateTime?                 @map("resolved_at")
 
   @@index([status, createdAt])
   @@map("conversation_handoffs")
@@ -284,26 +312,26 @@ model InventoryInvestment {
 }
 
 model InventoryMovement {
-  id             String                @id @default(cuid())
-  type           InventoryMovementType
-  quantity       Int
-  unitCost       Float                 @default(0) @map("unit_cost")
-  unitPrice      Float?                @map("unit_price")
-  totalCost      Float                 @default(0) @map("total_cost")
-  totalRevenue   Float?                @map("total_revenue")
-  channel        SalesChannel?         @map("channel")
-  stockBefore    Int                   @map("stock_before")
-  stockAfter     Int                   @map("stock_after")
-  referenceType  String?               @map("reference_type")
-  referenceId    String?               @map("reference_id")
-  notes          String?               @db.Text
-  createdAt      DateTime              @default(now()) @map("created_at")
-  product        Product               @relation(fields: [productId], references: [id])
-  productId      String                @map("product_id")
-  investment     InventoryInvestment?  @relation(fields: [investmentId], references: [id])
-  investmentId   String?               @map("investment_id")
-  createdBy      User?                 @relation(fields: [createdById], references: [id])
-  createdById    String?               @map("created_by_id")
+  id            String                @id @default(cuid())
+  type          InventoryMovementType
+  quantity      Int
+  unitCost      Float                 @default(0) @map("unit_cost")
+  unitPrice     Float?                @map("unit_price")
+  totalCost     Float                 @default(0) @map("total_cost")
+  totalRevenue  Float?                @map("total_revenue")
+  channel       SalesChannel?         @map("channel")
+  stockBefore   Int                   @map("stock_before")
+  stockAfter    Int                   @map("stock_after")
+  referenceType String?               @map("reference_type")
+  referenceId   String?               @map("reference_id")
+  notes         String?               @db.Text
+  createdAt     DateTime              @default(now()) @map("created_at")
+  product       Product               @relation(fields: [productId], references: [id])
+  productId     String                @map("product_id")
+  investment    InventoryInvestment?  @relation(fields: [investmentId], references: [id])
+  investmentId  String?               @map("investment_id")
+  createdBy     User?                 @relation(fields: [createdById], references: [id])
+  createdById   String?               @map("created_by_id")
 
   @@index([productId, createdAt])
   @@index([type, createdAt])
@@ -396,9 +424,9 @@ model TikTokShopIntegration {
   sellerName            String?   @map("seller_name")
   sellerId              String?   @map("seller_id")
   shopName              String?   @map("shop_name")
-  shopCipher            String?   @db.Text @map("shop_cipher")
-  accessToken           String    @db.Text @map("access_token")
-  refreshToken          String?   @db.Text @map("refresh_token")
+  shopCipher            String?   @map("shop_cipher") @db.Text
+  accessToken           String    @map("access_token") @db.Text
+  refreshToken          String?   @map("refresh_token") @db.Text
   accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
   refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
   connectedBy           String?   @map("connected_by")
@@ -411,18 +439,18 @@ model TikTokShopIntegration {
 }
 
 model TikTokShopWebhookEvent {
-  id          String   @id @default(cuid())
-  eventType   String?  @map("event_type")
+  id          String    @id @default(cuid())
+  eventType   String?   @map("event_type")
   category    String?
-  shopId      String?  @map("shop_id")
-  shopCipher  String?  @db.Text @map("shop_cipher")
-  messageId   String?  @unique @map("message_id")
-  status      String   @default("RECEIVED")
+  shopId      String?   @map("shop_id")
+  shopCipher  String?   @map("shop_cipher") @db.Text
+  messageId   String?   @unique @map("message_id")
+  status      String    @default("RECEIVED")
   payload     Json
   headers     Json?
-  receivedAt  DateTime @default(now()) @map("received_at")
+  receivedAt  DateTime  @default(now()) @map("received_at")
   processedAt DateTime? @map("processed_at")
-  error       String?  @db.Text
+  error       String?   @db.Text
 
   @@index([eventType, receivedAt])
   @@index([shopId])
@@ -494,36 +522,36 @@ model SupportTicket {
 }
 
 model WhatsAppChat {
-  id             String            @id @default(cuid())
-  jid            String            @unique
-  phone          String?
-  name           String?
-  lastMessage    String?           @db.Text @map("last_message")
-  unreadCount    Int               @default(0) @map("unread_count")
-  lastMessageAt  DateTime?         @map("last_message_at")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
-  messages       WhatsAppMessage[]
+  id            String            @id @default(cuid())
+  jid           String            @unique
+  phone         String?
+  name          String?
+  lastMessage   String?           @map("last_message") @db.Text
+  unreadCount   Int               @default(0) @map("unread_count")
+  lastMessageAt DateTime?         @map("last_message_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  messages      WhatsAppMessage[]
 
   @@index([lastMessageAt])
   @@map("whatsapp_chats")
 }
 
 model WhatsAppMessage {
-  id          String       @id @default(cuid())
-  messageId   String?      @unique @map("message_id")
-  direction   String
-  fromMe      Boolean      @default(false) @map("from_me")
-  text        String       @db.Text
-  mediaUrl    String?      @db.Text @map("media_url")
-  mediaType   String?      @map("media_type")
-  mediaMimeType String?    @map("media_mime_type")
-  fileName    String?      @map("file_name")
-  status      String       @default("RECEIVED")
-  sentBy      String?      @map("sent_by")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  chat        WhatsAppChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  chatId      String       @map("chat_id")
+  id            String       @id @default(cuid())
+  messageId     String?      @unique @map("message_id")
+  direction     String
+  fromMe        Boolean      @default(false) @map("from_me")
+  text          String       @db.Text
+  mediaUrl      String?      @map("media_url") @db.Text
+  mediaType     String?      @map("media_type")
+  mediaMimeType String?      @map("media_mime_type")
+  fileName      String?      @map("file_name")
+  status        String       @default("RECEIVED")
+  sentBy        String?      @map("sent_by")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  chat          WhatsAppChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chatId        String       @map("chat_id")
 
   @@index([chatId, createdAt])
   @@map("whatsapp_messages")

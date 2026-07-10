@@ -244,6 +244,80 @@
     cursor: not-allowed;
 }
 
+.permissionOverrideItem {
+    flex: 1 1 320px;
+    display: grid;
+    gap: 0.45rem;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.85rem;
+    background: #ffffff;
+    color: #0f172a;
+}
+
+.overrideGroup {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.overrideButton {
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 800;
+    padding: 0.4rem 0.58rem;
+}
+
+.overrideButton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.overrideActive {
+    border-color: #0f172a;
+    background: #0f172a;
+    color: #ffffff;
+}
+
+.overrideAllow.overrideActive {
+    border-color: #00d084;
+    background: #ecfdf5;
+    color: #065f46;
+}
+
+.overrideDeny.overrideActive,
+.overrideDanger.overrideActive {
+    border-color: #fb7185;
+    background: #fff1f2;
+    color: #9f1239;
+}
+
+.permissionResult {
+    margin-left: auto;
+    border-radius: 999px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.permissionAllowed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.permissionBlocked {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.dangerText {
+    color: #9f1239;
+}
+
 @media (max-width: 800px) {
     .formGrid {
         grid-template-columns: 1fr;

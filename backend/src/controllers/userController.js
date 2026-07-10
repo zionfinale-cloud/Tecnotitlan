@@ -7,6 +7,7 @@ import prisma from '../config/prisma.js'; // Importar la instancia única de Pri
 import { AppError, BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/errorUtils.js';
 import { verifyCaptcha } from '../services/captchaService.js';
 import { sendVerificationEmail } from '../services/emailService.js';
+import { getPermissionOverrideNames, toAuthUserPayload, userPermissionInclude } from '../utils/permissionUtils.js';
 
 // Función para generar un token JWT
 const generateToken = (id) => {
@@ -16,6 +17,29 @@ const generateToken = (id) => {
 };
 
 const generateVerificationToken = () => crypto.randomBytes(32).toString('hex');
+
+const normalizeIdList = (value) => {
+  if (!Array.isArray(value)) return undefined;
+  return Array.from(new Set(value.filter((id) => typeof id === 'string' && id.trim()).map((id) => id.trim())));
+};
+
+const serializeAdminUser = (user) => ({
+  id: user.id,
+  customerNumber: user.customerNumber,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  secondLastName: user.secondLastName,
+  email: user.email,
+  phone: user.phone,
+  roleId: user.roleId,
+  role: user.role,
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+  isVerified: user.isVerified,
+  permissionGrantIds: (user.permissionGrants || []).map((override) => override.permissionId),
+  permissionDenyIds: (user.permissionDenies || []).map((override) => override.permissionId),
+  permissionOverrides: getPermissionOverrideNames(user),
+});
 
 const getNextCustomerNumber = async (tx) => {
   const counter = await tx.counter.upsert({
@@ -251,11 +275,7 @@ const loginUser = asyncHandler(async (req, res, next) => {
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
     // Incluir el rol y los permisos asociados a ese rol
-    include: {
-      role: {
-        include: { permissions: { select: { name: true } } },
-      },
-    },
+    include: userPermissionInclude,
   });
 
   // 1.5 Verificar si el usuario ha confirmado su correo
@@ -271,13 +291,7 @@ const loginUser = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     status: 'success',
     data: {
-      id: user.id,
-      customerNumber: user.customerNumber,
-      name: `${user.firstName} ${user.lastName}`,
-      email: user.email,
-      phone: user.phone,
-      role: user.role.name, // Devolver el nombre del rol
-      permissions: user.role.permissions.map(p => p.name), // Devolver la lista de nombres de permisos
+      ...toAuthUserPayload(user),
       token: generateToken(user.id),
     },
   });
@@ -358,21 +372,13 @@ const updateUserProfile = asyncHandler(async (req, res, next) => {
     where: { id: req.user.id },
     data: dataToUpdate,
     // Incluir el rol y los permisos para devolver un objeto userInfo completo
-    include: {
-      role: { include: { permissions: { select: { name: true } } } },
-    },
+    include: userPermissionInclude,
   });
 
     res.status(200).json({
       status: 'success',
       data: {
-        id: updatedUser.id,
-        customerNumber: updatedUser.customerNumber,
-        name: `${updatedUser.firstName} ${updatedUser.lastName}`,
-        email: updatedUser.email,
-        phone: updatedUser.phone,
-        role: updatedUser.role.name,
-        permissions: updatedUser.role.permissions.map(p => p.name), // Devolver la lista de permisos
+        ...toAuthUserPayload(updatedUser),
         token: generateToken(updatedUser.id), // Re-generar token
       },
     });
@@ -386,10 +392,13 @@ const updateUserProfile = asyncHandler(async (req, res, next) => {
 const getUsers = asyncHandler(async (req, res) => {
   const users = await prisma.user.findMany({
     include: {
-      role: { select: { name: true } }
+      role: { select: { id: true, name: true, description: true } },
+      permissionGrants: { select: { permissionId: true } },
+      permissionDenies: { select: { permissionId: true } },
     },
+    orderBy: [{ createdAt: 'desc' }],
   });
-  res.status(200).json({ status: 'success', data: { users } });
+  res.status(200).json({ status: 'success', data: { users: users.map(serializeAdminUser) } });
 });
 
 // @desc    Get user by ID
@@ -398,19 +407,10 @@ const getUsers = asyncHandler(async (req, res) => {
 const getUserById = asyncHandler(async (req, res, next) => {
   const user = await prisma.user.findUnique({
     where: { id: req.params.id },
-    include: {
-      role: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          permissions: { select: { id: true, name: true, description: true } },
-        },
-      },
-    },
+    include: userPermissionInclude,
   });
   if (user) {
-    res.status(200).json({ status: 'success', data: { user } });
+    res.status(200).json({ status: 'success', data: { user: serializeAdminUser(user) } });
   } else {
     return next(new NotFoundError('Usuario no encontrado'));
   }
@@ -422,7 +422,7 @@ const getUserById = asyncHandler(async (req, res, next) => {
 const updateUser = asyncHandler(async (req, res, next) => {
   const user = await prisma.user.findUnique({
     where: { id: req.params.id },
-    include: { role: true },
+    include: userPermissionInclude,
   });
 
   if (user) {
@@ -432,6 +432,8 @@ const updateUser = asyncHandler(async (req, res, next) => {
       secondLastName: req.body.secondLastName || user.secondLastName,
       email: req.body.email ? req.body.email.toLowerCase() : user.email,
     };
+
+    const nextRoleId = req.body.roleId || user.roleId;
 
     if (req.body.roleId && req.body.roleId !== user.roleId) {
       if (req.params.id === req.user.id && user.role.name === 'SUPER_ADMIN') {
@@ -450,23 +452,48 @@ const updateUser = asyncHandler(async (req, res, next) => {
       dataToUpdate.roleId = req.body.roleId;
     }
 
+    const permissionGrantIds = normalizeIdList(req.body.permissionGrantIds);
+    const permissionDenyIds = normalizeIdList(req.body.permissionDenyIds);
+
+    if (permissionGrantIds || permissionDenyIds) {
+      if (req.params.id === req.user.id) {
+        throw new BadRequestError('No puedes editar tus propios permisos individuales.');
+      }
+
+      const roleForOverrides = req.body.roleId && req.body.roleId !== user.roleId
+        ? await prisma.role.findUnique({ where: { id: nextRoleId } })
+        : user.role;
+
+      if (roleForOverrides?.name === 'SUPER_ADMIN') {
+        throw new BadRequestError('Los permisos individuales no aplican a usuarios SUPER_ADMIN.');
+      }
+    }
+
+    if (permissionGrantIds) {
+      dataToUpdate.permissionGrants = {
+        deleteMany: {},
+        create: permissionGrantIds
+          .filter((permissionId) => !permissionDenyIds?.includes(permissionId))
+          .map((permissionId) => ({ permissionId })),
+      };
+    }
+
+    if (permissionDenyIds) {
+      dataToUpdate.permissionDenies = {
+        deleteMany: {},
+        create: permissionDenyIds.map((permissionId) => ({ permissionId })),
+      };
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id: req.params.id },
       data: dataToUpdate,
-      include: { role: { include: { permissions: { select: { name: true } } } } },
+      include: userPermissionInclude,
     });
 
     res.status(200).json({
       status: 'success',
-      data: {
-        id: updatedUser.id,
-        customerNumber: updatedUser.customerNumber,
-        name: `${updatedUser.firstName} ${updatedUser.lastName}`,
-        email: updatedUser.email,
-        role: updatedUser.role.name,
-        roleId: updatedUser.roleId,
-        permissions: updatedUser.role.permissions.map((permission) => permission.name),
-      },
+      data: { user: serializeAdminUser(updatedUser), authUser: toAuthUserPayload(updatedUser) },
     });
   } else {
     return next(new NotFoundError('Usuario no encontrado'));
