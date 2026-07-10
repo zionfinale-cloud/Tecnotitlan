@@ -53,6 +53,10 @@ const LoginScreen = () => {
                                 onChange={(event) => setEmail(event.target.value)}
                                 className={styles.input}
                                 autoComplete="email"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                inputMode="email"
                                 required
                             />
                         </Form.Group>
@@ -67,6 +71,9 @@ const LoginScreen = () => {
                                     onChange={(event) => setPassword(event.target.value)}
                                     className={styles.input}
                                     autoComplete="current-password"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
                                     required
                                 />
                                 <button

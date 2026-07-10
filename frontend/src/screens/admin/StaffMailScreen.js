@@ -68,6 +68,7 @@ const StaffMailScreen = () => {
   const suggestedEmail = userInfo?.email?.endsWith(`@${MAIL_DOMAIN}`) ? userInfo.email : '';
   const [emailInput, setEmailInput] = useState(suggestedEmail);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [replyText, setReplyText] = useState('');
@@ -452,24 +453,42 @@ const StaffMailScreen = () => {
             <label>
               Correo de la empresa
               <input
+                type="email"
                 value={emailInput}
                 onChange={(event) => setEmailInput(event.target.value)}
                 placeholder="usuario@tecnotitlan.com.mx"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                inputMode="email"
                 required
               />
             </label>
 
             <label>
               Contrasena del correo
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="No se guarda en Tecnotitlan"
-                autoComplete="current-password"
-                required
-              />
+              <div className={mailStyles.passwordField}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="No se guarda en Tecnotitlan"
+                  autoComplete="current-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  required
+                />
+                <button
+                  type="button"
+                  className={mailStyles.passwordToggle}
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                >
+                  <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                </button>
+              </div>
             </label>
 
             {!isCorporateEmail && emailInput.trim() && (

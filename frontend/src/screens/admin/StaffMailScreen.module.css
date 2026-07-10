@@ -64,6 +64,34 @@
   box-shadow: 0 0 0 4px rgba(0, 208, 132, 0.14);
 }
 
+.passwordField {
+  position: relative;
+}
+
+.passwordField input {
+  width: 100%;
+  padding-right: 3rem;
+}
+
+.passwordToggle {
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.passwordToggle:hover {
+  background: #d1fae5;
+  color: #047857;
+}
+
 .loginWarning {
   color: #be123c;
   font-weight: 700;

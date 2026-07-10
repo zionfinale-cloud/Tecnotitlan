@@ -115,6 +115,10 @@ const RegisterFormContent = () => {
                                 onChange={(event) => setEmail(event.target.value)}
                                 className={styles.input}
                                 autoComplete="email"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                inputMode="email"
                                 required
                             />
                         </Form.Group>
@@ -129,6 +133,9 @@ const RegisterFormContent = () => {
                                     onChange={(event) => setPassword(event.target.value)}
                                     className={styles.input}
                                     autoComplete="new-password"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
                                     minLength={8}
                                     required
                                 />
@@ -153,6 +160,9 @@ const RegisterFormContent = () => {
                                     onChange={(event) => setConfirmPassword(event.target.value)}
                                     className={`${styles.input} ${passwordsDoNotMatch ? styles.inputError : ''}`}
                                     autoComplete="new-password"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
                                     minLength={8}
                                     required
                                 />
