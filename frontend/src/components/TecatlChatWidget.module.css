@@ -48,6 +48,7 @@
   box-shadow: 0 28px 80px rgba(2, 6, 23, .42);
   display: grid;
   grid-template-rows: auto 1fr auto auto;
+  min-height: 0;
 }
 
 .header {
@@ -91,6 +92,8 @@
 .messages {
   padding: 1rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: .65rem;

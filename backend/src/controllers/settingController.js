@@ -38,6 +38,7 @@ const SENSITIVE_SETTING_DEFINITIONS = [
     { key: 'SUPPORT_EMAIL', label: 'Correo de soporte', type: 'string' },
     { key: 'ADMIN_WHATSAPP_NUMBER', label: 'WhatsApp administrador', type: 'string' },
     { key: 'WHATSAPP_AUTH_DIR', label: 'Carpeta persistente WhatsApp', type: 'string' },
+    { key: 'WHATSAPP_AUTO_CONNECT', label: 'WhatsApp auto conectar al iniciar', type: 'string' },
     { key: 'N8N_ORDER_WEBHOOK_URL', label: 'Webhook n8n pedidos', type: 'password' },
     { key: 'N8N_SUPPORT_WEBHOOK_URL', label: 'Webhook n8n soporte', type: 'password' },
     { key: 'STRIPE_SECRET_KEY', label: 'Stripe secret key', type: 'password' },

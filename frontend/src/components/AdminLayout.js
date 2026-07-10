@@ -6,21 +6,41 @@ import { AuthContext } from '../context/AuthContext';
 import api from '../services/apiService';
 import { hasPermission, isSuperAdmin as checkIsSuperAdmin } from '../utils/permissions';
 
-const navLinks = [
-    { to: '/admin/dashboard', icon: 'fa-tachometer-alt', text: 'Dashboard' },
-    { to: '/admin/productlist', icon: 'fa-box-open', text: 'Productos', permission: 'product:read' },
-    { to: '/admin/investments', icon: 'fa-wallet', text: 'Inversiones', permission: 'finance:read_costs' },
-    { to: '/admin/inventory', icon: 'fa-warehouse', text: 'Inventario', permission: 'product:read' },
-    { to: '/admin/channels', icon: 'fa-store', text: 'Canales', permission: 'product:read' },
-    { to: '/admin/orderlist', icon: 'fa-shipping-fast', text: 'Pedidos', permission: 'order:read' },
-    { to: '/mail', icon: 'fa-envelope', text: 'Correo', anyPermission: ['mail:read', 'mail:send'] },
-    { to: '/admin/whatsapp-chat', icon: 'fa-comments', text: 'WhatsApp', anyPermission: ['whatsapp:chat', 'support:update'] },
-    { to: '/admin/tecatl', icon: 'fa-robot', text: 'Tecatl', anyPermission: ['tecatl:read', 'tecatl:reply', 'tecatl:knowledge'] },
-    { to: '/admin/userlist', icon: 'fa-users', text: 'Usuarios', permission: 'user:read' },
-    { to: '/admin/categorylist', icon: 'fa-list-alt', text: 'Categorias', permission: 'category:read' },
-    { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles', permission: 'role:read' },
-    { to: '/admin/support', icon: 'fa-headset', text: 'Soporte', permission: 'support:read' },
-    { to: '/admin/settings', icon: 'fa-cogs', text: 'Configuracion', superAdminOnly: true },
+const navGroups = [
+    {
+        label: 'Ventas',
+        links: [
+            { to: '/admin/dashboard', icon: 'fa-tachometer-alt', text: 'Dashboard' },
+            { to: '/admin/orderlist', icon: 'fa-shipping-fast', text: 'Pedidos', permission: 'order:read' },
+            { to: '/admin/channels', icon: 'fa-store', text: 'Canales', permission: 'product:read' },
+        ],
+    },
+    {
+        label: 'Catalogo',
+        links: [
+            { to: '/admin/productlist', icon: 'fa-box-open', text: 'Productos', permission: 'product:read' },
+            { to: '/admin/categorylist', icon: 'fa-list-alt', text: 'Categorias', permission: 'category:read' },
+            { to: '/admin/inventory', icon: 'fa-warehouse', text: 'Inventario', permission: 'product:read' },
+            { to: '/admin/investments', icon: 'fa-wallet', text: 'Inversiones', permission: 'finance:read_costs' },
+        ],
+    },
+    {
+        label: 'Atencion',
+        links: [
+            { to: '/admin/whatsapp-chat', icon: 'fa-comments', text: 'WhatsApp', anyPermission: ['whatsapp:chat', 'support:update'] },
+            { to: '/admin/tecatl', icon: 'fa-robot', text: 'Tecatl', anyPermission: ['tecatl:read', 'tecatl:reply', 'tecatl:knowledge'] },
+            { to: '/mail', icon: 'fa-envelope', text: 'Correo', anyPermission: ['mail:read', 'mail:send'] },
+            { to: '/admin/support', icon: 'fa-headset', text: 'Soporte', permission: 'support:read' },
+        ],
+    },
+    {
+        label: 'Administracion',
+        links: [
+            { to: '/admin/userlist', icon: 'fa-users', text: 'Usuarios', permission: 'user:read' },
+            { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles', permission: 'role:read' },
+            { to: '/admin/settings', icon: 'fa-cogs', text: 'Configuracion', superAdminOnly: true },
+        ],
+    },
 ];
 
 const playNotificationSound = () => {
@@ -62,12 +82,18 @@ const AdminLayout = () => {
         });
     };
 
-    const visibleLinks = navLinks.filter((item) => {
+    const canViewLink = (item) => {
         if (item.superAdminOnly && !isSuperAdmin) return false;
         if (item.permission && !hasPermission(userInfo, item.permission)) return false;
         if (item.anyPermission && !item.anyPermission.some((permission) => hasPermission(userInfo, permission))) return false;
         return true;
-    });
+    };
+
+    const visibleGroups = navGroups
+        .map((group) => ({ ...group, links: group.links.filter(canViewLink) }))
+        .filter((group) => group.links.length > 0);
+
+    const visibleLinks = visibleGroups.flatMap((group) => group.links);
 
     const canPollWhatsApp = visibleLinks.some((item) => item.to === '/admin/whatsapp-chat');
 
@@ -139,25 +165,32 @@ const AdminLayout = () => {
 
                 <nav>
                     <ul className={styles.nav}>
-                        {visibleLinks.map((item) => (
-                            <li key={item.to} className={styles.navItem}>
-                                {item.href ? (
-                                    <a
-                                        href={item.href}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className={styles.navLink}
-                                    >
-                                        {renderLinkContent(item)}
-                                    </a>
-                                ) : (
-                                    <NavLink
-                                        to={item.to}
-                                        className={({ isActive }) => `${styles.navLink} ${isActive ? styles.activeLink : ''}`}
-                                    >
-                                        {renderLinkContent(item)}
-                                    </NavLink>
-                                )}
+                        {visibleGroups.map((group) => (
+                            <li key={group.label} className={styles.navGroup}>
+                                <span className={styles.navGroupLabel}>{group.label}</span>
+                                <ul className={styles.navGroupList}>
+                                    {group.links.map((item) => (
+                                        <li key={item.to} className={styles.navItem}>
+                                            {item.href ? (
+                                                <a
+                                                    href={item.href}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className={styles.navLink}
+                                                >
+                                                    {renderLinkContent(item)}
+                                                </a>
+                                            ) : (
+                                                <NavLink
+                                                    to={item.to}
+                                                    className={({ isActive }) => `${styles.navLink} ${isActive ? styles.activeLink : ''}`}
+                                                >
+                                                    {renderLinkContent(item)}
+                                                </NavLink>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
                             </li>
                         ))}
                     </ul>

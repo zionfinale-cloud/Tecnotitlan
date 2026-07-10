@@ -13,7 +13,7 @@ const normalizeTags = (tags) => (Array.isArray(tags) ? tags : String(tags || '')
   .filter(Boolean);
 
 const sendPublicMessage = asyncHandler(async (req, res, next) => {
-  const { message, conversationId, customerName, customerEmail } = req.body;
+  const { message, conversationId, customerName, customerEmail, externalUserId } = req.body;
   if (!message?.trim()) return next(new BadRequestError('Escribe un mensaje para Tecatl.'));
 
   const result = await handleIncomingMessage({
@@ -21,6 +21,7 @@ const sendPublicMessage = asyncHandler(async (req, res, next) => {
     conversationId,
     channel: 'WEB',
     customerId: req.user?.id,
+    externalUserId,
     customerName,
     customerEmail,
   });

@@ -24,7 +24,24 @@ const getOrCreateProfile = async () => prisma.assistantProfile.upsert({
 const getConversation = async ({ conversationId, channel = 'WEB', customerId, externalUserId, customerName, customerEmail }) => {
   if (conversationId) {
     const existing = await prisma.chatConversation.findUnique({ where: { id: conversationId } });
-    if (existing) return existing;
+    if (existing) {
+      if (customerId || externalUserId || customerName || customerEmail) {
+        const shouldReplaceExternalUser = externalUserId && (
+          !existing.externalUserId || existing.externalUserId.startsWith('guest:')
+        );
+
+        return prisma.chatConversation.update({
+          where: { id: existing.id },
+          data: {
+            customerId: existing.customerId || customerId || null,
+            externalUserId: shouldReplaceExternalUser ? externalUserId : existing.externalUserId,
+            customerName: customerName || existing.customerName,
+            customerEmail: customerEmail || existing.customerEmail,
+          },
+        });
+      }
+      return existing;
+    }
   }
 
   if (externalUserId) {

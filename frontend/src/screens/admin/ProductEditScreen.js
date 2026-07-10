@@ -18,6 +18,11 @@ const SKU_PREFIXES = [
   { value: 'GEN', label: 'GEN - General' },
 ];
 
+const normalizeSkuPrefix = (value) => String(value || '')
+  .replace(/[^a-zA-Z0-9]/g, '')
+  .slice(0, 3)
+  .toUpperCase();
+
 const emptyProduct = {
   name: '',
   description: '',
@@ -113,6 +118,10 @@ const ProductEditScreen = () => {
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateSkuPrefix = (value) => {
+    updateField('skuPrefix', normalizeSkuPrefix(value));
   };
 
   const updateCharacteristic = (index, field, value) => {
@@ -258,11 +267,26 @@ const ProductEditScreen = () => {
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="product-prefix">Prefijo SKU</label>
-              <select id="product-prefix" className={styles.select} value={form.skuPrefix} onChange={(event) => updateField('skuPrefix', event.target.value)} disabled={isEditing}>
+              <input
+                id="product-prefix"
+                className={styles.input}
+                list="sku-prefix-options"
+                value={form.skuPrefix}
+                onChange={(event) => updateSkuPrefix(event.target.value)}
+                minLength="2"
+                maxLength="3"
+                placeholder="AUR"
+                disabled={isEditing}
+                required
+              />
+              <datalist id="sku-prefix-options">
                 {SKU_PREFIXES.map((prefix) => (
                   <option key={prefix.value} value={prefix.value}>{prefix.label}</option>
                 ))}
-              </select>
+              </datalist>
+              <small className={styles.muted}>
+                Puedes escribir uno nuevo: AUR, BOC, DRN, PWB, etc. El sistema generara el consecutivo.
+              </small>
               {isEditing && <small className={styles.muted}>El SKU no se cambia despues de creado para no romper ventas.</small>}
             </div>
             <div className={styles.field}>

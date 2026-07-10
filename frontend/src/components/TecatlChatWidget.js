@@ -1,8 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AuthContext } from '../context/AuthContext';
 import api from '../services/apiService';
 import styles from './TecatlChatWidget.module.css';
 
 const STORAGE_KEY = 'tecnotitlan_tecatl_conversation_id';
+const GUEST_KEY = 'tecnotitlan_tecatl_guest_id';
 
 const quickMessages = [
   'Busco audifonos',
@@ -12,6 +14,7 @@ const quickMessages = [
 ];
 
 const TecatlChatWidget = () => {
+  const { userInfo } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     {
@@ -24,6 +27,25 @@ const TecatlChatWidget = () => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef(null);
+
+  const customerIdentity = useMemo(() => {
+    if (userInfo?.id || userInfo?.email) {
+      const displayName = userInfo.name || [userInfo.firstName, userInfo.lastName].filter(Boolean).join(' ');
+      return {
+        externalUserId: userInfo.id ? `customer:${userInfo.id}` : `email:${userInfo.email}`,
+        customerName: displayName || userInfo.email,
+        customerEmail: userInfo.email,
+      };
+    }
+
+    let guestId = localStorage.getItem(GUEST_KEY);
+    if (!guestId) {
+      guestId = `guest:${window.crypto?.randomUUID?.() || Date.now()}`;
+      localStorage.setItem(GUEST_KEY, guestId);
+    }
+
+    return { externalUserId: guestId };
+  }, [userInfo]);
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -48,6 +70,7 @@ const TecatlChatWidget = () => {
       const { data } = await api.post('/chat/tecatl/message', {
         conversationId,
         message: content,
+        ...customerIdentity,
       });
       if (data.data?.conversationId) localStorage.setItem(STORAGE_KEY, data.data.conversationId);
 
