@@ -8,7 +8,8 @@ import styles from './ProductListScreen.module.css';
 
 const SKU_PREFIXES = [
   { value: 'AUR', label: 'AUR - Auriculares / audio' },
-  { value: 'BOS', label: 'BOS - Bocinas' },
+  { value: 'BOC', label: 'BOC - Bocinas' },
+  { value: 'BOS', label: 'BOS - Bocinas (legacy)' },
   { value: 'DRN', label: 'DRN - Drones' },
   { value: 'WTC', label: 'WTC - Relojes / smartwatches' },
   { value: 'ENE', label: 'ENE - Energia / power banks' },
@@ -30,7 +31,7 @@ const emptyProduct = {
   costPrice: '',
   brand: '',
   categoryId: '',
-  skuPrefix: 'GEN',
+  skuPrefix: '',
   countInStock: 0,
   productType: 'IN_HOUSE',
   supplierInfo: '',
@@ -201,6 +202,10 @@ const ProductEditScreen = () => {
       characteristics: form.characteristics.filter((item) => item.key && item.value),
     };
 
+    if (!payload.skuPrefix) {
+      delete payload.skuPrefix;
+    }
+
     if (showCosts) {
       payload.costPrice = form.costPrice === '' ? undefined : Number(form.costPrice);
     }
@@ -275,9 +280,8 @@ const ProductEditScreen = () => {
                 onChange={(event) => updateSkuPrefix(event.target.value)}
                 minLength="2"
                 maxLength="3"
-                placeholder="AUR"
+                placeholder="Auto"
                 disabled={isEditing}
-                required
               />
               <datalist id="sku-prefix-options">
                 {SKU_PREFIXES.map((prefix) => (
@@ -285,7 +289,7 @@ const ProductEditScreen = () => {
                 ))}
               </datalist>
               <small className={styles.muted}>
-                Puedes escribir uno nuevo: AUR, BOC, DRN, PWB, etc. El sistema generara el consecutivo.
+                Puedes dejarlo vacio para inferirlo por categoria, o escribir uno nuevo: AUR, BOC, DRN, PWB, etc.
               </small>
               {isEditing && <small className={styles.muted}>El SKU no se cambia despues de creado para no romper ventas.</small>}
             </div>
