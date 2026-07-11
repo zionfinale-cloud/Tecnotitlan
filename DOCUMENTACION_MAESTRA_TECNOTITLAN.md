@@ -813,6 +813,27 @@ Reglas importantes:
 - Si Stripe webhook y frontend confirman el mismo pago, `orderInventoryService.js` evita duplicar movimientos `SALE`.
 - La pantalla de `Pedidos` es el centro operativo para confirmar pago, registrar guia, marcar entregado y corregir salidas pendientes.
 
+### Separacion de Inversion e Inventario
+
+- **Inversiones:** representan dinero disponible para operar. Una inversion puede iniciar con un monto, recibir entradas extra y registrar salidas de dinero como gastos operativos, imprevistos o retiros.
+- **Compras de inventario:** cuando se registra una entrada de mercancia ligada a una inversion, el monto de la compra reduce el disponible de esa inversion.
+- **Gastos operativos:** gasolina, empaques, comisiones, material de envio, herramientas o imprevistos se registran como movimientos de dinero en `Inversiones`, no como inventario.
+- **Inventario:** representa piezas fisicas y ubicacion. Debe responder: que tengo, donde esta, que se envio a canal, que se vendio y que falta reponer.
+- **Movimientos de inventario:** entradas, salidas por venta, transferencias a marketplaces y ajustes viven en `InventoryMovement`.
+- **Movimientos de dinero:** entradas extra, gastos operativos, imprevistos y salidas viven en `InvestmentCashMovement`.
+
+### Uso recomendado de n8n
+
+n8n debe implementarse despues de estabilizar el flujo humano base. Su primer uso recomendado no es modificar inventario automaticamente, sino avisar y acompañar:
+
+1. Alertar bajo stock por canal o producto.
+2. Notificar pedidos pagados, enviados o entregados.
+3. Crear tareas internas para reabasto.
+4. Mandar mensajes de seguimiento al cliente cuando exista guia.
+5. Reportar cortes diarios/semanales al administrador.
+
+Regla: n8n puede avisar y preparar acciones; los movimientos criticos de dinero/inventario deben quedar registrados primero por Tecnotitlan para mantener auditoria.
+
 ---
 
 ## 15. Troubleshooting

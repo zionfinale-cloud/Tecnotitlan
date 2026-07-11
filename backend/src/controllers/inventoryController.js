@@ -26,27 +26,56 @@ const stripMovementCosts = (movement) => {
   return safeMovement;
 };
 
+const CASH_IN_TYPES = new Set(['CAPITAL_IN', 'ADJUSTMENT_IN']);
+const CASH_OUT_TYPES = new Set(['OPERATING_EXPENSE', 'UNEXPECTED_EXPENSE', 'CASH_OUT']);
+const INVESTMENT_CASH_TYPES = new Set([...CASH_IN_TYPES, ...CASH_OUT_TYPES]);
+
+const summarizeInvestment = (investment) => {
+  const inventorySpent = (investment.movements || []).reduce((sum, movement) => sum + (movement.totalCost || 0), 0);
+  const cashIn = (investment.cashMovements || [])
+    .filter((movement) => CASH_IN_TYPES.has(movement.type))
+    .reduce((sum, movement) => sum + (movement.amount || 0), 0);
+  const operatingExpenses = (investment.cashMovements || [])
+    .filter((movement) => movement.type === 'OPERATING_EXPENSE')
+    .reduce((sum, movement) => sum + (movement.amount || 0), 0);
+  const unexpectedExpenses = (investment.cashMovements || [])
+    .filter((movement) => movement.type === 'UNEXPECTED_EXPENSE')
+    .reduce((sum, movement) => sum + (movement.amount || 0), 0);
+  const otherCashOut = (investment.cashMovements || [])
+    .filter((movement) => movement.type === 'CASH_OUT')
+    .reduce((sum, movement) => sum + (movement.amount || 0), 0);
+  const cashOut = operatingExpenses + unexpectedExpenses + otherCashOut;
+  const spent = inventorySpent + cashOut;
+
+  return {
+    id: investment.id,
+    name: investment.name,
+    amount: investment.amount,
+    cashIn,
+    cashOut,
+    inventorySpent,
+    operatingExpenses,
+    unexpectedExpenses,
+    otherCashOut,
+    spent,
+    remaining: investment.amount + cashIn - spent,
+    notes: investment.notes,
+    createdAt: investment.createdAt,
+    updatedAt: investment.updatedAt,
+    cashMovements: investment.cashMovements || [],
+  };
+};
+
 const getInvestments = asyncHandler(async (req, res) => {
   const investments = await prisma.inventoryInvestment.findMany({
     include: {
       movements: { select: { totalCost: true } },
+      cashMovements: { orderBy: { createdAt: 'desc' } },
     },
     orderBy: { createdAt: 'desc' },
   });
 
-  const data = investments.map((investment) => {
-    const spent = investment.movements.reduce((sum, movement) => sum + movement.totalCost, 0);
-    return {
-      id: investment.id,
-      name: investment.name,
-      amount: investment.amount,
-      spent,
-      remaining: investment.amount - spent,
-      notes: investment.notes,
-      createdAt: investment.createdAt,
-      updatedAt: investment.updatedAt,
-    };
-  });
+  const data = investments.map(summarizeInvestment);
 
   res.status(200).json({ status: 'success', data: { investments: data } });
 });
@@ -69,6 +98,57 @@ const createInvestment = asyncHandler(async (req, res, next) => {
   });
 
   res.status(201).json({ status: 'success', data: { investment } });
+});
+
+const createInvestmentCashMovement = asyncHandler(async (req, res, next) => {
+  const { type, amount, notes } = req.body;
+  const parsedAmount = Number(amount);
+
+  if (!INVESTMENT_CASH_TYPES.has(type)) {
+    return next(new BadRequestError('Tipo de movimiento de inversion invalido.'));
+  }
+
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    return next(new BadRequestError('El monto debe ser mayor a cero.'));
+  }
+
+  const investment = await prisma.inventoryInvestment.findUnique({
+    where: { id: req.params.id },
+    include: {
+      movements: { select: { totalCost: true } },
+      cashMovements: true,
+    },
+  });
+
+  if (!investment) return next(new NotFoundError('Inversion no encontrada.'));
+
+  const summary = summarizeInvestment(investment);
+  if (CASH_OUT_TYPES.has(type) && parsedAmount > summary.remaining) {
+    return next(new BadRequestError('La salida excede el disponible de esta inversion.'));
+  }
+
+  await prisma.investmentCashMovement.create({
+    data: {
+      investmentId: investment.id,
+      type,
+      amount: parsedAmount,
+      notes,
+      createdById: req.user?.id,
+    },
+  });
+
+  const updatedInvestment = await prisma.inventoryInvestment.findUnique({
+    where: { id: investment.id },
+    include: {
+      movements: { select: { totalCost: true } },
+      cashMovements: { orderBy: { createdAt: 'desc' } },
+    },
+  });
+
+  res.status(201).json({
+    status: 'success',
+    data: { investment: summarizeInvestment(updatedInvestment) },
+  });
 });
 
 const createStockEntry = asyncHandler(async (req, res, next) => {
@@ -96,16 +176,19 @@ const createStockEntry = asyncHandler(async (req, res, next) => {
     if (investmentId) {
       const investment = await tx.inventoryInvestment.findUnique({
         where: { id: investmentId },
-        include: { movements: { select: { totalCost: true } } },
+        include: {
+          movements: { select: { totalCost: true } },
+          cashMovements: true,
+        },
       });
 
       if (!investment) {
         throw new NotFoundError('Inversión no encontrada.');
       }
 
-      const spent = investment.movements.reduce((sum, item) => sum + item.totalCost, 0);
+      const investmentSummary = summarizeInvestment(investment);
       const totalEntryCost = parsedQuantity * parsedUnitCost;
-      if (spent + totalEntryCost > investment.amount) {
+      if (totalEntryCost > investmentSummary.remaining) {
         throw new BadRequestError('La entrada excede el monto disponible de la inversión.');
       }
     }
@@ -336,7 +419,7 @@ const transferStockToChannel = asyncHandler(async (req, res, next) => {
 });
 
 const getMovements = asyncHandler(async (req, res) => {
-  const { startDate, endDate, productId, type } = req.query;
+  const { startDate, endDate, productId, type, channel } = req.query;
   const createdAt = toDateRange(startDate, endDate);
 
   const movements = await prisma.inventoryMovement.findMany({
@@ -344,6 +427,7 @@ const getMovements = asyncHandler(async (req, res) => {
       ...(createdAt ? { createdAt } : {}),
       ...(productId ? { productId } : {}),
       ...(type ? { type } : {}),
+      ...(channel ? { channel } : {}),
     },
     include: {
       product: { select: { id: true, sku: true, name: true } },
@@ -500,6 +584,7 @@ export {
   getInvestments,
   getInventoryOverview,
   createInvestment,
+  createInvestmentCashMovement,
   createStockEntry,
   createManualSale,
   transferStockToChannel,

@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/apiService';
 import { canViewCosts } from '../../utils/permissions';
@@ -21,6 +21,27 @@ const SALE_CHANNELS = [
   { value: 'WEB', label: 'Web / bodega' },
   ...MARKETPLACE_CHANNELS,
 ];
+
+const MOVEMENT_TYPES = [
+  { value: '', label: 'Todos los movimientos' },
+  { value: 'PURCHASE', label: 'Entradas de mercancia' },
+  { value: 'SALE', label: 'Salidas por venta' },
+  { value: 'CHANNEL_TRANSFER', label: 'Enviado a canal' },
+  { value: 'ADJUSTMENT_IN', label: 'Ajuste entrada' },
+  { value: 'ADJUSTMENT_OUT', label: 'Ajuste salida' },
+  { value: 'RETURN_IN', label: 'Devolucion entrada' },
+  { value: 'RETURN_OUT', label: 'Devolucion salida' },
+];
+
+const movementTypeLabels = MOVEMENT_TYPES.reduce((labels, type) => {
+  if (type.value) labels[type.value] = type.label;
+  return labels;
+}, {});
+
+const channelLabels = SALE_CHANNELS.reduce((labels, channel) => {
+  labels[channel.value] = channel.label;
+  return labels;
+}, {});
 
 const getWeekStart = () => {
   const date = new Date();
@@ -66,20 +87,30 @@ const InventoryScreen = () => {
     startDate: getWeekStart(),
     endDate: today,
   });
+  const [movementFilters, setMovementFilters] = useState({
+    type: '',
+    channel: '',
+    productId: '',
+    startDate: '',
+    endDate: '',
+  });
 
   const activeProducts = useMemo(
     () => products.filter((product) => !product.isArchived),
     [products]
   );
 
-  const loadInventory = async ({ silent = false } = {}) => {
+  const loadInventory = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     setError('');
+    const movementParams = Object.fromEntries(
+      Object.entries({ limit: 50, ...movementFilters }).filter(([, value]) => value !== '')
+    );
     try {
       const [productsResponse, overviewResponse, movementsResponse] = await Promise.all([
         api.get('/products', { params: { pageSize: 250 } }),
         api.get('/inventory/overview'),
-        api.get('/inventory/movements', { params: { limit: 25 } }),
+        api.get('/inventory/movements', { params: movementParams }),
       ]);
 
       setProducts(productsResponse.data.data.products || []);
@@ -102,7 +133,11 @@ const InventoryScreen = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, [
+    showCosts,
+    dateRange,
+    movementFilters,
+  ]);
 
   useEffect(() => {
     loadInventory();
@@ -110,8 +145,7 @@ const InventoryScreen = () => {
       loadInventory({ silent: true });
     }, 15000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showCosts]);
+  }, [loadInventory]);
 
   const refreshCut = async (event) => {
     event.preventDefault();
@@ -123,6 +157,11 @@ const InventoryScreen = () => {
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo calcular el corte.');
     }
+  };
+
+  const refreshMovements = async (event) => {
+    event.preventDefault();
+    await loadInventory();
   };
 
   const createStockEntry = async (event) => {
@@ -601,7 +640,77 @@ const InventoryScreen = () => {
       )}
 
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
-        <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Historial de compras y salidas</h2>
+        <div className={styles.toolbar}>
+          <div>
+            <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>Entradas, salidas y movimientos</h2>
+            <p className={styles.subtitle} style={{ marginBottom: 0 }}>
+              Filtra para auditar mercancia comprada, ventas, transferencias a marketplaces y ajustes.
+            </p>
+          </div>
+        </div>
+
+        <form className={styles.formGrid} onSubmit={refreshMovements} style={{ marginBottom: '1rem' }}>
+          <div className={styles.field}>
+            <label className={styles.label}>Tipo</label>
+            <select
+              className={styles.select}
+              value={movementFilters.type}
+              onChange={(event) => setMovementFilters({ ...movementFilters, type: event.target.value })}
+            >
+              {MOVEMENT_TYPES.map((type) => (
+                <option key={type.label} value={type.value}>{type.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Canal</label>
+            <select
+              className={styles.select}
+              value={movementFilters.channel}
+              onChange={(event) => setMovementFilters({ ...movementFilters, channel: event.target.value })}
+            >
+              <option value="">Todos los canales</option>
+              {SALE_CHANNELS.map((channel) => (
+                <option key={channel.value} value={channel.value}>{channel.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Producto</label>
+            <select
+              className={styles.select}
+              value={movementFilters.productId}
+              onChange={(event) => setMovementFilters({ ...movementFilters, productId: event.target.value })}
+            >
+              <option value="">Todos los productos</option>
+              {activeProducts.map((product) => (
+                <option key={product.id} value={product.id}>{product.sku} - {product.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Desde</label>
+            <input
+              className={styles.input}
+              type="date"
+              value={movementFilters.startDate}
+              onChange={(event) => setMovementFilters({ ...movementFilters, startDate: event.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Hasta</label>
+            <input
+              className={styles.input}
+              type="date"
+              value={movementFilters.endDate}
+              onChange={(event) => setMovementFilters({ ...movementFilters, endDate: event.target.value })}
+            />
+          </div>
+          <div className={styles.actions}>
+            <button className={styles.secondaryButton} type="submit">Aplicar filtros</button>
+          </div>
+        </form>
+
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
@@ -620,9 +729,9 @@ const InventoryScreen = () => {
               {movements.map((movement) => (
                 <tr key={movement.id}>
                   <td>{new Date(movement.createdAt).toLocaleString('es-MX')}</td>
-                  <td>{movement.type}</td>
+                  <td>{movementTypeLabels[movement.type] || movement.type}</td>
                   <td>{movement.product?.sku} - {movement.product?.name}</td>
-                  <td>{movement.channel || '-'}</td>
+                  <td>{channelLabels[movement.channel] || movement.channel || '-'}</td>
                   <td>{movement.quantity}</td>
                   {showCosts && <td>{currency.format(movement.totalCost || 0)}</td>}
                   <td>{currency.format(movement.totalRevenue || 0)}</td>

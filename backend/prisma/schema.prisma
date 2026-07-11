@@ -15,37 +15,38 @@ datasource db {
 // --- MODELOS DE LA APLICACIÓN ---
 
 model User {
-  id                   String                @id @default(cuid())
-  customerNumber       String?               @unique @map("customer_number")
-  firstName            String                @map("first_name")
-  lastName             String                @map("last_name")
-  secondLastName       String?               @map("second_last_name")
-  email                String                @unique
-  password             String
-  countryCode          String?               @map("country_code")
-  phone                String?
-  street               String?
-  neighborhood         String?
-  city                 String?
-  state                String?
-  postalCode           String?               @map("postal_code")
-  isVerified           Boolean               @default(false) @map("is_verified")
-  verificationToken    String?               @map("verification_token")
-  role                 Role                  @relation(fields: [roleId], references: [id])
-  roleId               String
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  id                      String                   @id @default(cuid())
+  customerNumber          String?                  @unique @map("customer_number")
+  firstName               String                   @map("first_name")
+  lastName                String                   @map("last_name")
+  secondLastName          String?                  @map("second_last_name")
+  email                   String                   @unique
+  password                String
+  countryCode             String?                  @map("country_code")
+  phone                   String?
+  street                  String?
+  neighborhood            String?
+  city                    String?
+  state                   String?
+  postalCode              String?                  @map("postal_code")
+  isVerified              Boolean                  @default(false) @map("is_verified")
+  verificationToken       String?                  @map("verification_token")
+  role                    Role                     @relation(fields: [roleId], references: [id])
+  roleId                  String
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
   // Relaciones
-  products             Product[]
-  orders               Order[]
-  reviews              Review[]
-  supportTickets       SupportTicket[]
-  inventoryInvestments InventoryInvestment[]
-  inventoryMovements   InventoryMovement[]
-  tecatlConversations  ChatConversation[]
-  tecatlHandoffs       ConversationHandoff[] @relation("TecatlHandoffAssignee")
-  permissionGrants     UserPermissionGrant[]
-  permissionDenies     UserPermissionDeny[]
+  products                Product[]
+  orders                  Order[]
+  reviews                 Review[]
+  supportTickets          SupportTicket[]
+  inventoryInvestments    InventoryInvestment[]
+  inventoryMovements      InventoryMovement[]
+  investmentCashMovements InvestmentCashMovement[]
+  tecatlConversations     ChatConversation[]
+  tecatlHandoffs          ConversationHandoff[]    @relation("TecatlHandoffAssignee")
+  permissionGrants        UserPermissionGrant[]
+  permissionDenies        UserPermissionDeny[]
 
   @@map("users")
 }
@@ -298,17 +299,34 @@ model OrderItem {
 }
 
 model InventoryInvestment {
-  id          String              @id @default(cuid())
-  name        String
-  amount      Float
-  notes       String?             @db.Text
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-  createdBy   User?               @relation(fields: [createdById], references: [id])
-  createdById String?             @map("created_by_id")
-  movements   InventoryMovement[]
+  id            String                   @id @default(cuid())
+  name          String
+  amount        Float
+  notes         String?                  @db.Text
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  updatedAt     DateTime                 @updatedAt @map("updated_at")
+  createdBy     User?                    @relation(fields: [createdById], references: [id])
+  createdById   String?                  @map("created_by_id")
+  movements     InventoryMovement[]
+  cashMovements InvestmentCashMovement[]
 
   @@map("inventory_investments")
+}
+
+model InvestmentCashMovement {
+  id           String                     @id @default(cuid())
+  type         InvestmentCashMovementType
+  amount       Float
+  notes        String?                    @db.Text
+  createdAt    DateTime                   @default(now()) @map("created_at")
+  investment   InventoryInvestment        @relation(fields: [investmentId], references: [id])
+  investmentId String                     @map("investment_id")
+  createdBy    User?                      @relation(fields: [createdById], references: [id])
+  createdById  String?                    @map("created_by_id")
+
+  @@index([investmentId, createdAt])
+  @@index([type, createdAt])
+  @@map("investment_cash_movements")
 }
 
 model InventoryMovement {
@@ -578,6 +596,14 @@ enum InventoryMovementType {
   ADJUSTMENT_OUT
   RETURN_IN
   RETURN_OUT
+}
+
+enum InvestmentCashMovementType {
+  CAPITAL_IN
+  OPERATING_EXPENSE
+  UNEXPECTED_EXPENSE
+  CASH_OUT
+  ADJUSTMENT_IN
 }
 
 enum SalesChannel {

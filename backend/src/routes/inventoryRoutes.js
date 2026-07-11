@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   createInvestment,
+  createInvestmentCashMovement,
   createManualSale,
   createStockEntry,
   getInventoryCut,
@@ -20,6 +21,10 @@ router
   .route('/investments')
   .get(checkPermission('finance:read_costs'), getInvestments)
   .post(checkPermission('finance:read_costs'), createInvestment);
+
+router
+  .route('/investments/:id/cash-movements')
+  .post(checkPermission('finance:read_costs'), createInvestmentCashMovement);
 
 router
   .route('/entries')
