@@ -18,6 +18,7 @@ const SKU_PREFIXES = [
   { value: 'GMG', label: 'GMG - Gaming' },
   { value: 'GEN', label: 'GEN - General' },
 ];
+const CUSTOM_SKU_PREFIX_VALUE = '__CUSTOM__';
 
 const normalizeSkuPrefix = (value) => String(value || '')
   .replace(/[^a-zA-Z0-9]/g, '')
@@ -65,8 +66,17 @@ const ProductEditScreen = () => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [imageWarnings, setImageWarnings] = useState({});
+  const [customSkuMode, setCustomSkuMode] = useState(false);
 
   const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
+  const predefinedSkuValues = useMemo(() => SKU_PREFIXES.map((prefix) => prefix.value), []);
+  const selectedSkuPrefixMode = useMemo(() => {
+    if (customSkuMode) return CUSTOM_SKU_PREFIX_VALUE;
+    if (!form.skuPrefix) return '';
+    if (predefinedSkuValues.includes(form.skuPrefix)) return form.skuPrefix;
+    return CUSTOM_SKU_PREFIX_VALUE;
+  }, [customSkuMode, form.skuPrefix, predefinedSkuValues]);
+  const isCustomSkuPrefix = selectedSkuPrefixMode === CUSTOM_SKU_PREFIX_VALUE;
 
   useEffect(() => {
     const loadData = async () => {
@@ -82,6 +92,8 @@ const ProductEditScreen = () => {
 
         if (productResponse) {
           const product = productResponse.data.data.product;
+          const loadedSkuPrefix = product.sku?.split('-')?.[0] || 'GEN';
+          setCustomSkuMode(Boolean(loadedSkuPrefix && !SKU_PREFIXES.some((prefix) => prefix.value === loadedSkuPrefix)));
           setForm({
             ...emptyProduct,
             name: product.name || '',
@@ -90,7 +102,7 @@ const ProductEditScreen = () => {
             costPrice: product.costPrice ?? '',
             brand: product.brand || '',
             categoryId: product.categoryId || '',
-            skuPrefix: product.sku?.split('-')?.[0] || 'GEN',
+            skuPrefix: loadedSkuPrefix,
             countInStock: product.countInStock ?? 0,
             productType: product.productType || 'IN_HOUSE',
             supplierInfo: product.supplierInfo || '',
@@ -123,6 +135,17 @@ const ProductEditScreen = () => {
 
   const updateSkuPrefix = (value) => {
     updateField('skuPrefix', normalizeSkuPrefix(value));
+  };
+
+  const updateSkuPrefixMode = (value) => {
+    if (value === CUSTOM_SKU_PREFIX_VALUE) {
+      setCustomSkuMode(true);
+      updateField('skuPrefix', '');
+      return;
+    }
+
+    setCustomSkuMode(false);
+    updateSkuPrefix(value);
   };
 
   const updateCharacteristic = (index, field, value) => {
@@ -272,24 +295,32 @@ const ProductEditScreen = () => {
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="product-prefix">Prefijo SKU</label>
-              <input
+              <select
                 id="product-prefix"
-                className={styles.input}
-                list="sku-prefix-options"
-                value={form.skuPrefix}
-                onChange={(event) => updateSkuPrefix(event.target.value)}
-                minLength="2"
-                maxLength="3"
-                placeholder="Auto"
+                className={styles.select}
+                value={selectedSkuPrefixMode}
+                onChange={(event) => updateSkuPrefixMode(event.target.value)}
                 disabled={isEditing}
-              />
-              <datalist id="sku-prefix-options">
+              >
+                <option value="">Auto por categoria</option>
                 {SKU_PREFIXES.map((prefix) => (
                   <option key={prefix.value} value={prefix.value}>{prefix.label}</option>
                 ))}
-              </datalist>
+                <option value={CUSTOM_SKU_PREFIX_VALUE}>Crear prefijo nuevo...</option>
+              </select>
+              {isCustomSkuPrefix && (
+                <input
+                  className={styles.input}
+                  value={form.skuPrefix}
+                  onChange={(event) => updateSkuPrefix(event.target.value)}
+                  minLength="2"
+                  maxLength="3"
+                  placeholder="Ej. PWB"
+                  disabled={isEditing}
+                />
+              )}
               <small className={styles.muted}>
-                Puedes dejarlo vacio para inferirlo por categoria, o escribir uno nuevo: AUR, BOC, DRN, PWB, etc.
+                Usa Auto para que Tecnotitlan lo infiera, selecciona una clave existente o crea una nueva de 2 a 3 caracteres.
               </small>
               {isEditing && <small className={styles.muted}>El SKU no se cambia despues de creado para no romper ventas.</small>}
             </div>
