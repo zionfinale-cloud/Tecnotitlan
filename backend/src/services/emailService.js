@@ -220,6 +220,11 @@ export const sendOrderShippedEmail = async (order) => {
   const runtimeConfig = getConfig();
   const to = getCustomerEmail(order);
   const trackingNumber = order?.shippingInfo?.trackingNumber;
+  const carrier = order?.shippingInfo?.carrier;
+  const carrierText = carrier ? `<span style="color:#4d5f67;">Paqueteria: ${escapeHtml(carrier)}</span><br>` : '';
+  const trackingLink = order?.shippingInfo?.trackingUrl
+    ? `<a href="${escapeHtml(order.shippingInfo.trackingUrl)}" style="display:inline-block;margin-top:12px;color:#00a56d;font-weight:800;">Abrir rastreo de paqueteria</a>`
+    : '';
 
   if (!to || !trackingNumber) return;
 
@@ -231,7 +236,9 @@ export const sendOrderShippedEmail = async (order) => {
 
     <div style="background:#effcf7;border:1px solid #b8f3dd;border-radius:16px;padding:18px;margin-bottom:22px;">
       <strong style="display:block;font-size:18px;">Guia: ${escapeHtml(trackingNumber)}</strong>
+      ${carrierText}
       <span style="color:#4d5f67;">Consulta el avance desde tu cuenta.</span>
+      ${trackingLink}
     </div>
 
     <a href="${trackingUrl}" style="display:inline-block;background:#10d99a;color:#03100c;text-decoration:none;font-weight:800;padding:14px 22px;border-radius:999px;">Ver seguimiento</a>
@@ -250,5 +257,40 @@ export const sendOrderShippedEmail = async (order) => {
     logger.info(`[Email] Aviso de envio enviado para ${order.orderNumber} a ${to}`);
   } catch (error) {
     logger.error(`[Email] No se pudo enviar aviso de envio ${order.orderNumber}: ${error.message}`);
+  }
+};
+
+export const sendOrderDeliveredEmail = async (order) => {
+  const runtimeConfig = getConfig();
+  const to = getCustomerEmail(order);
+
+  if (!to) return;
+
+  const trackingUrl = `${runtimeConfig.CLIENT_URL_PRIMARY}/order/${order.id}`;
+  const body = `
+    <p style="margin:0 0 10px;color:#00b879;font-weight:800;letter-spacing:.08em;text-transform:uppercase;font-size:12px;">Pedido entregado</p>
+    <h1 style="margin:0 0 12px;font-size:32px;line-height:1.1;">Tu pedido fue entregado.</h1>
+    <p style="margin:0 0 22px;color:#4d5f67;font-size:16px;">Marcamos como entregado el pedido ${escapeHtml(order.orderNumber)}. Gracias por comprar en Tecnotitlan.</p>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:24px;">
+      ${buildOrderItemsRows(order)}
+    </table>
+
+    <a href="${trackingUrl}" style="display:inline-block;background:#10d99a;color:#03100c;text-decoration:none;font-weight:800;padding:14px 22px;border-radius:999px;">Ver pedido</a>
+  `;
+
+  try {
+    await sendTransactionalMail({
+      to,
+      subject: `Tu pedido ${order.orderNumber} fue entregado`,
+      html: buildEmailShell({
+        title: `Pedido entregado ${order.orderNumber}`,
+        preview: `Tu pedido ${order.orderNumber} fue entregado.`,
+        body,
+      }),
+    });
+    logger.info(`[Email] Aviso de entrega enviado para ${order.orderNumber} a ${to}`);
+  } catch (error) {
+    logger.error(`[Email] No se pudo enviar aviso de entrega ${order.orderNumber}: ${error.message}`);
   }
 };

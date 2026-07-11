@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
-import styles from './ProductListScreen.module.css';
+import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../../utils/assetUrl';
+import styles from './OrderListScreen.module.css';
 
 const currency = new Intl.NumberFormat('es-MX', {
   style: 'currency',
@@ -15,14 +16,14 @@ const dateFormat = new Intl.DateTimeFormat('es-MX', {
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'Todos' },
   { value: 'PENDING_PAYMENT', label: 'Pendiente de pago' },
-  { value: 'PROCESSING', label: 'En proceso' },
+  { value: 'PROCESSING', label: 'Preparando' },
   { value: 'PENDING_FULFILLMENT', label: 'Por surtir' },
   { value: 'SHIPPED', label: 'Enviado' },
   { value: 'DELIVERED', label: 'Entregado' },
   { value: 'CANCELLED', label: 'Cancelado' },
 ];
 
-const statusLabel = STATUS_OPTIONS.reduce((labels, option) => {
+const statusLabels = STATUS_OPTIONS.reduce((labels, option) => {
   labels[option.value] = option.label;
   return labels;
 }, {});
@@ -31,9 +32,25 @@ const paymentLabels = {
   BANK_TRANSFER: 'Transferencia / SPEI',
   MERCADO_LIBRE: 'Mercado Libre',
   WHATSAPP: 'WhatsApp',
-  Stripe: 'Stripe',
+  Stripe: 'Tarjeta',
   PayPal: 'PayPal',
 };
+
+const statusTone = {
+  PENDING_PAYMENT: 'warning',
+  PROCESSING: 'info',
+  PENDING_FULFILLMENT: 'info',
+  SHIPPED: 'successTone',
+  DELIVERED: 'successTone',
+  CANCELLED: 'danger',
+};
+
+const getCustomerName = (order) => {
+  const fullName = [order.user?.firstName, order.user?.lastName].filter(Boolean).join(' ');
+  return fullName || order.user?.email || 'Cliente';
+};
+
+const formatDate = (value) => (value ? dateFormat.format(new Date(value)) : 'Pendiente');
 
 const OrderListScreen = () => {
   const [orders, setOrders] = useState([]);
@@ -42,12 +59,20 @@ const OrderListScreen = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [trackingByOrder, setTrackingByOrder] = useState({});
+  const [shippingByOrder, setShippingByOrder] = useState({});
 
   const filteredOrders = useMemo(() => {
     if (statusFilter === 'ALL') return orders;
     return orders.filter((order) => order.status === statusFilter);
   }, [orders, statusFilter]);
+
+  const stats = useMemo(() => {
+    const total = orders.length;
+    const pending = orders.filter((order) => !order.isPaid).length;
+    const preparing = orders.filter((order) => ['PROCESSING', 'PENDING_FULFILLMENT'].includes(order.status)).length;
+    const shipped = orders.filter((order) => order.status === 'SHIPPED').length;
+    return { total, pending, preparing, shipped };
+  }, [orders]);
 
   const loadOrders = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -64,9 +89,7 @@ const OrderListScreen = () => {
 
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(() => {
-      loadOrders({ silent: true });
-    }, 10000);
+    const interval = setInterval(() => loadOrders({ silent: true }), 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -75,26 +98,11 @@ const OrderListScreen = () => {
     setError('');
     setSuccess('');
     try {
-      await api.put(`/orders/${orderId}/status`, payload);
+      const { data } = await api.put(`/orders/${orderId}/status`, payload);
+      setOrders((current) => current.map((order) => (order.id === orderId ? data.data.order : order)));
       setSuccess(message);
-      await loadOrders();
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo actualizar el pedido.');
-    } finally {
-      setSavingId('');
-    }
-  };
-
-  const deliverOrder = async (orderId) => {
-    setSavingId(orderId);
-    setError('');
-    setSuccess('');
-    try {
-      await api.put(`/orders/${orderId}/deliver`);
-      setSuccess('Pedido marcado como entregado.');
-      await loadOrders();
-    } catch (err) {
-      setError(err.response?.data?.message || 'No se pudo marcar como entregado.');
     } finally {
       setSavingId('');
     }
@@ -105,7 +113,7 @@ const OrderListScreen = () => {
     setError('');
     setSuccess('');
     try {
-      await api.put(`/orders/${order.id}/pay`, {
+      const { data } = await api.put(`/orders/${order.id}/pay`, {
         paymentResult: {
           id: `manual-${order.orderNumber}`,
           status: 'COMPLETED',
@@ -113,8 +121,8 @@ const OrderListScreen = () => {
           payer: { email_address: order.user?.email || '' },
         },
       });
+      setOrders((current) => current.map((item) => (item.id === order.id ? data.data.order : item)));
       setSuccess(`Pago confirmado para ${order.orderNumber}.`);
-      await loadOrders();
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo confirmar el pago.');
     } finally {
@@ -122,174 +130,223 @@ const OrderListScreen = () => {
     }
   };
 
-  const customerName = (order) => {
-    const fullName = [order.user?.firstName, order.user?.lastName].filter(Boolean).join(' ');
-    return fullName || order.user?.email || 'Cliente';
-  };
-
-  const formatDate = (value) => {
-    if (!value) return 'Pendiente';
-    return dateFormat.format(new Date(value));
-  };
-
-  const submitTracking = (event, order) => {
+  const submitShipping = (event, order) => {
     event.preventDefault();
-    const trackingNumber = (trackingByOrder[order.id] || '').trim();
+    const shipping = shippingByOrder[order.id] || {};
+    const trackingNumber = (shipping.trackingNumber || order.shippingInfo?.trackingNumber || '').trim();
     if (!trackingNumber) {
       setError('Captura el numero de guia antes de marcar el pedido como enviado.');
       return;
     }
-    updateOrder(order.id, { trackingNumber }, 'Guia registrada y pedido marcado como enviado.');
+    updateOrder(
+      order.id,
+      {
+        trackingNumber,
+        carrier: shipping.carrier || order.shippingInfo?.carrier || '',
+        trackingUrl: shipping.trackingUrl || order.shippingInfo?.trackingUrl || '',
+        shippingNotes: shipping.shippingNotes || order.shippingInfo?.notes || '',
+      },
+      'Guia registrada, pedido marcado como enviado y correo enviado al cliente.'
+    );
+  };
+
+  const updateShippingDraft = (orderId, field, value) => {
+    setShippingByOrder((current) => ({
+      ...current,
+      [orderId]: {
+        ...(current[orderId] || {}),
+        [field]: value,
+      },
+    }));
   };
 
   return (
     <>
-      <div className={styles.toolbar}>
+      <div className={styles.header}>
         <div>
+          <span className={styles.eyebrow}>Operacion</span>
           <h1 className={styles.title}>Pedidos</h1>
-          <p className={styles.subtitle}>
-            Seguimiento operativo de ventas web: pago, surtido, guia y entrega.
-          </p>
+          <p className={styles.subtitle}>Confirma pagos, registra guias y actualiza el seguimiento del cliente.</p>
         </div>
-        <button type="button" className={styles.secondaryButton} onClick={loadOrders} disabled={loading}>
-          Actualizar
+        <button type="button" className={styles.secondaryButton} onClick={() => loadOrders()} disabled={loading}>
+          <i className="fas fa-sync-alt"></i> Actualizar
         </button>
       </div>
+
+      <section className={styles.statsGrid}>
+        <article><small>Total</small><strong>{stats.total}</strong></article>
+        <article><small>Pago pendiente</small><strong>{stats.pending}</strong></article>
+        <article><small>Por preparar</small><strong>{stats.preparing}</strong></article>
+        <article><small>En camino</small><strong>{stats.shipped}</strong></article>
+      </section>
 
       {error && <div className={styles.error}>{error}</div>}
       {success && <div className={styles.success}>{success}</div>}
 
-      <div className={styles.card}>
-        <div className={styles.toolbar}>
-          <label className={styles.field} style={{ maxWidth: '260px' }}>
-            <span className={styles.label}>Filtrar por estado</span>
-            <select
-              className={styles.select}
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span className={styles.muted}>
-            {filteredOrders.length} de {orders.length} pedidos
-          </span>
-        </div>
+      <div className={styles.filterBar}>
+        <label className={styles.field}>
+          <span>Filtrar por estado</span>
+          <select className={styles.select} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <span className={styles.muted}>{filteredOrders.length} de {orders.length} pedidos</span>
+      </div>
 
-        {loading ? (
-          <div className={styles.empty}>Cargando pedidos...</div>
-        ) : filteredOrders.length === 0 ? (
-          <div className={styles.empty}>Aun no hay pedidos con este filtro.</div>
-        ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Pedido</th>
-                  <th>Cliente</th>
-                  <th>Total</th>
-                  <th>Estado</th>
-                  <th>Pago</th>
-                  <th>Guia</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td>
-                      <strong>{order.orderNumber}</strong>
-                      <br />
-                      <span className={styles.muted}>{formatDate(order.createdAt)}</span>
-                    </td>
-                    <td>
-                      {customerName(order)}
-                      <br />
-                      <span className={styles.muted}>{order.user?.email || 'Sin correo'}</span>
-                    </td>
-                    <td>{currency.format(order.totalPrice || 0)}</td>
-                    <td>{statusLabel[order.status] || order.status}</td>
-                    <td>
-                      {order.isPaid ? 'Pagado' : 'Pendiente'}
-                      <br />
-                      <span className={styles.muted}>{paymentLabels[order.paymentMethod] || order.paymentMethod}</span>
-                    </td>
-                    <td>
-                      <form onSubmit={(event) => submitTracking(event, order)} className={styles.actions}>
-                        <input
-                          className={styles.input}
-                          style={{ minWidth: '180px' }}
-                          placeholder="Numero de guia"
-                          value={trackingByOrder[order.id] || order.shippingInfo?.trackingNumber || ''}
-                          onChange={(event) =>
-                            setTrackingByOrder((current) => ({
-                              ...current,
-                              [order.id]: event.target.value,
-                            }))
-                          }
-                        />
-                        <button
-                          type="submit"
-                          className={styles.secondaryButton}
-                          disabled={savingId === order.id}
-                        >
-                          Enviar
+      {loading ? (
+        <div className={styles.empty}>Cargando pedidos...</div>
+      ) : filteredOrders.length === 0 ? (
+        <div className={styles.empty}>Aun no hay pedidos con este filtro.</div>
+      ) : (
+        <div className={styles.orderStack}>
+          {filteredOrders.map((order) => {
+            const shipping = shippingByOrder[order.id] || {};
+            const saving = savingId === order.id;
+            return (
+              <article key={order.id} className={styles.orderCard}>
+                <div className={styles.orderTop}>
+                  <div>
+                    <span className={styles.eyebrow}>Pedido</span>
+                    <h2>{order.orderNumber}</h2>
+                    <p>{formatDate(order.createdAt)} · {getCustomerName(order)} · {order.user?.email || 'Sin correo'}</p>
+                  </div>
+                  <div className={styles.orderMoney}>
+                    <strong>{currency.format(order.totalPrice || 0)}</strong>
+                    <span>{paymentLabels[order.paymentMethod] || order.paymentMethod}</span>
+                  </div>
+                </div>
+
+                <div className={styles.badges}>
+                  <span className={`${styles.badge} ${styles[statusTone[order.status] || 'info']}`}>
+                    {statusLabels[order.status] || order.status}
+                  </span>
+                  <span className={`${styles.badge} ${order.isPaid ? styles.successTone : styles.warning}`}>
+                    {order.isPaid ? 'Pago confirmado' : 'Pago pendiente'}
+                  </span>
+                  {order.shippingInfo?.trackingNumber && (
+                    <span className={`${styles.badge} ${styles.successTone}`}>
+                      Guia {order.shippingInfo.trackingNumber}
+                    </span>
+                  )}
+                </div>
+
+                <div className={styles.contentGrid}>
+                  <section className={styles.panel}>
+                    <h3>Productos</h3>
+                    <div className={styles.itemList}>
+                      {(order.orderItems || []).map((item) => (
+                        <div key={item.id} className={styles.item}>
+                          <img
+                            src={resolveAssetUrl(item.image)}
+                            alt=""
+                            onError={(event) => { event.currentTarget.src = FALLBACK_PRODUCT_IMAGE; }}
+                          />
+                          <span>
+                            <strong>{item.product?.sku ? `${item.product.sku} - ` : ''}{item.name}</strong>
+                            <small>{item.qty} x {currency.format(item.price || 0)}</small>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className={styles.panel}>
+                    <h3>Seguimiento</h3>
+                    <ol className={styles.timeline}>
+                      {(order.statusHistory || []).length > 0 ? (
+                        order.statusHistory.map((entry) => (
+                          <li key={entry.id}>
+                            <strong>{statusLabels[entry.status] || entry.status}</strong>
+                            <span>{entry.notes || 'Estado actualizado.'}</span>
+                            <small>{formatDate(entry.date)}</small>
+                          </li>
+                        ))
+                      ) : (
+                        <li>
+                          <strong>{statusLabels[order.status] || order.status}</strong>
+                          <span>Historial inicial pendiente de registrar.</span>
+                        </li>
+                      )}
+                    </ol>
+                  </section>
+
+                  <section className={styles.panel}>
+                    <h3>Acciones</h3>
+                    <div className={styles.actionGroup}>
+                      {!order.isPaid && (
+                        <button type="button" className={styles.primaryButton} onClick={() => confirmPayment(order)} disabled={saving}>
+                          Confirmar pago
                         </button>
-                      </form>
-                    </td>
-                    <td>
-                      <div className={styles.actions}>
+                      )}
+
+                      <label className={styles.field}>
+                        <span>Estado</span>
                         <select
                           className={styles.select}
                           value={order.status}
-                          onChange={(event) =>
-                            updateOrder(
-                              order.id,
-                              { status: event.target.value },
-                              'Estado del pedido actualizado.'
-                            )
-                          }
-                          disabled={savingId === order.id}
+                          onChange={(event) => updateOrder(order.id, { status: event.target.value }, 'Estado del pedido actualizado.')}
+                          disabled={saving}
                         >
                           {STATUS_OPTIONS.filter((option) => option.value !== 'ALL').map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
+                            <option key={option.value} value={option.value}>{option.label}</option>
                           ))}
                         </select>
-                        {!order.isPaid && (
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={() => confirmPayment(order)}
-                            disabled={savingId === order.id}
-                          >
-                            Confirmar pago
-                          </button>
-                        )}
+                      </label>
+                    </div>
+
+                    <form onSubmit={(event) => submitShipping(event, order)} className={styles.shippingForm}>
+                      <label className={styles.field}>
+                        <span>Paqueteria</span>
+                        <input
+                          className={styles.input}
+                          placeholder="DHL, FedEx, Estafeta..."
+                          value={shipping.carrier ?? order.shippingInfo?.carrier ?? ''}
+                          onChange={(event) => updateShippingDraft(order.id, 'carrier', event.target.value)}
+                        />
+                      </label>
+                      <label className={styles.field}>
+                        <span>Numero de guia</span>
+                        <input
+                          className={styles.input}
+                          placeholder="Guia de envio"
+                          value={shipping.trackingNumber ?? order.shippingInfo?.trackingNumber ?? ''}
+                          onChange={(event) => updateShippingDraft(order.id, 'trackingNumber', event.target.value)}
+                        />
+                      </label>
+                      <label className={`${styles.field} ${styles.fullField}`}>
+                        <span>Link de rastreo</span>
+                        <input
+                          className={styles.input}
+                          placeholder="https://..."
+                          value={shipping.trackingUrl ?? order.shippingInfo?.trackingUrl ?? ''}
+                          onChange={(event) => updateShippingDraft(order.id, 'trackingUrl', event.target.value)}
+                        />
+                      </label>
+                      <div className={styles.buttonRow}>
+                        <button type="submit" className={styles.secondaryButton} disabled={saving || !order.isPaid}>
+                          Guardar guia
+                        </button>
                         {!order.isDelivered && (
                           <button
                             type="button"
-                            className={styles.button}
-                            onClick={() => deliverOrder(order.id)}
-                            disabled={savingId === order.id}
+                            className={styles.primaryButton}
+                            onClick={() => updateOrder(order.id, { status: 'DELIVERED' }, 'Pedido marcado como entregado.')}
+                            disabled={saving || !order.isPaid}
                           >
                             Entregado
                           </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                    </form>
+                  </section>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 };

@@ -6,9 +6,17 @@
 .page h1 { margin: .35rem 0; color: #fff; }
 .page h2 { color: #fff; font-size: 1rem; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.grid section, .items, .paymentBox { padding: 1.4rem; border: 1px solid #283236; border-radius: 14px; background: #0d1214; }
+.grid section, .items, .paymentBox, .timelineBox { padding: 1.4rem; border: 1px solid #283236; border-radius: 14px; background: #0d1214; }
 .items { margin-top: 1rem; }
-.paymentBox { margin-top: 1rem; border-color: color-mix(in srgb, var(--cta-color) 40%, #283236); background: color-mix(in srgb, var(--cta-color) 9%, #0d1214); }
+.paymentBox, .timelineBox { margin-top: 1rem; }
+.paymentBox { border-color: color-mix(in srgb, var(--cta-color) 40%, #283236); background: color-mix(in srgb, var(--cta-color) 9%, #0d1214); }
+.trackingLink { display: inline-flex; margin: .35rem 0 .75rem; color: var(--cta-color); font-weight: 900; text-decoration: none; }
+.timelineBox ol { list-style: none; padding: 0; margin: 0; display: grid; gap: .85rem; }
+.timelineBox li { position: relative; padding-left: 1.2rem; color: #9ca6a1; }
+.timelineBox li::before { content: ""; position: absolute; left: 0; top: .38rem; width: .5rem; height: .5rem; border-radius: 50%; background: var(--cta-color); }
+.timelineBox strong, .timelineBox span, .timelineBox small { display: block; }
+.timelineBox strong { color: #fff; }
+.timelineBox small { color: #6f7b75; }
 .items article { display: flex; gap: 1rem; align-items: center; padding: .85rem 0; border-top: 1px solid #273034; }
 .items img { width: 62px; height: 62px; object-fit: contain; border-radius: 8px; background: #171d20; }
 .items span { display: flex; flex-direction: column; gap: .3rem; }
@@ -16,8 +24,9 @@
 .notice { padding: 2rem; border: 1px dashed #354044; border-radius: 12px; color: #9ca6a1; text-align: center; }
 @media (max-width: 767px) { .grid { grid-template-columns: 1fr; } }
 :global([data-theme="light"]) .page { color: var(--heading); }
-:global([data-theme="light"]) .page header, :global([data-theme="light"]) .grid section, :global([data-theme="light"]) .items, :global([data-theme="light"]) .paymentBox { border-color: var(--line); background: #fff; box-shadow: var(--shadow); }
+:global([data-theme="light"]) .page header, :global([data-theme="light"]) .grid section, :global([data-theme="light"]) .items, :global([data-theme="light"]) .paymentBox, :global([data-theme="light"]) .timelineBox { border-color: var(--line); background: #fff; box-shadow: var(--shadow); }
 :global([data-theme="light"]) .page h1, :global([data-theme="light"]) .page h2 { color: var(--heading); }
+:global([data-theme="light"]) .timelineBox strong { color: var(--heading); }
 :global([data-theme="light"]) .items article { border-top-color: var(--line); }
 :global([data-theme="light"]) .items img { background: var(--surface-soft); }
 :global([data-theme="light"]) .items small, :global([data-theme="light"]) .page p, :global([data-theme="light"]) .notice { color: var(--muted); }

@@ -38,6 +38,20 @@ const paymentInstructions = {
   ],
 };
 
+const statusLabels = {
+  PENDING_PAYMENT: 'Pendiente de pago',
+  PROCESSING: 'Preparando pedido',
+  PENDING_FULFILLMENT: 'Por surtir',
+  SHIPPED: 'Enviado',
+  DELIVERED: 'Entregado',
+  CANCELLED: 'Cancelado',
+};
+
+const dateFormat = new Intl.DateTimeFormat('es-MX', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
 const OrderScreen = () => {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
@@ -67,6 +81,8 @@ const OrderScreen = () => {
   if (!order) return <Container className={styles.page}><div className={styles.notice}>Consultando seguimiento...</div></Container>;
 
   const trackingNumber = order.shippingInfo?.trackingNumber;
+  const carrier = order.shippingInfo?.carrier;
+  const trackingUrl = order.shippingInfo?.trackingUrl;
   const instructions = paymentInstructions[order.paymentMethod] || ['El pago esta pendiente de confirmacion.'];
 
   return (
@@ -75,13 +91,19 @@ const OrderScreen = () => {
       <header>
         <span>Seguimiento del pedido</span>
         <h1>{order.orderNumber}</h1>
-        <p>Estado actual: <strong>{order.status}</strong></p>
+        <p>Estado actual: <strong>{statusLabels[order.status] || order.status}</strong></p>
       </header>
 
       <div className={styles.grid}>
         <section>
           <h2>Envio</h2>
           <p>{trackingNumber ? `Guia: ${trackingNumber}` : 'La guia aparecera aqui cuando el pedido sea enviado.'}</p>
+          {carrier && <p>Paqueteria: <strong>{carrier}</strong></p>}
+          {trackingUrl && (
+            <a className={styles.trackingLink} href={trackingUrl} target="_blank" rel="noreferrer">
+              Abrir rastreo de paqueteria
+            </a>
+          )}
           <p>{order.isDelivered ? 'Pedido entregado.' : 'Seguiremos actualizando esta seccion durante el envio.'}</p>
         </section>
         <section>
@@ -101,6 +123,26 @@ const OrderScreen = () => {
           )}
         </section>
       )}
+
+      <section className={styles.timelineBox}>
+        <h2>Linea de tiempo</h2>
+        <ol>
+          {(order.statusHistory || []).length > 0 ? (
+            order.statusHistory.map((entry) => (
+              <li key={entry.id}>
+                <strong>{statusLabels[entry.status] || entry.status}</strong>
+                <span>{entry.notes || 'Estado actualizado.'}</span>
+                <small>{entry.date ? dateFormat.format(new Date(entry.date)) : ''}</small>
+              </li>
+            ))
+          ) : (
+            <li>
+              <strong>{statusLabels[order.status] || order.status}</strong>
+              <span>Tu pedido ya esta registrado. Pronto veras mas actualizaciones aqui.</span>
+            </li>
+          )}
+        </ol>
+      </section>
 
       <section className={styles.items}>
         <h2>Productos</h2>

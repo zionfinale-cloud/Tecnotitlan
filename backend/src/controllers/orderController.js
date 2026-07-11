@@ -5,7 +5,7 @@ import logger from '../utils/logger.js';
 import * as whatsappService from '../services/whatsappService.js';
 import { getConfig } from '../services/configService.js';
 import { applyPaidOrderInventoryMovements } from '../services/orderInventoryService.js';
-import { sendOrderPaidEmail, sendOrderShippedEmail } from '../services/emailService.js';
+import { sendOrderDeliveredEmail, sendOrderPaidEmail, sendOrderShippedEmail } from '../services/emailService.js';
 import Stripe from 'stripe';
 import axios from 'axios'; // <-- REQUERIDO
 
@@ -22,6 +22,12 @@ const getStripeInstance = () => {
   return stripe;
 };
 
+export {
+  getOrderByIdOperational,
+  getAllOrdersOperational,
+  updateOrderStatusOperational,
+  updateOrderToDeliveredOperational,
+};
 
 const userCanManageOrders = (user) => {
   const permissions = new Set((user?.role?.permissions || []).map(permission => permission.name));
@@ -29,6 +35,65 @@ const userCanManageOrders = (user) => {
 };
 
 const userCanAccessOrder = (user, order) => userCanManageOrders(user) || order.userId === user?.id;
+
+const VALID_ORDER_STATUSES = new Set([
+  'PENDING_PAYMENT',
+  'PROCESSING',
+  'PENDING_FULFILLMENT',
+  'SHIPPED',
+  'DELIVERED',
+  'CANCELLED',
+]);
+
+const STATUS_HISTORY_NOTES = {
+  PENDING_PAYMENT: 'Pedido creado y pendiente de pago.',
+  PROCESSING: 'Pago confirmado. Pedido en preparacion.',
+  PENDING_FULFILLMENT: 'Pedido pendiente de surtido o fulfillment.',
+  SHIPPED: 'Pedido enviado.',
+  DELIVERED: 'Pedido entregado.',
+  CANCELLED: 'Pedido cancelado.',
+};
+
+const ORDER_INCLUDE = {
+  user: { select: { id: true, firstName: true, lastName: true, email: true } },
+  orderItems: {
+    include: {
+      product: {
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          productType: true,
+        },
+      },
+    },
+  },
+  statusHistory: { orderBy: { date: 'asc' } },
+};
+
+const appendStatusHistory = (tx, orderId, status, notes) => tx.statusHistory.create({
+  data: {
+    orderId,
+    status,
+    notes: notes || STATUS_HISTORY_NOTES[status] || 'Estado actualizado.',
+  },
+});
+
+const buildShippingInfo = (currentInfo = {}, body = {}) => {
+  const trackingNumber = body.trackingNumber?.trim();
+  const carrier = body.carrier?.trim();
+  const trackingUrl = body.trackingUrl?.trim();
+  const notes = body.shippingNotes?.trim();
+
+  return {
+    ...(currentInfo || {}),
+    ...(trackingNumber ? { trackingNumber } : {}),
+    ...(carrier ? { carrier } : {}),
+    ...(trackingUrl ? { trackingUrl } : {}),
+    ...(notes ? { notes } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+};
 
 /**
  * @desc    Crear un nuevo pedido
@@ -145,6 +210,8 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
           },
         },
       });
+
+      await appendStatusHistory(tx, order.id, 'PENDING_PAYMENT', 'Pedido creado. Esperando confirmacion de pago.');
 
       return order;
     });
@@ -321,6 +388,8 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
       },
     });
 
+    await appendStatusHistory(tx, paidOrder.id, paidOrder.status, 'Pago confirmado con tarjeta.');
+
     try {
       await applyPaidOrderInventoryMovements(tx, paidOrder, req.user.id);
     } catch (error) {
@@ -350,10 +419,7 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
 
   const order = await prisma.order.findUnique({
     where: { id: req.params.id },
-    include: {
-      user: { select: { firstName: true, lastName: true, email: true } },
-      orderItems: { include: { product: true } },
-    },
+    include: ORDER_INCLUDE,
   });
 
   if (order) {
@@ -362,6 +428,10 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
 
     if (manualPaymentMethods.includes(order.paymentMethod) && !canManageOrders) {
       return next(new BadRequestError('Solo administradores pueden confirmar pagos manuales.', 403));
+    }
+
+    if (order.isPaid) {
+      return res.status(200).json({ status: 'success', data: { order } });
     }
 
     const isDropshippingOrder = order.orderItems.some(
@@ -382,11 +452,10 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
             email_address: paymentResult.payer ? paymentResult.payer.email_address : '',
           },
         },
-        include: {
-          user: { select: { firstName: true, lastName: true, email: true } },
-          orderItems: { include: { product: true } },
-        },
+        include: ORDER_INCLUDE,
       });
+
+      await appendStatusHistory(tx, paidOrder.id, paidOrder.status, 'Pago confirmado manualmente.');
 
       try {
         await applyPaidOrderInventoryMovements(tx, paidOrder, req.user.id);
@@ -480,6 +549,107 @@ const updateOrderStatus = asyncHandler(async (req, res, next) => {
  * @route   GET /api/orders/myorders
  * @access  Private
  */
+const getOrderByIdOperational = asyncHandler(async (req, res, next) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: ORDER_INCLUDE,
+  });
+
+  if (!order) return next(new NotFoundError('Pedido no encontrado'));
+  if (!userCanAccessOrder(req.user, order)) {
+    return next(new BadRequestError('No autorizado para ver este pedido'));
+  }
+
+  res.status(200).json({ status: 'success', data: { order } });
+});
+
+const getAllOrdersOperational = asyncHandler(async (req, res) => {
+  const orders = await prisma.order.findMany({
+    include: ORDER_INCLUDE,
+    orderBy: { createdAt: 'desc' },
+  });
+
+  res.status(200).json({ status: 'success', results: orders.length, data: { orders } });
+});
+
+const updateOrderStatusOperational = asyncHandler(async (req, res, next) => {
+  const {
+    status,
+    trackingNumber,
+    carrier,
+    trackingUrl,
+    shippingNotes,
+    notes,
+  } = req.body;
+
+  if (status && !VALID_ORDER_STATUSES.has(status)) {
+    return next(new BadRequestError('El estado del pedido no es valido.'));
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: ORDER_INCLUDE,
+  });
+
+  if (!order) return next(new NotFoundError('Pedido no encontrado'));
+
+  const hasShippingUpdate = Boolean(trackingNumber || carrier || trackingUrl || shippingNotes);
+  const nextStatus = hasShippingUpdate ? 'SHIPPED' : (status || order.status);
+
+  if (['PROCESSING', 'PENDING_FULFILLMENT', 'SHIPPED', 'DELIVERED'].includes(nextStatus) && !order.isPaid) {
+    return next(new BadRequestError('Confirma el pago antes de avanzar el pedido.'));
+  }
+
+  const dataToUpdate = {};
+
+  if (nextStatus !== order.status) {
+    dataToUpdate.status = nextStatus;
+  }
+
+  if (hasShippingUpdate) {
+    dataToUpdate.shippingInfo = buildShippingInfo(order.shippingInfo, {
+      trackingNumber,
+      carrier,
+      trackingUrl,
+      shippingNotes,
+    });
+    dataToUpdate.shippedAt = order.shippedAt || new Date();
+  }
+
+  if (nextStatus === 'DELIVERED') {
+    dataToUpdate.isDelivered = true;
+    dataToUpdate.deliveredAt = order.deliveredAt || new Date();
+  }
+
+  if (Object.keys(dataToUpdate).length === 0) {
+    return res.status(200).json({ status: 'success', data: { order } });
+  }
+
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    const savedOrder = await tx.order.update({
+      where: { id: req.params.id },
+      data: dataToUpdate,
+      include: ORDER_INCLUDE,
+    });
+
+    await appendStatusHistory(tx, savedOrder.id, nextStatus, notes || STATUS_HISTORY_NOTES[nextStatus]);
+    return savedOrder;
+  });
+
+  if (hasShippingUpdate) {
+    await sendOrderShippedEmail(updatedOrder);
+  } else if (nextStatus === 'DELIVERED') {
+    await sendOrderDeliveredEmail(updatedOrder);
+  }
+
+  res.status(200).json({ status: 'success', data: { order: updatedOrder } });
+});
+
+const updateOrderToDeliveredOperational = asyncHandler(async (req, res, next) => {
+  req.body = { ...(req.body || {}), status: 'DELIVERED' };
+  return updateOrderStatusOperational(req, res, next);
+});
+
 const getMyOrders = asyncHandler(async (req, res) => {
   const orders = await prisma.order.findMany({
     where: { userId: req.user.id },
