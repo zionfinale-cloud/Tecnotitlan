@@ -45,6 +45,8 @@ const statusTone = {
   CANCELLED: 'danger',
 };
 
+const COMPLETED_ORDER_STATUSES = new Set(['DELIVERED', 'CANCELLED']);
+
 const getCustomerName = (order) => {
   const fullName = [order.user?.firstName, order.user?.lastName].filter(Boolean).join(' ');
   return fullName || order.user?.email || 'Cliente';
@@ -80,12 +82,21 @@ const OrderListScreen = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [activeOrderTab, setActiveOrderTab] = useState('active');
   const [shippingByOrder, setShippingByOrder] = useState({});
 
+  const orderGroups = useMemo(() => {
+    const completed = orders.filter((order) => COMPLETED_ORDER_STATUSES.has(order.status));
+    const active = orders.filter((order) => !COMPLETED_ORDER_STATUSES.has(order.status));
+    return { active, completed };
+  }, [orders]);
+
+  const tabOrders = activeOrderTab === 'completed' ? orderGroups.completed : orderGroups.active;
+
   const filteredOrders = useMemo(() => {
-    if (statusFilter === 'ALL') return orders;
-    return orders.filter((order) => order.status === statusFilter);
-  }, [orders, statusFilter]);
+    if (statusFilter === 'ALL') return tabOrders;
+    return tabOrders.filter((order) => order.status === statusFilter);
+  }, [tabOrders, statusFilter]);
 
   const stats = useMemo(() => {
     const total = orders.length;
@@ -228,7 +239,23 @@ const OrderListScreen = () => {
             ))}
           </select>
         </label>
-        <span className={styles.muted}>{filteredOrders.length} de {orders.length} pedidos</span>
+        <div className={styles.tabBar} role="tablist" aria-label="Vista de pedidos">
+          <button
+            type="button"
+            className={`${styles.tabButton} ${activeOrderTab === 'active' ? styles.tabButtonActive : ''}`}
+            onClick={() => setActiveOrderTab('active')}
+          >
+            Activos <strong>{orderGroups.active.length}</strong>
+          </button>
+          <button
+            type="button"
+            className={`${styles.tabButton} ${activeOrderTab === 'completed' ? styles.tabButtonActive : ''}`}
+            onClick={() => setActiveOrderTab('completed')}
+          >
+            Completados <strong>{orderGroups.completed.length}</strong>
+          </button>
+        </div>
+        <span className={styles.muted}>{filteredOrders.length} de {tabOrders.length} pedidos en esta vista</span>
       </div>
 
       {loading ? (

@@ -99,6 +99,7 @@ const InventoryScreen = () => {
     startDate: '',
     endDate: '',
   });
+  const [activeInventoryTab, setActiveInventoryTab] = useState(showCosts ? 'entries' : 'sales');
 
   const activeProducts = useMemo(
     () => products.filter((product) => !product.isArchived),
@@ -146,6 +147,14 @@ const InventoryScreen = () => {
     transfers: movements.filter((movement) => TRANSFER_MOVEMENT_TYPES.has(movement.type)),
     adjustments: movements.filter((movement) => ADJUSTMENT_MOVEMENT_TYPES.has(movement.type)),
   }), [movements]);
+
+  const inventoryTabs = useMemo(() => [
+    { value: 'overview', label: 'Resumen' },
+    ...(showCosts ? [{ value: 'entries', label: 'Entradas' }] : []),
+    { value: 'sales', label: 'Salidas' },
+    { value: 'transfers', label: 'Traspasos' },
+    { value: 'history', label: 'Historial' },
+  ], [showCosts]);
 
   const renderMovementTable = (title, description, rows, emptyText) => (
     <div className={styles.tableWrap} style={{ marginTop: '1.25rem' }}>
@@ -339,8 +348,22 @@ const InventoryScreen = () => {
       {error && <div className={styles.error}>{error}</div>}
       {success && <div className={styles.success}>{success}</div>}
 
-      <div className={styles.formGrid}>
-        {showCosts && (
+      <div className={styles.tabBar} role="tablist" aria-label="Secciones de inventario">
+        {inventoryTabs.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            className={`${styles.tabButton} ${activeInventoryTab === tab.value ? styles.tabButtonActive : ''}`}
+            onClick={() => setActiveInventoryTab(tab.value)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeInventoryTab === 'entries' && showCosts && (
+      <>
+        <div className={styles.formGrid}>
         <section className={styles.card}>
           <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Entrada de mercancia</h2>
           <form onSubmit={createStockEntry}>
@@ -416,8 +439,19 @@ const InventoryScreen = () => {
             </div>
           </form>
         </section>
+        </div>
+        {renderMovementTable(
+          'Entradas de mercancia',
+          'Compras, devoluciones recibidas o ajustes que aumentan existencia fisica.',
+          movementGroups.entries,
+          'No hay entradas con estos filtros.'
         )}
+      </>
+      )}
 
+      {activeInventoryTab === 'sales' && (
+      <>
+        <div className={styles.formGrid}>
         <section className={styles.card}>
           <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Registrar venta / salida</h2>
           <form onSubmit={createManualSale}>
@@ -490,7 +524,19 @@ const InventoryScreen = () => {
             </div>
           </form>
         </section>
+        </div>
+        {renderMovementTable(
+          'Salidas por venta',
+          'Productos vendidos en web, Mercado Libre, TikTok Shop, Amazon u otro canal.',
+          movementGroups.sales,
+          'No hay ventas/salidas con estos filtros.'
+        )}
+      </>
+      )}
 
+      {activeInventoryTab === 'transfers' && (
+      <>
+        <div className={styles.formGrid}>
         <section className={styles.card}>
           <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Mover stock a canal</h2>
           <form onSubmit={transferStock}>
@@ -573,8 +619,18 @@ const InventoryScreen = () => {
             </div>
           </form>
         </section>
-      </div>
+        </div>
+        {renderMovementTable(
+          'Traspasos a canales',
+          'Mercancia apartada o enviada para venderse en Mercado Libre, TikTok Shop o Amazon.',
+          movementGroups.transfers,
+          'No hay traspasos a canales con estos filtros.'
+        )}
+      </>
+      )}
 
+      {activeInventoryTab === 'overview' && (
+      <>
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
         <div className={styles.toolbar}>
           <div>
@@ -729,7 +785,10 @@ const InventoryScreen = () => {
         </div>
       </section>
       )}
+      </>
+      )}
 
+      {activeInventoryTab === 'history' && (
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
         <div className={styles.toolbar}>
           <div>
@@ -862,6 +921,7 @@ const InventoryScreen = () => {
           'No hay ajustes o devoluciones con estos filtros.'
         )}
       </section>
+      )}
     </>
   );
 };

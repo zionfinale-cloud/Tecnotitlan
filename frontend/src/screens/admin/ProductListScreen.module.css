@@ -33,6 +33,32 @@
     flex-wrap: wrap;
 }
 
+.tabBar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.tabButton {
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+    font-weight: 800;
+    padding: 0.65rem 1rem;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.tabButtonActive {
+    border-color: #00d084;
+    background: #06111f;
+    color: #fff;
+    box-shadow: 0 12px 28px rgba(0, 208, 132, 0.16);
+}
+
 .button {
     border: 0;
     border-radius: 0.75rem;
