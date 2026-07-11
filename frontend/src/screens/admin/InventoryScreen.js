@@ -148,6 +148,20 @@ const InventoryScreen = () => {
     adjustments: movements.filter((movement) => ADJUSTMENT_MOVEMENT_TYPES.has(movement.type)),
   }), [movements]);
 
+  const renderChannelStock = (item, channel) => {
+    const assignedStock = Number(item.channelStock?.[channel] || 0);
+    const publishedStock = item.channelPublishedStock?.[channel];
+    const hasPublishedStock = publishedStock !== undefined && publishedStock !== null;
+    const showPublishedNote = hasPublishedStock && Number(publishedStock) !== assignedStock;
+
+    return (
+      <span className={styles.stockCell}>
+        <strong>{assignedStock}</strong>
+        {showPublishedNote && <small>Publicado: {publishedStock}</small>}
+      </span>
+    );
+  };
+
   const inventoryTabs = useMemo(() => [
     { value: 'overview', label: 'Resumen' },
     ...(showCosts ? [{ value: 'entries', label: 'Entradas' }] : []),
@@ -636,7 +650,7 @@ const InventoryScreen = () => {
           <div>
             <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>Inventario por producto y canal</h2>
             <p className={styles.subtitle} style={{ marginBottom: 0 }}>
-              Existencia fisica y stock publicado por marketplace para evitar perder mercancia.
+              Stock real por ubicacion. Si un canal muestra "Publicado", es solo el stock configurado en su publicacion, no mercancia apartada.
             </p>
           </div>
         </div>
@@ -647,11 +661,11 @@ const InventoryScreen = () => {
                 <th>SKU</th>
                 <th>Producto</th>
                 <th>Marca</th>
-                <th>Stock fisico</th>
-                <th>Web</th>
-                <th>Mercado Libre</th>
-                <th>TikTok Shop</th>
-                <th>Amazon</th>
+                <th>Stock total</th>
+                <th>Bodega/Web</th>
+                <th>ML asignado</th>
+                <th>TikTok asignado</th>
+                <th>Amazon asignado</th>
                 {showCosts && <th>Costo prom.</th>}
                 <th>Recompra</th>
               </tr>
@@ -664,9 +678,9 @@ const InventoryScreen = () => {
                   <td>{item.brand || '-'}</td>
                   <td>{item.totalPhysicalStock}</td>
                   <td>{item.channelStock?.WEB ?? 0}</td>
-                  <td>{item.channelStock?.MERCADOLIBRE ?? 0}</td>
-                  <td>{item.channelStock?.TIKTOK_SHOP ?? 0}</td>
-                  <td>{item.channelStock?.AMAZON ?? 0}</td>
+                  <td>{renderChannelStock(item, 'MERCADOLIBRE')}</td>
+                  <td>{renderChannelStock(item, 'TIKTOK_SHOP')}</td>
+                  <td>{renderChannelStock(item, 'AMAZON')}</td>
                   {showCosts && <td>{currency.format(item.costPrice || 0)}</td>}
                   <td>{item.reorderSuggested ? 'Revisar' : 'OK'}</td>
                 </tr>

@@ -457,6 +457,14 @@ const getInventoryOverview = asyncHandler(async (req, res) => {
           status: true,
         },
       },
+      inventoryMovements: {
+        select: {
+          type: true,
+          quantity: true,
+          channel: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      },
     },
     orderBy: { sku: 'asc' },
   });
@@ -470,14 +478,37 @@ const getInventoryOverview = asyncHandler(async (req, res) => {
       AMAZON: 0,
     };
 
+    const channelPublishedStock = {};
     const channelPrices = {};
     const channelStatuses = {};
 
     for (const listing of product.marketplaceListings) {
-      channelStock[listing.channel] = listing.publishedStock || 0;
+      channelPublishedStock[listing.channel] = listing.publishedStock || 0;
       channelPrices[listing.channel] = listing.price || null;
       channelStatuses[listing.channel] = listing.status;
     }
+
+    for (const movement of product.inventoryMovements) {
+      if (!movement.channel || !SALES_CHANNELS.includes(movement.channel)) continue;
+
+      if (movement.type === 'CHANNEL_TRANSFER') {
+        channelStock[movement.channel] += movement.quantity || 0;
+      }
+
+      if (movement.type === 'SALE') {
+        channelStock[movement.channel] = Math.max(channelStock[movement.channel] - (movement.quantity || 0), 0);
+      }
+
+      if (movement.type === 'RETURN_IN') {
+        channelStock[movement.channel] += movement.quantity || 0;
+      }
+
+      if (movement.type === 'ADJUSTMENT_OUT' || movement.type === 'RETURN_OUT') {
+        channelStock[movement.channel] = Math.max(channelStock[movement.channel] - (movement.quantity || 0), 0);
+      }
+    }
+
+    const totalPhysicalStock = Object.values(channelStock).reduce((sum, stock) => sum + (stock || 0), 0);
 
     return {
       productId: product.id,
@@ -485,13 +516,14 @@ const getInventoryOverview = asyncHandler(async (req, res) => {
       name: product.name,
       brand: product.brand,
       category: product.category?.name || null,
-      totalPhysicalStock: product.countInStock,
+      totalPhysicalStock,
       ...(showCosts ? { costPrice: product.costPrice || 0 } : {}),
       webPrice: product.price,
       channelStock,
+      channelPublishedStock,
       channelPrices,
       channelStatuses,
-      reorderSuggested: product.countInStock <= 3,
+      reorderSuggested: totalPhysicalStock <= 3,
     };
   });
 

@@ -827,6 +827,10 @@ Reglas importantes:
 - **Submenus operativos de Pedidos:** la pantalla de `Pedidos` separa `Activos` y `Completados`. Los pedidos entregados o cancelados se consultan en completados para mantener despejada la vista diaria de preparacion, guia y seguimiento.
 - **Regla de trabajo diario:** primero se registra el dinero disponible o gasto en `Inversiones`; despues se registran las piezas en `Inventario`; al vender o mover a canal, se registra la salida fisica. Esta separacion evita perder dinero, duplicar stock o mezclar gasto operativo con mercancia.
 
+### Regla de inventario real vs publicado
+
+El resumen de inventario toma como fuente de verdad los movimientos reales (`InventoryMovement`). `Bodega/Web` viene de `Product.countInStock`; Mercado Libre, TikTok Shop y Amazon solo cuentan como stock asignado si existe un `CHANNEL_TRANSFER`, venta, devolucion o ajuste de ese canal. El `publishedStock` de una publicacion marketplace es informativo y no debe contarse como mercancia fisica si no hubo traspaso registrado.
+
 ### Uso recomendado de n8n
 
 n8n debe implementarse despues de estabilizar el flujo humano base. Su primer uso recomendado no es modificar inventario automaticamente, sino avisar y acompañar:

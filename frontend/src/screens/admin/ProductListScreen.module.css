@@ -128,6 +128,22 @@
     color: #64748b;
 }
 
+.stockCell {
+    display: inline-grid;
+    gap: 0.15rem;
+}
+
+.stockCell strong {
+    color: #0f172a;
+}
+
+.stockCell small {
+    color: #b45309;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
 .empty {
     padding: 2rem;
     text-align: center;
