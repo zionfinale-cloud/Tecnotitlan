@@ -106,7 +106,14 @@ const UserEditScreen = () => {
 
   const grantIds = useMemo(() => new Set(form.permissionGrantIds), [form.permissionGrantIds]);
   const denyIds = useMemo(() => new Set(form.permissionDenyIds), [form.permissionDenyIds]);
+  const effectivePermissionIds = useMemo(() => {
+    const effective = new Set(rolePermissionIds);
+    form.permissionGrantIds.forEach((permissionId) => effective.add(permissionId));
+    form.permissionDenyIds.forEach((permissionId) => effective.delete(permissionId));
+    return effective;
+  }, [form.permissionDenyIds, form.permissionGrantIds, rolePermissionIds]);
   const isSuperAdminTarget = selectedRole?.name === 'SUPER_ADMIN' || userMeta?.role?.name === 'SUPER_ADMIN';
+  const totalOverrides = form.permissionGrantIds.length + form.permissionDenyIds.length;
 
   const setPermissionMode = (permissionId, mode) => {
     if (!permissionId || isSuperAdminTarget) return;
@@ -141,6 +148,15 @@ const UserEditScreen = () => {
     return rolePermissionIds.has(permissionId);
   };
 
+  const resetPermissionOverrides = () => {
+    if (isSuperAdminTarget) return;
+    setForm((current) => ({
+      ...current,
+      permissionGrantIds: [],
+      permissionDenyIds: [],
+    }));
+  };
+
   const renderPermissionControls = (permission, danger = false) => {
     if (!permission) return <span className={styles.muted}>No existe</span>;
     const mode = getPermissionMode(permission.id);
@@ -154,7 +170,7 @@ const UserEditScreen = () => {
           onClick={() => setPermissionMode(permission.id, 'inherit')}
           disabled={isSuperAdminTarget}
         >
-          Rol: {rolePermissionIds.has(permission.id) ? 'Si' : 'No'}
+          Rol base: {rolePermissionIds.has(permission.id) ? 'Si' : 'No'}
         </button>
         <button
           type="button"
@@ -162,7 +178,7 @@ const UserEditScreen = () => {
           onClick={() => setPermissionMode(permission.id, 'grant')}
           disabled={isSuperAdminTarget}
         >
-          Permitir
+          Si, permitir
         </button>
         <button
           type="button"
@@ -170,7 +186,7 @@ const UserEditScreen = () => {
           onClick={() => setPermissionMode(permission.id, 'deny')}
           disabled={isSuperAdminTarget}
         >
-          Bloquear
+          No, bloquear
         </button>
         <span className={`${styles.permissionResult} ${effective ? styles.permissionAllowed : styles.permissionBlocked}`}>
           {effective ? 'Activo' : 'Sin acceso'}
@@ -207,6 +223,29 @@ const UserEditScreen = () => {
           <strong>Rol actual:</strong> {userMeta.role?.name || 'USER'}
         </div>
       )}
+
+      <div className={styles.permissionSummaryGrid}>
+        <div className={styles.permissionSummaryCard}>
+          <span>Rol base</span>
+          <strong>{selectedRole?.name || 'Sin rol'}</strong>
+          <small>{selectedRole?.description || 'Selecciona el rol operativo principal.'}</small>
+        </div>
+        <div className={styles.permissionSummaryCard}>
+          <span>Permisos activos</span>
+          <strong>{effectivePermissionIds.size}</strong>
+          <small>Resultado final despues de aplicar rol, permisos extra y bloqueos.</small>
+        </div>
+        <div className={styles.permissionSummaryCard}>
+          <span>Permitidos extra</span>
+          <strong>{form.permissionGrantIds.length}</strong>
+          <small>Accesos que este usuario gana aunque su rol base no los tenga.</small>
+        </div>
+        <div className={styles.permissionSummaryCard}>
+          <span>Bloqueados</span>
+          <strong>{form.permissionDenyIds.length}</strong>
+          <small>Accesos que este usuario pierde aunque su rol base los tenga.</small>
+        </div>
+      </div>
 
       <section className={styles.card}>
         <form onSubmit={saveUser}>
@@ -274,6 +313,19 @@ const UserEditScreen = () => {
               <p className={styles.placeholderText}>
                 "Rol" respeta lo que tiene el rol base. "Permitir" agrega acceso a esta persona. "Bloquear" le quita acceso aunque el rol lo tenga.
               </p>
+              <div className={styles.inlineActions}>
+                <button
+                  className={styles.secondaryButton}
+                  type="button"
+                  onClick={resetPermissionOverrides}
+                  disabled={isSuperAdminTarget || totalOverrides === 0}
+                >
+                  Limpiar permisos individuales
+                </button>
+                <span className={styles.muted}>
+                  Cambios pendientes: {totalOverrides} excepcion{totalOverrides === 1 ? '' : 'es'}.
+                </span>
+              </div>
               {isSuperAdminTarget && (
                 <p className={styles.placeholderText}>
                   Los usuarios SUPER_ADMIN siempre tienen acceso completo y no aceptan bloqueos individuales para evitar perder el control del sistema.

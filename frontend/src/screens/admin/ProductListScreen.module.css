@@ -179,6 +179,50 @@
     margin-top: 1.25rem;
 }
 
+.permissionSummaryGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin: 1rem 0;
+}
+
+.permissionSummaryCard {
+    display: grid;
+    gap: 0.25rem;
+    border: 1px solid #dbe7ef;
+    border-radius: 1rem;
+    background: #ffffff;
+    padding: 1rem;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+    color: #0f172a;
+}
+
+.permissionSummaryCard span {
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.permissionSummaryCard strong {
+    font-size: 1.35rem;
+    line-height: 1.1;
+}
+
+.permissionSummaryCard small {
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.inlineActions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.85rem;
+}
+
 .permissionRow {
     display: grid;
     grid-template-columns: minmax(220px, 0.9fr) 2fr;
@@ -320,6 +364,10 @@
 
 @media (max-width: 800px) {
     .formGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .permissionSummaryGrid {
         grid-template-columns: 1fr;
     }
 

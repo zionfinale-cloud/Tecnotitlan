@@ -19,3 +19,40 @@
     white-space: nowrap;
     width: 1%;
 }
+
+.permissionBadges {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.allowBadge,
+.denyBadge,
+.inheritedBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.allowBadge {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.denyBadge {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.inheritedBadge {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
