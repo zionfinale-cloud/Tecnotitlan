@@ -97,9 +97,9 @@ Esta sección define la trayectoria del proyecto para asegurar que no perdamos e
     2. **Mercado Libre:** primer marketplace externo por afinidad con Mexico, Mercado Envios y volumen comercial.
     3. **TikTok Shop:** segundo marketplace externo, ideal para gadgets y ventas por contenido cuando el inventario ya este estable.
     4. **Amazon:** tercer marketplace externo por complejidad operativa, comisiones, reglas de listing y SP-API.
-  Cada producto mantiene un SKU maestro interno (`AUR-001`, `BOS-001`, `WTC-001`, etc.) y puede tener publicaciones por canal con precio, stock publicado, comision estimada, ID externo y estado de sincronizacion propios. Ningun marketplace debe modificar inventario directo: las ventas externas se importan como ordenes externas y generan movimientos de inventario controlados por el backend.
+  Cada producto mantiene un SKU maestro interno (`AUR-001`, `BOC-001`, `DRN-001`, `WTC-001`, etc.) y puede tener publicaciones por canal con precio, stock publicado, comision estimada, ID externo y estado de sincronizacion propios. Ningun marketplace debe modificar inventario directo: las ventas externas se importan como ordenes externas y generan movimientos de inventario controlados por el backend.
 - **Guias y fulfillment por canal:** En la web propia se integrara un agregador logistico (preferentemente Envia.com o Skydropx) para cotizar y generar guias. En marketplaces se respetara la logistica nativa cuando aplique: Mercado Envios para Mercado Libre, fulfillment/logistica de TikTok Shop cuando este disponible y Amazon Seller/FBA segun la estrategia. Tecnotitlan guardara tracking, costo real, estado y evidencia, aunque la guia venga de una plataforma externa.
-- **Flujo correcto de producto e inventario:** Un producto nuevo se crea primero como ficha de catalogo: categoria, prefijo SKU, nombre, descripcion comercial, imagenes, video, especificaciones, precio web y datos de envio. El stock real no debe improvisarse en el formulario del producto; debe registrarse despues desde Inventario mediante una entrada ligada a una inversion, cantidad y costo unitario. Esto permite saber cuanto se compro, cuanto se vendio, cuanto queda disponible y cuanto margen real deja cada canal.
+- **Flujo correcto de producto e inventario:** Un producto nuevo se crea primero como ficha de catalogo: categoria, prefijo SKU, nombre, descripcion comercial, imagenes, video, especificaciones, precio web y datos de envio. El alta de producto permite elegir `Auto por categoria`, seleccionar un prefijo existente o crear uno nuevo de 2 a 3 caracteres; el backend genera el consecutivo y el SKU queda congelado despues de crear el producto para no romper inventario, pedidos ni canales. El stock real no debe improvisarse en el formulario del producto; debe registrarse despues desde Inventario mediante una entrada ligada a una inversion, cantidad y costo unitario. Esto permite saber cuanto se compro, cuanto se vendio, cuanto queda disponible y cuanto margen real deja cada canal.
 - **Separacion contable-operativa:** Inversion, inventario y salidas no son lo mismo. La inversion representa dinero disponible y gastado. Las compras/entradas consumen esa inversion y aumentan stock fisico. El inventario muestra existencias por producto y stock publicado/asignado por canal (web, Mercado Libre, TikTok Shop, Amazon). Las salidas/ventas reducen stock, guardan canal de venta, ingreso, costo y utilidad para saber donde se vende mas, cuanto se gano y que productos deben recomprarse.
 - **UI administrativa separada:** `Inversiones` debe vivir como apartado propio del sidebar para registrar y consultar capital disponible/gastado. `Inventario` no administra capital; solo registra entradas de mercancia, muestra existencias por canal, movimientos y cortes de ventas.
 - **Distribucion de stock por canal:** Las entradas de mercancia aumentan primero el stock de bodega/web del producto. Si se apartan o envian piezas a Mercado Libre, TikTok Shop o Amazon, se registra un traspaso desde Inventario: baja el stock de bodega/web y aumenta el stock publicado/asignado del canal. `Canales` configura precio, IDs externos y datos de publicacion; no debe ser el lugar principal para mover mercancia fisica.
@@ -107,7 +107,7 @@ Esta sección define la trayectoria del proyecto para asegurar que no perdamos e
     - Adjuntar automáticamente tokens de autenticación.
     - Estandarizar el manejo de respuestas y errores.
     - Gestionar la expiración de sesión de forma global.
-- **Autorización RBAC Flexible:** El acceso a rutas protegidas (ej. el panel de admin) se controla mediante permisos (`access:admin_panel`) en lugar de roles fijos, permitiendo una gestión de acceso más granular y escalable a través del `permissionMiddleware.js`.
+- **Autorización RBAC Flexible:** El acceso a rutas protegidas (ej. el panel de admin) se controla mediante permisos (`access:admin_panel`) en lugar de roles fijos. El rol base define permisos heredados, pero cada usuario puede tener excepciones individuales: permisos permitidos extra (`UserPermissionGrant`) y permisos bloqueados (`UserPermissionDeny`). Esto permite que un vendedor especifico pueda tener mas acceso que otro sin crear roles duplicados, y permite ocultar costos, inversiones o configuraciones sensibles a quien no deba verlas.
 - **Estilos con CSS Modules:** Se adoptó un enfoque de estilos encapsulados por componente para evitar conflictos de clases y mejorar la mantenibilidad. Las variables CSS globales (`:root` en `index.css`) permiten una personalización centralizada del tema.
 - **Hooks Personalizados (`use...`):** La lógica de estado y las llamadas a API se abstraen en hooks reutilizables (`useFormValidation`, `useProductFilters`, `useCategoryManager`, `useProductForm`), centralizando la lógica compleja y haciendo los componentes más limpios y declarativos.
 - **Lógica de Precios Segura:** El cálculo de precios y totales se realiza exclusivamente en el backend (`orderController.js`) para prevenir manipulaciones desde el cliente.
@@ -121,7 +121,7 @@ Esta sección define la trayectoria del proyecto para asegurar que no perdamos e
 - **Seguridad del Backend:** Se implementan medidas de seguridad estándar como `helmet` para cabeceras HTTP, `cors` para control de origen y `express-rate-limit` para prevenir ataques de fuerza bruta en endpoints de autenticación.
 - **Sistema de Configuración Dinámica:** La aplicación carga su configuración (claves de API, nombres, etc.) desde la base de datos al arrancar (`configService.js`). Esto permite a los administradores modificar el comportamiento y las integraciones (PayPal, Meli, WhatsApp) a través del panel de administración (`/admin/settings/*`) sin necesidad de redesplegar el código.
 - **Archivado Lógico (Soft Delete):** Los productos no se eliminan directamente, sino que se marcan como archivados (`isArchived: true`). Esto permite restaurarlos en el futuro y mantiene la integridad de los datos en pedidos antiguos. Existe una opción para la eliminación permanente.
-    - **Generación Automática de SKU:** Para evitar errores manuales y estandarizar el catálogo, los SKUs de los productos se generan automáticamente en el backend (`productController.js`) al momento de la creación, combinando un prefijo de categoría con un número secuencial (`TEC-SMARTWATCH-0001`).
+    - **Generación Automática de SKU:** Para evitar errores manuales y estandarizar el catálogo, los SKUs se generan en el backend (`productController.js`) al momento de la creación usando el prefijo elegido en el formulario (`AUR`, `BOC`, `DRN`, etc.) y un consecutivo de tres digitos (`AUR-001`). Si se elige `Auto por categoria`, el sistema infiere el prefijo desde la categoria. Si hace falta una linea nueva, el admin puede crear el prefijo desde el mismo selector.
 - **Layout de Administración Centralizado (`AdminLayout.js`):** Toda la estructura del panel de administración (barra lateral, submenús) se gestiona en un único componente, facilitando la adición de nuevas secciones.
 
 ---
@@ -758,13 +758,22 @@ Para construir y probar los workflows de n8n de forma segura y sin costo antes d
 
 ## 12. Arquitectura de Roles y Permisos (Sistema RBAC)
 
-Para lograr un control de acceso modular y flexible, se ha implementado un sistema de **Control de Acceso Basado en Roles (RBAC)**. Esto permite crear roles personalizados (como "Vendedor", "Editor de Contenido", etc.) y asignarles permisos específicos, yendo más allá de los roles estáticos.
+Para lograr un control de acceso modular y flexible, se ha implementado un sistema de **Control de Acceso Basado en Roles (RBAC)**. Esto permite crear roles base (`SUPER_ADMIN`, `ADMIN`, `SUPERVISOR`, `VENDEDOR`, `USER`) y ajustar permisos por usuario sin duplicar roles.
 
 ### Componentes Clave
-- **Modelos de Datos:** `Role`, `Permission` y sus relaciones están definidos en `d:/Tecnotitlan/backend/prisma/schema.prisma`.
-- **Seeding Inicial:** El script `d:/Tecnotitlan/backend/prisma/seed.js` crea el rol `SUPER_ADMIN` y los permisos base.
-- **Gestión en Frontend:** Las pantallas `RoleListScreen.js` y `RoleEditScreen.js` permiten la administración de roles y permisos.
-- **Protección de Rutas:** El middleware `d:/Tecnotitlan/backend/src/middleware/permissionMiddleware.js` (`checkPermission`) se encarga de validar los permisos en las rutas del backend.
+- **Modelos de Datos:** `Role`, `Permission`, `UserPermissionGrant` y `UserPermissionDeny` estan definidos en `d:/Tecnotitlan/backend/prisma/schema.prisma`.
+- **Seeding Inicial:** El script `d:/Tecnotitlan/backend/prisma/seed.js` crea los roles base, permisos operativos y el usuario `SUPER_ADMIN`.
+- **Permisos por rol:** `RoleListScreen.js` permite administrar la matriz de permisos por rol. El rol base define lo que un grupo puede hacer normalmente.
+- **Permisos por usuario:** `UserEditScreen.js` permite agregar excepciones individuales: `Si, permitir` para dar un permiso extra y `No, bloquear` para negar un permiso aunque venga heredado del rol.
+- **Resumen operativo:** `UserListScreen.js` muestra si el usuario usa solo el rol base o si tiene overrides `+N` / `-N`, para detectar rapido usuarios con permisos especiales.
+- **Protección de Rutas:** El middleware `d:/Tecnotitlan/backend/src/middleware/permissionMiddleware.js` (`checkPermission`) valida permisos en backend. `authMiddleware.js` reconstruye permisos efectivos en cada sesion combinando rol base, grants y denies.
+
+### Reglas Operativas
+- `SUPER_ADMIN` conserva acceso total y no debe depender de overrides individuales.
+- `ADMIN` puede operar administracion amplia, pero no necesariamente debe tener acceso a configuraciones criticas si se decide restringirlo.
+- `SUPERVISOR` debe poder revisar ventas, inventario, pedidos y seguimiento sin tocar secretos ni integraciones sensibles.
+- `VENDEDOR` puede atender ventas, clientes, WhatsApp/Tecatl y pedidos, pero por defecto no debe ver costos, inversiones ni margenes internos.
+- Los costos se protegen con permisos especificos como `finance:read_costs`; el acceso al panel se controla con `access:admin_panel`.
 
 ---
 
