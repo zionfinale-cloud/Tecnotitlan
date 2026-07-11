@@ -148,7 +148,9 @@ A continuación se detalla el estado de cada módulo del backend.
 
 - **Pedidos y Checkout**
     - ✅ **Modelos:** `Order`, `OrderItem` definidos en `schema.prisma`.
-    - ✅ **Creación de Pedidos:** Lógica transaccional para crear el pedido y descontar el stock de forma atómica.
+    - ✅ **Creación de Pedidos:** El pedido se crea en estado pendiente de pago. No debe descontar inventario todavia.
+    - ✅ **Inventario al Confirmar Pago:** `orderInventoryService.js` registra salidas `SALE` solo cuando el pago queda confirmado por Stripe, webhook o confirmacion manual autorizada.
+    - ✅ **Alertas Operativas:** Si el pago queda confirmado pero la salida de inventario falla por stock o inconsistencia, el sistema agrega una nota visible al historial del pedido para revision manual.
     - ✅ **Historial de Pedidos:** Endpoints para que los usuarios vean sus pedidos y los administradores vean todos.
     - ✅ **Gestión de Estados:** Lógica para actualizar el estado de los pedidos (pagado, enviado, entregado).
 
@@ -785,6 +787,7 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 - **Backend:** El servicio `whatsappService.js` y los endpoints de control en `index.js` gestionan la inicialización y el estado de la conexión mediante **Socket.IO**.
 - **Inicialización:** Al arrancar el servidor (`npm start`), `index.js` inicializa `whatsappService` y le pasa la instancia de `io` (Socket.IO) para permitir la comunicación en tiempo real con el frontend (QR, estados).
 - **Frontend:** La pantalla `WhatsappSettingsScreen.js` escucha estos eventos de WebSockets para mostrar el código QR y el estado de la conexión sin necesidad de recargar la página.
+- **Atencion Operativa:** La pantalla `WhatsAppChatScreen.js` es la vista de trabajo para vendedores/supervisores. Debe mantener lista de conversaciones, mensajes y adjuntos dentro de contenedores con scroll interno para evitar que el panel se vuelva inmanejable en conversaciones largas.
 
 ---
 

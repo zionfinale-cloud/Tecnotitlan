@@ -23,7 +23,8 @@
 }
 
 .workspace {
-  min-height: 650px;
+  height: min(760px, calc(100vh - 210px));
+  min-height: 560px;
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
   border: 1px solid #dbe4ee;
@@ -38,6 +39,7 @@
   background: #ffffff;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .listHeader {
@@ -50,6 +52,8 @@
 }
 
 .chatRows {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -109,6 +113,7 @@
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-width: 0;
+  min-height: 0;
   background: linear-gradient(180deg, #f8fafc 0%, #eef7f2 100%);
 }
 
@@ -125,8 +130,10 @@
 }
 
 .messages {
+  min-height: 0;
   padding: 1rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: .65rem;
@@ -302,6 +309,6 @@
   .chatList {
     border-right: 0;
     border-bottom: 1px solid #dbe4ee;
-    max-height: 320px;
+    max-height: 280px;
   }
 }

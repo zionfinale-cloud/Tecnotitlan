@@ -79,6 +79,13 @@ const appendStatusHistory = (tx, orderId, status, notes) => tx.statusHistory.cre
   },
 });
 
+const appendInventoryWarning = (tx, order, error) => appendStatusHistory(
+  tx,
+  order.id,
+  order.status,
+  `Pago confirmado, pero la salida de inventario requiere revision manual: ${error.message}`
+);
+
 const buildShippingInfo = (currentInfo = {}, body = {}) => {
   const trackingNumber = body.trackingNumber?.trim();
   const carrier = body.carrier?.trim();
@@ -394,6 +401,7 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
       await applyPaidOrderInventoryMovements(tx, paidOrder, req.user.id);
     } catch (error) {
       logger.error(`[Inventory] Pago confirmado sin salida de inventario para ${paidOrder.orderNumber}: ${error.message}`);
+      await appendInventoryWarning(tx, paidOrder, error);
     }
 
     return paidOrder;
@@ -461,6 +469,7 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
         await applyPaidOrderInventoryMovements(tx, paidOrder, req.user.id);
       } catch (error) {
         logger.error(`[Inventory] Pago manual confirmado sin salida de inventario para ${paidOrder.orderNumber}: ${error.message}`);
+        await appendInventoryWarning(tx, paidOrder, error);
       }
 
       return paidOrder;

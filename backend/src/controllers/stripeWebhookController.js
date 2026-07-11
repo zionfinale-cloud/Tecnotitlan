@@ -17,6 +17,14 @@ const getStripeInstance = () => {
   return stripe;
 };
 
+const appendInventoryWarning = (tx, order, error) => tx.statusHistory.create({
+  data: {
+    orderId: order.id,
+    status: order.status,
+    notes: `Pago confirmado por Stripe, pero la salida de inventario requiere revision manual: ${error.message}`,
+  },
+});
+
 const markStripeOrderPaid = async (paymentIntent) => {
   const orderUuid = paymentIntent.metadata?.order_uuid;
   const orderNumber = paymentIntent.metadata?.order_id;
@@ -100,6 +108,7 @@ const markStripeOrderPaid = async (paymentIntent) => {
       await applyPaidOrderInventoryMovements(tx, paidOrder);
     } catch (error) {
       logger.error(`[Inventory] Webhook Stripe sin salida de inventario para ${paidOrder.orderNumber}: ${error.message}`);
+      await appendInventoryWarning(tx, paidOrder, error);
     }
 
     return paidOrder;
