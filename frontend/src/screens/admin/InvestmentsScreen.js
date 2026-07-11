@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './ProductListScreen.module.css';
 
@@ -42,6 +42,12 @@ const InvestmentsScreen = () => {
     amount: '',
     notes: '',
   });
+  const [cashFilters, setCashFilters] = useState({
+    investmentId: '',
+    type: '',
+    startDate: '',
+    endDate: '',
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -74,7 +80,30 @@ const InvestmentsScreen = () => {
 
   const cashMovements = useMemo(() => flattenCashMovements(investments), [investments]);
 
-  const loadInvestments = async ({ silent = false } = {}) => {
+  const filteredCashMovements = useMemo(() => cashMovements.filter((movement) => {
+    if (cashFilters.investmentId && movement.investmentId !== cashFilters.investmentId) return false;
+    if (cashFilters.type && movement.type !== cashFilters.type) return false;
+    if (cashFilters.startDate && new Date(movement.createdAt) < new Date(cashFilters.startDate)) return false;
+    if (cashFilters.endDate) {
+      const end = new Date(cashFilters.endDate);
+      end.setHours(23, 59, 59, 999);
+      if (new Date(movement.createdAt) > end) return false;
+    }
+    return true;
+  }), [cashFilters, cashMovements]);
+
+  const filteredCashTotals = useMemo(() => filteredCashMovements.reduce(
+    (acc, movement) => {
+      const amount = Number(movement.amount || 0);
+      if (movement.type === 'CAPITAL_IN' || movement.type === 'ADJUSTMENT_IN') {
+        return { ...acc, income: acc.income + amount };
+      }
+      return { ...acc, outcome: acc.outcome + amount };
+    },
+    { income: 0, outcome: 0 }
+  ), [filteredCashMovements]);
+
+  const loadInvestments = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     setError('');
     try {
@@ -90,7 +119,7 @@ const InvestmentsScreen = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadInvestments();
@@ -98,7 +127,7 @@ const InvestmentsScreen = () => {
       loadInvestments({ silent: true });
     }, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadInvestments]);
 
   const createInvestment = async (event) => {
     event.preventDefault();
@@ -305,7 +334,77 @@ const InvestmentsScreen = () => {
       </section>
 
       <section className={styles.card} style={{ marginTop: '1.25rem' }}>
-        <h2 className={styles.title} style={{ fontSize: '1.25rem' }}>Salidas y entradas de dinero</h2>
+        <div className={styles.toolbar}>
+          <div>
+            <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>Salidas y entradas de dinero</h2>
+            <p className={styles.subtitle} style={{ marginBottom: 0 }}>
+              Filtra gastos, imprevistos, ajustes y entradas de efectivo sin mezclarlo con piezas de inventario.
+            </p>
+          </div>
+        </div>
+        <form className={styles.formGrid} style={{ marginBottom: '1rem' }}>
+          <div className={styles.field}>
+            <label className={styles.label}>Inversion</label>
+            <select
+              className={styles.select}
+              value={cashFilters.investmentId}
+              onChange={(event) => setCashFilters({ ...cashFilters, investmentId: event.target.value })}
+            >
+              <option value="">Todas las inversiones</option>
+              {investments.map((investment) => (
+                <option key={investment.id} value={investment.id}>{investment.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Tipo</label>
+            <select
+              className={styles.select}
+              value={cashFilters.type}
+              onChange={(event) => setCashFilters({ ...cashFilters, type: event.target.value })}
+            >
+              <option value="">Todos los tipos</option>
+              {CASH_MOVEMENT_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>{type.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Desde</label>
+            <input
+              className={styles.input}
+              type="date"
+              value={cashFilters.startDate}
+              onChange={(event) => setCashFilters({ ...cashFilters, startDate: event.target.value })}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Hasta</label>
+            <input
+              className={styles.input}
+              type="date"
+              value={cashFilters.endDate}
+              onChange={(event) => setCashFilters({ ...cashFilters, endDate: event.target.value })}
+            />
+          </div>
+          <div className={styles.actions}>
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              onClick={() => setCashFilters({ investmentId: '', type: '', startDate: '', endDate: '' })}
+            >
+              Limpiar filtros
+            </button>
+          </div>
+        </form>
+        <div className={styles.formGrid} style={{ marginBottom: '1rem' }}>
+          <div className={styles.placeholderBox}>
+            <strong>Entradas filtradas:</strong> {currency.format(filteredCashTotals.income)}
+          </div>
+          <div className={styles.placeholderBox}>
+            <strong>Salidas filtradas:</strong> {currency.format(filteredCashTotals.outcome)}
+          </div>
+        </div>
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
@@ -318,7 +417,7 @@ const InvestmentsScreen = () => {
               </tr>
             </thead>
             <tbody>
-              {cashMovements.map((movement) => (
+              {filteredCashMovements.map((movement) => (
                 <tr key={movement.id}>
                   <td>{new Date(movement.createdAt).toLocaleString('es-MX')}</td>
                   <td>{movement.investmentName}</td>
@@ -327,9 +426,9 @@ const InvestmentsScreen = () => {
                   <td>{movement.notes || '-'}</td>
                 </tr>
               ))}
-              {!loading && cashMovements.length === 0 && (
+              {!loading && filteredCashMovements.length === 0 && (
                 <tr>
-                  <td colSpan="5" className={styles.empty}>Aun no hay movimientos de dinero.</td>
+                  <td colSpan="5" className={styles.empty}>No hay movimientos de dinero con esos filtros.</td>
                 </tr>
               )}
             </tbody>

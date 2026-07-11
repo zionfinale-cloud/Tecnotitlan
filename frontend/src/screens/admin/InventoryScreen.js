@@ -100,6 +100,41 @@ const InventoryScreen = () => {
     [products]
   );
 
+  const movementSummary = useMemo(() => movements.reduce(
+    (acc, movement) => {
+      const quantity = Number(movement.quantity || 0);
+      const cost = Number(movement.totalCost || 0);
+      const revenue = Number(movement.totalRevenue || 0);
+
+      if (movement.type === 'PURCHASE' || movement.type === 'ADJUSTMENT_IN' || movement.type === 'RETURN_IN') {
+        acc.entries.units += quantity;
+        acc.entries.cost += cost;
+      } else if (movement.type === 'SALE') {
+        acc.sales.units += quantity;
+        acc.sales.revenue += revenue;
+        acc.sales.cost += cost;
+      } else if (movement.type === 'CHANNEL_TRANSFER') {
+        acc.transfers.units += quantity;
+        acc.transfers.cost += cost;
+      } else {
+        acc.adjustments.units += quantity;
+        acc.adjustments.cost += cost;
+      }
+
+      return acc;
+    },
+    {
+      entries: { units: 0, cost: 0 },
+      sales: { units: 0, revenue: 0, cost: 0 },
+      transfers: { units: 0, cost: 0 },
+      adjustments: { units: 0, cost: 0 },
+    }
+  ), [movements]);
+
+  const setQuickMovementType = (type) => {
+    setMovementFilters((current) => ({ ...current, type }));
+  };
+
   const loadInventory = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     setError('');
@@ -647,6 +682,38 @@ const InventoryScreen = () => {
               Filtra para auditar mercancia comprada, ventas, transferencias a marketplaces y ajustes.
             </p>
           </div>
+        </div>
+
+        <div className={styles.formGrid} style={{ marginBottom: '1rem' }}>
+          <div className={styles.placeholderBox}>
+            <strong>Entradas:</strong> {movementSummary.entries.units} pzas
+            {showCosts && <> / {currency.format(movementSummary.entries.cost)}</>}
+          </div>
+          <div className={styles.placeholderBox}>
+            <strong>Ventas:</strong> {movementSummary.sales.units} pzas
+            {showCosts && <> / {currency.format(movementSummary.sales.revenue)}</>}
+          </div>
+          <div className={styles.placeholderBox}>
+            <strong>Enviado a canales:</strong> {movementSummary.transfers.units} pzas
+          </div>
+          <div className={styles.placeholderBox}>
+            <strong>Ajustes/devoluciones:</strong> {movementSummary.adjustments.units} pzas
+          </div>
+        </div>
+
+        <div className={styles.actions} style={{ marginTop: 0, marginBottom: '1rem' }}>
+          <button className={styles.secondaryButton} type="button" onClick={() => setQuickMovementType('')}>
+            Ver todo
+          </button>
+          <button className={styles.secondaryButton} type="button" onClick={() => setQuickMovementType('PURCHASE')}>
+            Solo entradas
+          </button>
+          <button className={styles.secondaryButton} type="button" onClick={() => setQuickMovementType('SALE')}>
+            Solo ventas
+          </button>
+          <button className={styles.secondaryButton} type="button" onClick={() => setQuickMovementType('CHANNEL_TRANSFER')}>
+            Solo enviados a canal
+          </button>
         </div>
 
         <form className={styles.formGrid} onSubmit={refreshMovements} style={{ marginBottom: '1rem' }}>

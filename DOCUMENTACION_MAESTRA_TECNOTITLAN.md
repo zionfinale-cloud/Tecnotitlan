@@ -821,6 +821,8 @@ Reglas importantes:
 - **Inventario:** representa piezas fisicas y ubicacion. Debe responder: que tengo, donde esta, que se envio a canal, que se vendio y que falta reponer.
 - **Movimientos de inventario:** entradas, salidas por venta, transferencias a marketplaces y ajustes viven en `InventoryMovement`.
 - **Movimientos de dinero:** entradas extra, gastos operativos, imprevistos y salidas viven en `InvestmentCashMovement`.
+- **UX operativa:** `Inversiones` debe permitir filtrar movimientos de dinero por inversion, tipo y fecha. `Inventario` debe mostrar resumen rapido de entradas, ventas, envios a canal y ajustes, con botones de auditoria rapida para evitar depender de tablas largas.
+- **Regla de trabajo diario:** primero se registra el dinero disponible o gasto en `Inversiones`; despues se registran las piezas en `Inventario`; al vender o mover a canal, se registra la salida fisica. Esta separacion evita perder dinero, duplicar stock o mezclar gasto operativo con mercancia.
 
 ### Uso recomendado de n8n
 
@@ -833,6 +835,14 @@ n8n debe implementarse despues de estabilizar el flujo humano base. Su primer us
 5. Reportar cortes diarios/semanales al administrador.
 
 Regla: n8n puede avisar y preparar acciones; los movimientos criticos de dinero/inventario deben quedar registrados primero por Tecnotitlan para mantener auditoria.
+
+Para iniciar n8n sin riesgo, los primeros workflows deben ser:
+
+1. Alerta interna cuando un producto quede debajo del stock de seguridad.
+2. Reporte diario de ventas, utilidad bruta y productos vendidos.
+3. Aviso de pedidos pagados pendientes de guia.
+4. Aviso de paquetes enviados sin marcar como entregados despues de X dias.
+5. Resumen de gastos operativos e imprevistos de la semana.
 
 ---
 
