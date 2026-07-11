@@ -181,6 +181,33 @@
   color: #991b1b;
 }
 
+.inventoryAlert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #fecdd3;
+  border-radius: 16px;
+  background: #fff1f2;
+  color: #991b1b;
+}
+
+.inventoryAlert span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.inventoryAlert strong {
+  color: #991b1b;
+}
+
+.inventoryAlert small {
+  color: #be123c;
+  line-height: 1.45;
+}
+
 .contentGrid {
   display: grid;
   grid-template-columns: 1.1fr 1fr 1.2fr;
@@ -283,7 +310,8 @@
 }
 
 .primaryButton,
-.secondaryButton {
+.secondaryButton,
+.dangerButton {
   border: 0;
   border-radius: 12px;
   padding: 0.72rem 1rem;
@@ -305,8 +333,14 @@
   color: #06111f;
 }
 
+.dangerButton {
+  background: #be123c;
+  color: #ffffff;
+}
+
 .primaryButton:disabled,
-.secondaryButton:disabled {
+.secondaryButton:disabled,
+.dangerButton:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -353,5 +387,10 @@
 
   .orderMoney {
     justify-items: start;
+  }
+
+  .inventoryAlert {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

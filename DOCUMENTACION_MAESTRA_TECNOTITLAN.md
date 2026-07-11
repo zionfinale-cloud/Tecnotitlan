@@ -793,7 +793,29 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 
 ---
 
-## 14. Troubleshooting
+## 14. Flujo Operativo de Pedidos e Inventario
+
+El flujo base para operar ventas reales queda definido asi:
+
+1. El cliente crea el pedido desde la web.
+2. El pago se confirma por Stripe, transferencia/SPEI, Mercado Libre o WhatsApp.
+3. Al confirmarse el pago, el backend intenta registrar automaticamente la salida de inventario para productos `IN_HOUSE`.
+4. Si la salida de inventario falla por falta de stock o inconsistencia, el pedido conserva el pago confirmado, pero registra una alerta en el historial: `salida de inventario requiere revision manual`.
+5. En `Pedidos`, el administrador o usuario con `order:update` ve una alerta visible y puede usar `Reintentar inventario` despues de corregir stock.
+6. El reintento usa `PUT /api/orders/:id/retry-inventory`, respeta idempotencia por pedido/producto y no duplica salidas ya registradas.
+7. Al registrar guia, el pedido pasa a `SHIPPED` y se envia correo al cliente.
+8. Al marcar como entregado, el pedido pasa a `DELIVERED` y se envia correo final.
+
+Reglas importantes:
+
+- Nunca se debe descontar inventario si el pedido no esta pagado.
+- Las salidas de inventario por pedido usan `referenceType = ORDER` y `referenceId = order.id`.
+- Si Stripe webhook y frontend confirman el mismo pago, `orderInventoryService.js` evita duplicar movimientos `SALE`.
+- La pantalla de `Pedidos` es el centro operativo para confirmar pago, registrar guia, marcar entregado y corregir salidas pendientes.
+
+---
+
+## 15. Troubleshooting
 
 ### No puedo iniciar sesión como administrador (Error 401)
 

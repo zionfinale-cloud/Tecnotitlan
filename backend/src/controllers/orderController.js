@@ -25,6 +25,7 @@ const getStripeInstance = () => {
 export {
   getOrderByIdOperational,
   getAllOrdersOperational,
+  retryOrderInventoryOperational,
   updateOrderStatusOperational,
   updateOrderToDeliveredOperational,
 };
@@ -579,6 +580,47 @@ const getAllOrdersOperational = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json({ status: 'success', results: orders.length, data: { orders } });
+});
+
+const retryOrderInventoryOperational = asyncHandler(async (req, res, next) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: ORDER_INCLUDE,
+  });
+
+  if (!order) return next(new NotFoundError('Pedido no encontrado'));
+  if (!order.isPaid) return next(new BadRequestError('Confirma el pago antes de mover inventario.'));
+
+  const inHouseItems = (order.orderItems || []).filter((item) => item.product?.productType === 'IN_HOUSE');
+  if (inHouseItems.length === 0) {
+    return next(new BadRequestError('Este pedido no tiene productos de inventario propio para descontar.'));
+  }
+
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    const currentOrder = await tx.order.findUnique({
+      where: { id: req.params.id },
+      include: ORDER_INCLUDE,
+    });
+
+    await applyPaidOrderInventoryMovements(tx, currentOrder, req.user.id);
+    await appendStatusHistory(
+      tx,
+      currentOrder.id,
+      currentOrder.status,
+      'Salida de inventario aplicada/reintentada correctamente desde Pedidos.'
+    );
+
+    return tx.order.findUnique({
+      where: { id: req.params.id },
+      include: ORDER_INCLUDE,
+    });
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Salida de inventario revisada correctamente.',
+    data: { order: updatedOrder },
+  });
 });
 
 const updateOrderStatusOperational = asyncHandler(async (req, res, next) => {

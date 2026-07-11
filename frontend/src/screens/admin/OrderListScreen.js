@@ -52,6 +52,27 @@ const getCustomerName = (order) => {
 
 const formatDate = (value) => (value ? dateFormat.format(new Date(value)) : 'Pendiente');
 
+const INVENTORY_WARNING_TEXT = 'salida de inventario requiere revision manual';
+const INVENTORY_RECOVERY_TEXT = 'Salida de inventario aplicada/reintentada correctamente';
+
+const getInventoryIssue = (order) => {
+  let issue = null;
+  let resolved = false;
+
+  (order.statusHistory || []).forEach((entry) => {
+    const notes = entry.notes || '';
+    if (notes.includes(INVENTORY_WARNING_TEXT)) {
+      issue = entry;
+      resolved = false;
+    }
+    if (notes.includes(INVENTORY_RECOVERY_TEXT)) {
+      resolved = true;
+    }
+  });
+
+  return { issue, isOpen: Boolean(issue) && !resolved };
+};
+
 const OrderListScreen = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -125,6 +146,21 @@ const OrderListScreen = () => {
       setSuccess(`Pago confirmado para ${order.orderNumber}.`);
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo confirmar el pago.');
+    } finally {
+      setSavingId('');
+    }
+  };
+
+  const retryInventory = async (order) => {
+    setSavingId(order.id);
+    setError('');
+    setSuccess('');
+    try {
+      const { data } = await api.put(`/orders/${order.id}/retry-inventory`);
+      setOrders((current) => current.map((item) => (item.id === order.id ? data.data.order : item)));
+      setSuccess(`Inventario revisado para ${order.orderNumber}.`);
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo reintentar la salida de inventario.');
     } finally {
       setSavingId('');
     }
@@ -204,6 +240,7 @@ const OrderListScreen = () => {
           {filteredOrders.map((order) => {
             const shipping = shippingByOrder[order.id] || {};
             const saving = savingId === order.id;
+            const inventoryIssue = getInventoryIssue(order);
             return (
               <article key={order.id} className={styles.orderCard}>
                 <div className={styles.orderTop}>
@@ -231,6 +268,23 @@ const OrderListScreen = () => {
                     </span>
                   )}
                 </div>
+
+                {inventoryIssue.isOpen && (
+                  <div className={styles.inventoryAlert}>
+                    <span>
+                      <strong>Inventario pendiente de revisar</strong>
+                      <small>{inventoryIssue.issue?.notes || 'La venta se cobro, pero no se pudo descontar stock.'}</small>
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.dangerButton}
+                      onClick={() => retryInventory(order)}
+                      disabled={saving}
+                    >
+                      Reintentar inventario
+                    </button>
+                  </div>
+                )}
 
                 <div className={styles.contentGrid}>
                   <section className={styles.panel}>
