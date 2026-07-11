@@ -822,6 +822,7 @@ Reglas importantes:
 - **Movimientos de inventario:** entradas, salidas por venta, transferencias a marketplaces y ajustes viven en `InventoryMovement`.
 - **Movimientos de dinero:** entradas extra, gastos operativos, imprevistos y salidas viven en `InvestmentCashMovement`.
 - **UX operativa:** `Inversiones` debe permitir filtrar movimientos de dinero por inversion, tipo y fecha. `Inventario` debe mostrar resumen rapido de entradas, ventas, envios a canal y ajustes, con botones de auditoria rapida para evitar depender de tablas largas.
+- **Separacion visual en Inventario:** el historial operativo no debe mostrarse como una sola tabla mezclada. Debe separarse en `Entradas de mercancia`, `Salidas por venta`, `Traspasos a canales` y `Ajustes/devoluciones`. Asi se distingue claramente lo comprado, lo vendido y lo enviado/apartado para Mercado Libre, TikTok Shop o Amazon.
 - **Regla de trabajo diario:** primero se registra el dinero disponible o gasto en `Inversiones`; despues se registran las piezas en `Inventario`; al vender o mover a canal, se registra la salida fisica. Esta separacion evita perder dinero, duplicar stock o mezclar gasto operativo con mercancia.
 
 ### Uso recomendado de n8n

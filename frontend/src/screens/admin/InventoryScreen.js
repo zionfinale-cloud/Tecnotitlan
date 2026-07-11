@@ -38,6 +38,11 @@ const movementTypeLabels = MOVEMENT_TYPES.reduce((labels, type) => {
   return labels;
 }, {});
 
+const ENTRY_MOVEMENT_TYPES = new Set(['PURCHASE', 'ADJUSTMENT_IN', 'RETURN_IN']);
+const SALE_MOVEMENT_TYPES = new Set(['SALE']);
+const TRANSFER_MOVEMENT_TYPES = new Set(['CHANNEL_TRANSFER']);
+const ADJUSTMENT_MOVEMENT_TYPES = new Set(['ADJUSTMENT_OUT', 'RETURN_OUT']);
+
 const channelLabels = SALE_CHANNELS.reduce((labels, channel) => {
   labels[channel.value] = channel.label;
   return labels;
@@ -134,6 +139,57 @@ const InventoryScreen = () => {
   const setQuickMovementType = (type) => {
     setMovementFilters((current) => ({ ...current, type }));
   };
+
+  const movementGroups = useMemo(() => ({
+    entries: movements.filter((movement) => ENTRY_MOVEMENT_TYPES.has(movement.type)),
+    sales: movements.filter((movement) => SALE_MOVEMENT_TYPES.has(movement.type)),
+    transfers: movements.filter((movement) => TRANSFER_MOVEMENT_TYPES.has(movement.type)),
+    adjustments: movements.filter((movement) => ADJUSTMENT_MOVEMENT_TYPES.has(movement.type)),
+  }), [movements]);
+
+  const renderMovementTable = (title, description, rows, emptyText) => (
+    <div className={styles.tableWrap} style={{ marginTop: '1.25rem' }}>
+      <div className={styles.toolbar} style={{ marginBottom: '0.5rem' }}>
+        <div>
+          <h3 className={styles.title} style={{ fontSize: '1rem', marginBottom: '0.2rem' }}>{title}</h3>
+          <p className={styles.subtitle} style={{ marginBottom: 0 }}>{description}</p>
+        </div>
+      </div>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Producto</th>
+            <th>Canal</th>
+            <th>Cantidad</th>
+            {showCosts && <th>Costo</th>}
+            <th>Venta</th>
+            <th>Stock</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((movement) => (
+            <tr key={movement.id}>
+              <td>{new Date(movement.createdAt).toLocaleString('es-MX')}</td>
+              <td>{movementTypeLabels[movement.type] || movement.type}</td>
+              <td>{movement.product?.sku} - {movement.product?.name}</td>
+              <td>{channelLabels[movement.channel] || movement.channel || '-'}</td>
+              <td>{movement.quantity}</td>
+              {showCosts && <td>{currency.format(movement.totalCost || 0)}</td>}
+              <td>{currency.format(movement.totalRevenue || 0)}</td>
+              <td>{movement.stockBefore} -&gt; {movement.stockAfter}</td>
+            </tr>
+          ))}
+          {!loading && rows.length === 0 && (
+            <tr>
+              <td colSpan={showCosts ? 8 : 7} className={styles.empty}>{emptyText}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 
   const loadInventory = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -778,41 +834,33 @@ const InventoryScreen = () => {
           </div>
         </form>
 
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Producto</th>
-                <th>Canal</th>
-                <th>Cantidad</th>
-                {showCosts && <th>Costo</th>}
-                <th>Venta</th>
-                <th>Stock</th>
-              </tr>
-            </thead>
-            <tbody>
-              {movements.map((movement) => (
-                <tr key={movement.id}>
-                  <td>{new Date(movement.createdAt).toLocaleString('es-MX')}</td>
-                  <td>{movementTypeLabels[movement.type] || movement.type}</td>
-                  <td>{movement.product?.sku} - {movement.product?.name}</td>
-                  <td>{channelLabels[movement.channel] || movement.channel || '-'}</td>
-                  <td>{movement.quantity}</td>
-                  {showCosts && <td>{currency.format(movement.totalCost || 0)}</td>}
-                  <td>{currency.format(movement.totalRevenue || 0)}</td>
-                  <td>{movement.stockBefore} -> {movement.stockAfter}</td>
-                </tr>
-              ))}
-              {!loading && movements.length === 0 && (
-                <tr>
-                  <td colSpan={showCosts ? 8 : 7} className={styles.empty}>Aun no hay compras ni salidas registradas.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {renderMovementTable(
+          'Entradas de mercancia',
+          'Compras, devoluciones recibidas o ajustes que aumentan existencia fisica.',
+          movementGroups.entries,
+          'No hay entradas con estos filtros.'
+        )}
+
+        {renderMovementTable(
+          'Salidas por venta',
+          'Productos vendidos en web, Mercado Libre, TikTok Shop, Amazon u otro canal.',
+          movementGroups.sales,
+          'No hay ventas/salidas con estos filtros.'
+        )}
+
+        {renderMovementTable(
+          'Traspasos a canales',
+          'Mercancia apartada o enviada para venderse en Mercado Libre, TikTok Shop o Amazon.',
+          movementGroups.transfers,
+          'No hay traspasos a canales con estos filtros.'
+        )}
+
+        {renderMovementTable(
+          'Ajustes y devoluciones',
+          'Correcciones manuales, devoluciones salientes o movimientos especiales.',
+          movementGroups.adjustments,
+          'No hay ajustes o devoluciones con estos filtros.'
+        )}
       </section>
     </>
   );
