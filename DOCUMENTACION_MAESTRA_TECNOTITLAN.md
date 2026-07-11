@@ -788,6 +788,8 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 - **Inicialización:** Al arrancar el servidor (`npm start`), `index.js` inicializa `whatsappService` y le pasa la instancia de `io` (Socket.IO) para permitir la comunicación en tiempo real con el frontend (QR, estados).
 - **Frontend:** La pantalla `WhatsappSettingsScreen.js` escucha estos eventos de WebSockets para mostrar el código QR y el estado de la conexión sin necesidad de recargar la página.
 - **Atencion Operativa:** La pantalla `WhatsAppChatScreen.js` es la vista de trabajo para vendedores/supervisores. Debe mantener lista de conversaciones, mensajes y adjuntos dentro de contenedores con scroll interno para evitar que el panel se vuelva inmanejable en conversaciones largas.
+- **Identidad de contactos:** Baileys puede entregar identificadores internos `@lid` en lugar del telefono real. El sistema solo debe mostrar como telefono los JID `@s.whatsapp.net` o el numero asociado por el evento `chats.phoneNumberShare`; los `@lid` se muestran como ID tecnico para evitar numeros falsos en atencion.
+- **Scroll operativo:** El chat de WhatsApp solo debe hacer scroll automatico al fondo cuando el operador esta al final, cambia de conversacion o envia un mensaje. Si el operador esta revisando mensajes anteriores, las actualizaciones en vivo no deben regresarlo abajo.
 
 ---
 

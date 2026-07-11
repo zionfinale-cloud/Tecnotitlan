@@ -7,8 +7,24 @@ const dateFormat = new Intl.DateTimeFormat('es-MX', {
   timeStyle: 'short',
 });
 
-const getDisplayName = (chat) => chat?.name || chat?.phone || chat?.jid || 'Cliente';
 const API_ORIGIN = (process.env.REACT_APP_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+const getJidUser = (jid = '') => String(jid || '').split('@')[0] || '';
+const isLidJid = (jid = '') => String(jid || '').endsWith('@lid');
+const isUsablePhone = (chat) => {
+  if (!chat?.phone) return false;
+  if (isLidJid(chat.jid) && chat.phone === getJidUser(chat.jid)) return false;
+  return /^\d{8,15}$/.test(String(chat.phone));
+};
+
+const getDisplayIdentifier = (chat) => {
+  if (!chat) return '';
+  if (isUsablePhone(chat)) return `+${chat.phone}`;
+  if (isLidJid(chat.jid)) return `ID WhatsApp ${getJidUser(chat.jid).slice(-6)}`;
+  return chat.jid || '';
+};
+
+const getDisplayName = (chat) => chat?.name || (isUsablePhone(chat) ? `+${chat.phone}` : getDisplayIdentifier(chat)) || 'Cliente';
 
 const resolveMediaUrl = (url) => {
   if (!url) return '';
@@ -28,7 +44,10 @@ const WhatsAppChatScreen = () => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef(null);
+  const messagesRef = useRef(null);
   const selectedChatRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
+  const previousMessageCountRef = useRef(0);
 
   useEffect(() => {
     selectedChatRef.current = selectedChat;
@@ -46,9 +65,17 @@ const WhatsAppChatScreen = () => {
     }
   };
 
-  const loadMessages = async (chat) => {
+  const isNearBottom = () => {
+    const element = messagesRef.current;
+    if (!element) return true;
+    return element.scrollHeight - element.scrollTop - element.clientHeight < 140;
+  };
+
+  const loadMessages = async (chat, { forceScroll = false } = {}) => {
     if (!chat?.jid) return;
     setError('');
+    const isSameChat = selectedChatRef.current?.jid === chat.jid;
+    shouldStickToBottomRef.current = forceScroll || !isSameChat || isNearBottom();
     try {
       const { data } = await api.get(`/integrations/whatsapp/chats/${encodeURIComponent(chat.jid)}/messages`);
       setSelectedChat(data.data.chat || chat);
@@ -73,7 +100,12 @@ const WhatsAppChatScreen = () => {
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const currentCount = messages.length;
+    const listWasReset = currentCount < previousMessageCountRef.current;
+    if (shouldStickToBottomRef.current || listWasReset) {
+      bottomRef.current?.scrollIntoView({ behavior: shouldStickToBottomRef.current ? 'smooth' : 'auto' });
+    }
+    previousMessageCountRef.current = currentCount;
   }, [messages]);
 
   const send = async (event) => {
@@ -93,6 +125,7 @@ const WhatsAppChatScreen = () => {
           return formData;
         })(), { headers: { 'Content-Type': 'multipart/form-data' } })
         : await api.post(`${endpoint}/messages`, { text: cleanText });
+      shouldStickToBottomRef.current = true;
       setMessages(data.data.messages || []);
       setSelectedChat(data.data.chat || selectedChat);
       setText('');
@@ -135,7 +168,7 @@ const WhatsAppChatScreen = () => {
                 className={`${styles.chatButton} ${selectedChat?.jid === chat.jid ? styles.chatButtonActive : ''}`}
                 key={chat.jid}
                 type="button"
-                onClick={() => loadMessages(chat)}
+                onClick={() => loadMessages(chat, { forceScroll: true })}
               >
                 <div className={styles.chatTop}>
                   <span className={styles.chatName}>{getDisplayName(chat)}</span>
@@ -152,10 +185,16 @@ const WhatsAppChatScreen = () => {
             <>
               <header className={styles.panelHeader}>
                 <h2 className={styles.panelTitle}>{getDisplayName(selectedChat)}</h2>
-                <p className={styles.subtitle}>{selectedChat.phone ? `+${selectedChat.phone}` : selectedChat.jid}</p>
+                <p className={styles.subtitle}>{getDisplayIdentifier(selectedChat)}</p>
               </header>
 
-              <div className={styles.messages}>
+              <div
+                className={styles.messages}
+                ref={messagesRef}
+                onScroll={() => {
+                  shouldStickToBottomRef.current = isNearBottom();
+                }}
+              >
                 {messages.map((message) => (
                   <article
                     className={`${styles.message} ${message.fromMe ? styles.outgoing : styles.incoming}`}

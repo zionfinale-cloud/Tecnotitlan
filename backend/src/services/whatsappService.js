@@ -114,6 +114,27 @@ const toJid = (value = '') => {
     return `${normalizePhone(value)}@s.whatsapp.net`;
 };
 
+const getJidUser = (jid = '') => String(jid || '').split('@')[0] || '';
+const isPhoneJid = (jid = '') => String(jid || '').endsWith('@s.whatsapp.net') && /^\d{8,15}$/.test(getJidUser(jid));
+const isLidJid = (jid = '') => String(jid || '').endsWith('@lid');
+const getPhoneFromJid = (jid = '') => (isPhoneJid(jid) ? getJidUser(jid) : null);
+
+const resolveChatIdentity = (message = {}) => {
+    const key = message.key || {};
+    const candidates = [
+        key.remoteJid,
+        key.participant,
+        message.participant,
+    ].filter(Boolean);
+    const phoneJid = candidates.find(isPhoneJid);
+    const jid = key.remoteJid || phoneJid || candidates[0];
+
+    return {
+        jid,
+        phone: phoneJid ? getPhoneFromJid(phoneJid) : getPhoneFromJid(jid),
+    };
+};
+
 const unwrapMessageContent = (content = {}) => (
     content.ephemeralMessage?.message
     || content.viewOnceMessage?.message
@@ -228,10 +249,11 @@ const getMessageDate = (timestamp) => {
     return new Date(value * 1000);
 };
 
-const getChatName = (jid, pushName) => {
+const getChatName = (jid, pushName, phone) => {
     if (pushName) return pushName;
-    const phone = jid.split('@')[0] || jid;
-    return phone.startsWith('521') ? `+${phone}` : phone;
+    if (phone) return `+${phone}`;
+    if (isLidJid(jid)) return `ID WhatsApp ${getJidUser(jid).slice(-6)}`;
+    return jid || 'Cliente';
 };
 
 const persistMessage = async ({
@@ -246,25 +268,28 @@ const persistMessage = async ({
     mediaType,
     mediaMimeType,
     fileName,
+    phone,
 }) => {
     if (!jid || ignoredJids.has(jid) || jid.endsWith('@g.us')) return null;
 
     const direction = fromMe ? 'OUTGOING' : 'INCOMING';
-    const phone = jid.split('@')[0] || null;
+    const resolvedPhone = phone || getPhoneFromJid(jid);
+    const resolvedName = getChatName(jid, pushName, resolvedPhone);
+    const chatUpdate = {
+        ...(resolvedPhone ? { phone: resolvedPhone } : {}),
+        ...(pushName ? { name: resolvedName } : {}),
+        lastMessage: text,
+        lastMessageAt: createdAt,
+        unreadCount: fromMe ? 0 : { increment: 1 },
+    };
 
     const chat = await prisma.whatsAppChat.upsert({
         where: { jid },
-        update: {
-            phone,
-            name: getChatName(jid, pushName),
-            lastMessage: text,
-            lastMessageAt: createdAt,
-            unreadCount: fromMe ? 0 : { increment: 1 },
-        },
+        update: chatUpdate,
         create: {
             jid,
-            phone,
-            name: getChatName(jid, pushName),
+            phone: resolvedPhone,
+            name: resolvedName,
             lastMessage: text,
             lastMessageAt: createdAt,
             unreadCount: fromMe ? 0 : 1,
@@ -385,7 +410,7 @@ export const initialize = async () => {
 
         sock.ev.on('messages.upsert', async ({ messages = [] }) => {
             for (const message of messages) {
-                const jid = message.key?.remoteJid;
+                const { jid, phone } = resolveChatIdentity(message);
                 if (!jid || ignoredJids.has(jid) || jid.endsWith('@g.us')) continue;
 
                 try {
@@ -397,12 +422,27 @@ export const initialize = async () => {
                         text,
                         fromMe: Boolean(message.key?.fromMe),
                         pushName: message.pushName,
+                        phone,
                         createdAt: getMessageDate(message.messageTimestamp),
                         ...media,
                     });
                 } catch (error) {
                     logger.error(`[WhatsApp] No se pudo guardar mensaje: ${error.message}`);
                 }
+            }
+        });
+
+        sock.ev.on('chats.phoneNumberShare', async ({ lid, jid }) => {
+            const phone = getPhoneFromJid(jid);
+            if (!lid || !phone) return;
+
+            try {
+                await prisma.whatsAppChat.updateMany({
+                    where: { jid: lid },
+                    data: { phone },
+                });
+            } catch (error) {
+                logger.warn(`[WhatsApp] No se pudo asociar telefono ${phone} con ${lid}: ${error.message}`);
             }
         });
 
