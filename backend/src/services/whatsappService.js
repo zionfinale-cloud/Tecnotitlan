@@ -241,6 +241,26 @@ const getMediaLabel = (media) => {
     return media.fileName ? `[Archivo: ${media.fileName}]` : '[Archivo]';
 };
 
+const waitForReady = async (timeoutMs = 12000) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (sock?.user && connectionStatus === 'READY') return true;
+        if (connectionStatus === 'QR_RECEIVED') return false;
+        await delay(500);
+    }
+    return sock?.user && connectionStatus === 'READY';
+};
+
+const ensureReadyForNotification = async () => {
+    if (sock?.user && connectionStatus === 'READY') return true;
+
+    if (!isInitializing && !['INITIALIZING', 'RECONNECTING', 'QR_RECEIVED'].includes(connectionStatus)) {
+        initialize().catch((error) => logger.warn(`[WhatsApp] Reconexion automatica fallida: ${error.message}`));
+    }
+
+    return waitForReady();
+};
+
 const getMessageDate = (timestamp) => {
     if (!timestamp) return new Date();
     const value = typeof timestamp === 'number'
@@ -641,7 +661,8 @@ const sendCustomerOrderMessage = async (order, messageBuilder, eventName) => {
             return;
         }
 
-        if (!sock || connectionStatus !== 'READY') {
+        const isReady = await ensureReadyForNotification();
+        if (!isReady) {
             logger.warn(`[WhatsApp] ${eventName} omitido para ${orderNumber}: WhatsApp no conectado.`);
             return;
         }
@@ -727,7 +748,7 @@ export const sendAdminOrderPaidNotification = async (order) => {
         const orderNumber = order?.orderNumber || order?.id || 'sin folio';
         const message = `Pago confirmado en Tecnotitlan\nPedido: ${orderNumber}\nTotal: ${total}`;
 
-        if (adminWhatsappNumber && sock && connectionStatus === 'READY') {
+        if (adminWhatsappNumber && await ensureReadyForNotification()) {
             await sendMessage(adminWhatsappNumber, message, 'Sistema');
         } else if (adminWhatsappNumber) {
             logger.warn(`[WhatsApp] No se envio aviso de pago ${orderNumber}: cliente no inicializado.`);

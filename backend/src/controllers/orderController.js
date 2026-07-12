@@ -343,7 +343,7 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
   const order = await prisma.order.findUnique({
     where: { id: req.params.id },
     include: {
-      user: { select: { firstName: true, lastName: true, email: true } },
+      user: { select: { firstName: true, lastName: true, email: true, phone: true } },
       orderItems: { include: { product: true } },
     },
   });
@@ -376,9 +376,9 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
     item => item.product.productType === 'DROPSHIPPING'
   );
 
-  const updatedOrder = await prisma.$transaction(async (tx) => {
-    const paidOrder = await tx.order.update({
-      where: { id: order.id },
+  const { updatedOrder, shouldNotify } = await prisma.$transaction(async (tx) => {
+    const markPaidResult = await tx.order.updateMany({
+      where: { id: order.id, isPaid: false },
       data: {
         isPaid: true,
         paidAt: new Date(),
@@ -390,6 +390,22 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
           email_address: paymentIntent.receipt_email || '',
         },
       },
+    });
+
+    if (markPaidResult.count === 0) {
+      const alreadyPaidOrder = await tx.order.findUnique({
+        where: { id: order.id },
+        include: {
+          user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+          orderItems: { include: { product: true } },
+        },
+      });
+
+      return { updatedOrder: alreadyPaidOrder, shouldNotify: false };
+    }
+
+    const paidOrder = await tx.order.findUnique({
+      where: { id: order.id },
       include: {
         user: { select: { firstName: true, lastName: true, email: true, phone: true } },
         orderItems: { include: { product: true } },
@@ -405,12 +421,14 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
       await appendInventoryWarning(tx, paidOrder, error);
     }
 
-    return paidOrder;
+    return { updatedOrder: paidOrder, shouldNotify: true };
   });
 
-  await sendOrderPaidEmail(updatedOrder);
-  await whatsappService.sendCustomerOrderPaidNotification(updatedOrder);
-  whatsappService.sendAdminOrderPaidNotification(updatedOrder);
+  if (shouldNotify) {
+    await sendOrderPaidEmail(updatedOrder);
+    await whatsappService.sendCustomerOrderPaidNotification(updatedOrder);
+    whatsappService.sendAdminOrderPaidNotification(updatedOrder);
+  }
   res.status(200).json({ status: 'success', data: { order: updatedOrder } });
 });
 

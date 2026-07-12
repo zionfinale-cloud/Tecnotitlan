@@ -81,28 +81,38 @@ const markStripeOrderPaid = async (paymentIntent) => {
     item => item.product.productType === 'DROPSHIPPING'
   );
 
-  const updatedOrder = await prisma.$transaction(async (tx) => {
-    const paidOrder = order.isPaid
-      ? order
-      : await tx.order.update({
-          where: { id: order.id },
-          data: {
-            isPaid: true,
-            paidAt: new Date(),
-            status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
-            paymentResult: {
-              id: paymentIntent.id,
-              status: paymentIntent.status,
-              update_time: new Date(paymentIntent.created * 1000).toISOString(),
-              email_address: paymentIntent.receipt_email || '',
-              source: 'stripe_webhook',
-            },
+  const { updatedOrder, shouldNotify } = await prisma.$transaction(async (tx) => {
+    let paidOrder = order;
+
+    if (!order.isPaid) {
+      const markPaidResult = await tx.order.updateMany({
+        where: { id: order.id, isPaid: false },
+        data: {
+          isPaid: true,
+          paidAt: new Date(),
+          status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
+          paymentResult: {
+            id: paymentIntent.id,
+            status: paymentIntent.status,
+            update_time: new Date(paymentIntent.created * 1000).toISOString(),
+            email_address: paymentIntent.receipt_email || '',
+            source: 'stripe_webhook',
           },
-          include: {
-            user: { select: { firstName: true, lastName: true, email: true, phone: true } },
-            orderItems: { include: { product: true } },
-          },
-        });
+        },
+      });
+
+      paidOrder = await tx.order.findUnique({
+        where: { id: order.id },
+        include: {
+          user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+          orderItems: { include: { product: true } },
+        },
+      });
+
+      if (markPaidResult.count === 0) {
+        return { updatedOrder: paidOrder, shouldNotify: false };
+      }
+    }
 
     try {
       await applyPaidOrderInventoryMovements(tx, paidOrder);
@@ -111,10 +121,10 @@ const markStripeOrderPaid = async (paymentIntent) => {
       await appendInventoryWarning(tx, paidOrder, error);
     }
 
-    return paidOrder;
+    return { updatedOrder: paidOrder, shouldNotify: !wasAlreadyPaid };
   });
 
-  if (!wasAlreadyPaid) {
+  if (shouldNotify) {
     await sendOrderPaidEmail(updatedOrder);
     await whatsappService.sendCustomerOrderPaidNotification(updatedOrder);
     whatsappService.sendAdminOrderPaidNotification(updatedOrder);
