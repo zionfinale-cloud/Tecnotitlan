@@ -10,7 +10,8 @@
 
 .topRow { min-height: 84px; display: flex; align-items: center; gap: 2rem; }
 .brand { display: flex; align-items: center; gap: .75rem; color: var(--heading); text-decoration: none; min-width: 285px; }
-.brandMark { width: 48px; height: 48px; display: grid; place-items: center; color: var(--cta-color); border: 1px solid rgba(117,242,56,.45); border-radius: 12px; font-size: 1.55rem; box-shadow: 0 0 24px rgba(117,242,56,.16); }
+.brandMark { width: 48px; height: 48px; display: grid; place-items: center; color: var(--cta-color); font-size: 1.55rem; }
+.brandLogo { width: 48px; height: 48px; object-fit: contain; display: block; filter: drop-shadow(0 0 18px rgba(117,242,56,.2)); }
 .brandCopy { display: flex; flex-direction: column; }
 .brandCopy strong { font-size: 1.65rem; letter-spacing: -.06em; line-height: 1; }
 .brandCopy small { color: var(--cta-color); font-size: .65rem; margin-top: .38rem; }
@@ -47,7 +48,7 @@
   .searchContainer, .navBar { display: none; }
   .mobileSearch { display: block; }
   .brandCopy strong { font-size: 1.25rem; }
-  .brandMark { width: 40px; height: 40px; }
+  .brandMark, .brandLogo { width: 40px; height: 40px; }
   .actions { margin-left: auto; }
 }
 @media (max-width: 575px) {

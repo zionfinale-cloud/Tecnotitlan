@@ -26,13 +26,20 @@ const Header = () => {
   const totalCartItems = cartItems.reduce((acc, item) => acc + item.qty, 0);
   const canAccessPanel = canAccessAdminPanel(user);
   const siteName = (settings?.siteName || 'TECNOTITLÁN').toUpperCase();
+  const logoUrl = settings?.logoUrl || '/images/logo.png';
   const logoutHandler = () => { logout(); navigate('/login'); };
 
   return (
     <header className={styles.header}>
       <Container className={styles.topRow}>
         <Link to="/" className={styles.brand}>
-          <span className={styles.brandMark}><i className="fas fa-microchip"></i></span>
+          <span className={styles.brandMark}>
+            {logoUrl ? (
+              <img src={logoUrl} alt={siteName} className={styles.brandLogo} />
+            ) : (
+              <i className="fas fa-microchip"></i>
+            )}
+          </span>
           <span className={styles.brandCopy}><strong>{siteName}</strong><small>Tecnología con raíces, poder sin límites.</small></span>
         </Link>
         <div className={styles.searchContainer}><SearchBox /></div>
