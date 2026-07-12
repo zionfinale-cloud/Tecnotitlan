@@ -29,6 +29,23 @@ const stripMovementCosts = (movement) => {
 const CASH_IN_TYPES = new Set(['CAPITAL_IN', 'ADJUSTMENT_IN']);
 const CASH_OUT_TYPES = new Set(['OPERATING_EXPENSE', 'UNEXPECTED_EXPENSE', 'CASH_OUT']);
 const INVESTMENT_CASH_TYPES = new Set([...CASH_IN_TYPES, ...CASH_OUT_TYPES]);
+const CHANNEL_STOCK_IN_TYPES = new Set(['CHANNEL_TRANSFER', 'RETURN_IN']);
+const CHANNEL_STOCK_OUT_TYPES = new Set(['SALE', 'ADJUSTMENT_OUT', 'RETURN_OUT']);
+
+const getAssignedChannelStock = async (tx, productId, channel) => {
+  const movements = await tx.inventoryMovement.findMany({
+    where: { productId, channel },
+    select: { type: true, quantity: true },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return movements.reduce((stock, movement) => {
+    const quantity = movement.quantity || 0;
+    if (CHANNEL_STOCK_IN_TYPES.has(movement.type)) return stock + quantity;
+    if (CHANNEL_STOCK_OUT_TYPES.has(movement.type)) return Math.max(stock - quantity, 0);
+    return stock;
+  }, 0);
+};
 
 const summarizeInvestment = (investment) => {
   const inventorySpent = (investment.movements || []).reduce((sum, movement) => sum + (movement.totalCost || 0), 0);
@@ -277,7 +294,7 @@ const createManualSale = asyncHandler(async (req, res, next) => {
         throw new NotFoundError('No existe stock/publicacion configurada para ese canal.');
       }
 
-      stockBefore = listing.publishedStock || 0;
+      stockBefore = await getAssignedChannelStock(tx, product.id, channel);
       if (stockBefore < parsedQuantity) {
         throw new BadRequestError('No hay suficiente stock asignado a ese canal.');
       }
@@ -366,13 +383,14 @@ const transferStockToChannel = asyncHandler(async (req, res, next) => {
       where: { productId_channel: { productId: product.id, channel } },
     });
 
-    const nextPublishedStock = (existingListing?.publishedStock || 0) + parsedQuantity;
+    const assignedChannelStockBefore = await getAssignedChannelStock(tx, product.id, channel);
+    const nextAssignedChannelStock = assignedChannelStockBefore + parsedQuantity;
 
     const listing = existingListing
       ? await tx.marketplaceListing.update({
           where: { id: existingListing.id },
           data: {
-            publishedStock: nextPublishedStock,
+            publishedStock: nextAssignedChannelStock,
             stockBuffer: parsedStockBuffer,
             price: parsedPrice ?? existingListing.price ?? product.price,
             syncStatus: 'LOCAL_STOCK_UPDATED',
@@ -385,7 +403,7 @@ const transferStockToChannel = asyncHandler(async (req, res, next) => {
             externalSku: product.sku,
             title: product.name,
             price: parsedPrice ?? product.price,
-            publishedStock: nextPublishedStock,
+            publishedStock: nextAssignedChannelStock,
             stockBuffer: parsedStockBuffer,
             status: 'DRAFT',
             syncStatus: 'LOCAL_STOCK_ASSIGNED',
@@ -491,19 +509,11 @@ const getInventoryOverview = asyncHandler(async (req, res) => {
     for (const movement of product.inventoryMovements) {
       if (!movement.channel || !SALES_CHANNELS.includes(movement.channel)) continue;
 
-      if (movement.type === 'CHANNEL_TRANSFER') {
+      if (CHANNEL_STOCK_IN_TYPES.has(movement.type)) {
         channelStock[movement.channel] += movement.quantity || 0;
       }
 
-      if (movement.type === 'SALE') {
-        channelStock[movement.channel] = Math.max(channelStock[movement.channel] - (movement.quantity || 0), 0);
-      }
-
-      if (movement.type === 'RETURN_IN') {
-        channelStock[movement.channel] += movement.quantity || 0;
-      }
-
-      if (movement.type === 'ADJUSTMENT_OUT' || movement.type === 'RETURN_OUT') {
+      if (CHANNEL_STOCK_OUT_TYPES.has(movement.type)) {
         channelStock[movement.channel] = Math.max(channelStock[movement.channel] - (movement.quantity || 0), 0);
       }
     }

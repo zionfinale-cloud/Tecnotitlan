@@ -831,6 +831,12 @@ Reglas importantes:
 
 El resumen de inventario toma como fuente de verdad los movimientos reales (`InventoryMovement`). `Bodega/Web` viene de `Product.countInStock`; Mercado Libre, TikTok Shop y Amazon solo cuentan como stock asignado si existe un `CHANNEL_TRANSFER`, venta, devolucion o ajuste de ese canal. El `publishedStock` de una publicacion marketplace es informativo y no debe contarse como mercancia fisica si no hubo traspaso registrado.
 
+### Flujo financiero simple
+
+La inversion representa dinero operativo disponible. Ejemplo: si se inicia con $15,000 y se compran 5 auriculares de $100, el sistema registra una entrada de inventario por $500 y el disponible de la inversion baja a $14,500. Si esos auriculares se venden en $250, la venta registra ingreso por $1,250, costo vendido por $500 y utilidad bruta por $750. Gastos como impresoras, gasolina, empaques o imprevistos se registran en `Inversiones` como salida de dinero, no como inventario. Cuando Mercado Libre, TikTok Shop, Amazon o la web depositen dinero, debe registrarse como entrada/recuperacion de dinero en la inversion o corte correspondiente para separar caja, costo y utilidad.
+
+Antes de vender o mandar mercancia a un canal, siempre debe existir una entrada de inventario. Si se compran 6 piezas y se decide dejar 2 en bodega/web, 2 en Mercado Libre y 2 en TikTok Shop, primero se registra la entrada de 6; despues se hacen traspasos de 2 a Mercado Libre y 2 a TikTok Shop. Las ventas posteriores se registran en el canal donde ocurrieron y descuentan ese stock asignado.
+
 ### Uso recomendado de n8n
 
 n8n debe implementarse despues de estabilizar el flujo humano base. Su primer uso recomendado no es modificar inventario automaticamente, sino avisar y acompañar:
