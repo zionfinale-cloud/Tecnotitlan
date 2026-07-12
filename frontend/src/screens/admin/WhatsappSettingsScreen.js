@@ -77,18 +77,26 @@ const WhatsappSettingsScreen = () => {
 
   if (loading) return <div>Cargando WhatsApp...</div>;
 
+  const isEvolution = status?.provider === 'evolution';
+  const isQrImage = typeof qr === 'string' && qr.startsWith('data:image/');
+  const webhookUrl = status?.webhookUrl || 'https://api.tecnotitlan.com.mx/api/integrations/whatsapp/evolution/webhook';
+
   return (
     <div>
       <div className={styles.header}>
         <div>
           <h2 className={styles.title}>WhatsApp Tecnotitlan</h2>
-          <p className={styles.subtitle}>Vincula el numero operativo escaneando el QR. Esta seccion es solo para Super Admin.</p>
+          <p className={styles.subtitle}>
+            {isEvolution
+              ? 'Conecta el numero operativo usando Evolution API. Esta seccion es solo para Super Admin.'
+              : 'Vincula el numero operativo escaneando el QR. Esta seccion es solo para Super Admin.'}
+          </p>
         </div>
         <button className={styles.primaryButton} type="button" onClick={start} disabled={starting}>
-          {starting ? 'Iniciando...' : 'Iniciar / regenerar QR'}
+          {starting ? 'Iniciando...' : (isEvolution ? 'Conectar / obtener QR' : 'Iniciar / regenerar QR')}
         </button>
         <button className={styles.secondaryButton} type="button" onClick={reset} disabled={resetting || starting}>
-          {resetting ? 'Reiniciando...' : 'Borrar sesion y pedir QR'}
+          {resetting ? 'Reiniciando...' : (isEvolution ? 'Reiniciar instancia' : 'Borrar sesion y pedir QR')}
         </button>
       </div>
 
@@ -98,13 +106,17 @@ const WhatsappSettingsScreen = () => {
         <section className={styles.card}>
           <h3 className={styles.cardTitle}>Estado de conexion</h3>
           <div style={{ display: 'grid', gap: '.75rem' }}>
+            <p><strong>Proveedor:</strong> {isEvolution ? 'Evolution API' : 'Baileys local'}</p>
             <p><strong>Estado:</strong> {statusLabels[status?.status] || status?.status || 'Sin estado'}</p>
             <p><strong>Conectado:</strong> {status?.connected ? 'Si' : 'No'}</p>
             {status?.lastError && <p><strong>Ultimo error:</strong> {status.lastError}</p>}
             {status?.user?.id && <p><strong>Cuenta:</strong> {status.user.id}</p>}
+            {status?.instance && <p><strong>Instancia:</strong> {status.instance}</p>}
             {status?.authDir && <p><strong>Sesion activa:</strong> <code>{status.authDir}</code></p>}
             <p className={styles.subtitle}>
-              Para que no se pierda la sesion en redeploys, el VPS debe montar un volumen persistente en <code>/app/auth_info_baileys</code> o definir <code>WHATSAPP_AUTH_DIR</code>.
+              {isEvolution
+                ? <>Webhook para Evolution: <code>{webhookUrl}</code>. Configuralo en tu instancia para recibir mensajes entrantes.</>
+                : <>Para que no se pierda la sesion en redeploys, el VPS debe montar un volumen persistente en <code>/app/auth_info_baileys</code> o definir <code>WHATSAPP_AUTH_DIR</code>.</>}
             </p>
           </div>
         </section>
@@ -113,7 +125,11 @@ const WhatsappSettingsScreen = () => {
           <h3 className={styles.cardTitle}>QR de vinculacion</h3>
           {qr ? (
             <div style={{ display: 'grid', placeItems: 'center', gap: '1rem', padding: '1rem' }}>
-              <QRCodeSVG value={qr} size={260} includeMargin />
+              {isQrImage ? (
+                <img src={qr} alt="QR WhatsApp" style={{ width: 260, height: 260, objectFit: 'contain' }} />
+              ) : (
+                <QRCodeSVG value={qr} size={260} includeMargin />
+              )}
               <p className={styles.subtitle}>Abre WhatsApp en el telefono: Dispositivos vinculados -> Vincular dispositivo.</p>
             </div>
           ) : (

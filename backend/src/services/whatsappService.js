@@ -22,6 +22,18 @@ let isInitializing = false;
 let lastError = null;
 let reconnectTimer = null;
 let resetInProgress = false;
+let evolutionStatus = {
+    provider: 'evolution',
+    status: 'DISCONNECTED',
+    connected: false,
+    user: null,
+    hasQr: false,
+    isInitializing: false,
+    lastError: null,
+    instance: null,
+    qr: null,
+    webhookUrl: null,
+};
 
 const ignoredJids = new Set(['status@broadcast']);
 const uploadsRoot = path.resolve(process.cwd(), 'uploads');
@@ -50,6 +62,44 @@ const getBaseAuthDir = () => (
     || getConfig().WHATSAPP_AUTH_DIR
     || path.resolve(process.cwd(), 'auth_info_baileys')
 );
+
+const trimTrailingSlash = (value = '') => String(value || '').replace(/\/+$/, '');
+
+const getWhatsAppProvider = () => String(
+    getConfig().WHATSAPP_PROVIDER
+    || process.env.WHATSAPP_PROVIDER
+    || 'baileys',
+).trim().toLowerCase();
+
+const isEvolutionProvider = () => getWhatsAppProvider() === 'evolution';
+
+const getApiPublicUrl = () => trimTrailingSlash(
+    getConfig().API_PUBLIC_URL
+    || process.env.API_PUBLIC_URL
+    || 'https://api.tecnotitlan.com.mx',
+);
+
+const getEvolutionConfig = () => {
+    const config = getConfig();
+    const apiUrl = trimTrailingSlash(config.EVOLUTION_API_URL || process.env.EVOLUTION_API_URL || '');
+    const apiKey = config.EVOLUTION_API_KEY || process.env.EVOLUTION_API_KEY || '';
+    const instance = config.EVOLUTION_INSTANCE || process.env.EVOLUTION_INSTANCE || 'tecnotitlan';
+    const webhookSecret = config.EVOLUTION_WEBHOOK_SECRET || process.env.EVOLUTION_WEBHOOK_SECRET || '';
+    const explicitWebhookUrl = config.EVOLUTION_WEBHOOK_URL || process.env.EVOLUTION_WEBHOOK_URL;
+    const defaultWebhookUrl = `${getApiPublicUrl()}/api/integrations/whatsapp/evolution/webhook`;
+    const webhookUrl = explicitWebhookUrl
+        || (webhookSecret ? `${defaultWebhookUrl}?secret=${encodeURIComponent(webhookSecret)}` : defaultWebhookUrl);
+
+    return {
+        apiUrl,
+        apiKey,
+        instance,
+        webhookUrl,
+        webhookSecret,
+    };
+};
+
+const maskEvolutionWebhookUrl = (url = '') => String(url || '').replace(/([?&]secret=)[^&]+/i, '$1********');
 
 let activeAuthDir = null;
 
@@ -118,6 +168,150 @@ const getJidUser = (jid = '') => String(jid || '').split('@')[0] || '';
 const isPhoneJid = (jid = '') => String(jid || '').endsWith('@s.whatsapp.net') && /^\d{8,15}$/.test(getJidUser(jid));
 const isLidJid = (jid = '') => String(jid || '').endsWith('@lid');
 const getPhoneFromJid = (jid = '') => (isPhoneJid(jid) ? getJidUser(jid) : null);
+
+const getPhoneForProvider = (value = '') => {
+    const rawValue = String(value || '');
+    const phone = rawValue.includes('@') ? getJidUser(rawValue) : rawValue;
+    const digits = normalizePhone(phone);
+    if (!digits) throw new BadRequestError('El numero de WhatsApp es requerido.');
+    return digits;
+};
+
+const getJidForPhone = (value = '') => {
+    if (String(value || '').includes('@')) return value;
+    return toJid(value);
+};
+
+const evolutionRequest = async (method, resourcePath, data = undefined, options = {}) => {
+    const { apiUrl, apiKey } = getEvolutionConfig();
+    if (!apiUrl || !apiKey) {
+        throw new BadRequestError('Configura EVOLUTION_API_URL y EVOLUTION_API_KEY antes de usar Evolution API.');
+    }
+
+    const response = await axios({
+        method,
+        url: `${apiUrl}${resourcePath}`,
+        headers: {
+            apikey: apiKey,
+            'Content-Type': 'application/json',
+            ...(options.headers || {}),
+        },
+        data,
+        timeout: options.timeout || 25000,
+    });
+
+    return response.data;
+};
+
+const unwrapEvolutionData = (payload) => payload?.data || payload?.response || payload || {};
+
+const extractEvolutionQr = (payload = {}) => {
+    const data = unwrapEvolutionData(payload);
+    const candidates = [
+        payload?.qrcode?.base64,
+        payload?.qrcode?.code,
+        payload?.base64,
+        payload?.code,
+        payload?.qr,
+        data?.qrcode?.base64,
+        data?.qrcode?.code,
+        data?.base64,
+        data?.code,
+        data?.qr,
+    ].filter((value) => typeof value === 'string' && value.trim());
+
+    const qr = candidates[0]?.trim();
+    if (!qr) return null;
+    if (qr.startsWith('data:image/')) return qr;
+    if (/^[A-Za-z0-9+/=]{400,}$/.test(qr)) return `data:image/png;base64,${qr}`;
+    return qr;
+};
+
+const getEvolutionState = (payload = {}) => {
+    const data = unwrapEvolutionData(payload);
+    return String(
+        payload?.instance?.state
+        || payload?.state
+        || data?.instance?.state
+        || data?.state
+        || data?.connection
+        || '',
+    ).toLowerCase();
+};
+
+const updateEvolutionStatus = (patch = {}) => {
+    const { instance, webhookUrl } = getEvolutionConfig();
+    const nextQr = Object.prototype.hasOwnProperty.call(patch, 'qr') ? patch.qr : evolutionStatus.qr;
+    evolutionStatus = {
+        ...evolutionStatus,
+        provider: 'evolution',
+        instance,
+        webhookUrl: maskEvolutionWebhookUrl(webhookUrl),
+        ...patch,
+        qr: nextQr,
+        hasQr: Boolean(nextQr),
+    };
+    emitStatus();
+    return evolutionStatus;
+};
+
+const refreshEvolutionStatus = async () => {
+    const { instance } = getEvolutionConfig();
+    try {
+        const payload = await evolutionRequest('get', `/instance/connectionState/${encodeURIComponent(instance)}`);
+        const state = getEvolutionState(payload);
+        const connected = ['open', 'connected', 'ready'].includes(state);
+        return updateEvolutionStatus({
+            status: connected ? 'READY' : (state ? state.toUpperCase() : 'DISCONNECTED'),
+            connected,
+            user: unwrapEvolutionData(payload)?.instance || null,
+            isInitializing: false,
+            lastError: null,
+            qr: connected ? null : evolutionStatus.qr,
+        });
+    } catch (error) {
+        return updateEvolutionStatus({
+            status: 'DISCONNECTED',
+            connected: false,
+            isInitializing: false,
+            lastError: error.response?.data?.message || error.message,
+        });
+    }
+};
+
+const configureEvolutionWebhook = async () => {
+    const { instance, webhookUrl } = getEvolutionConfig();
+    if (!webhookUrl) return null;
+
+    const payloads = [
+        {
+            webhook: {
+                enabled: true,
+                url: webhookUrl,
+                byEvents: false,
+                base64: true,
+                events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+            },
+        },
+        {
+            enabled: true,
+            url: webhookUrl,
+            webhook_by_events: false,
+            webhook_base64: true,
+            events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+        },
+    ];
+
+    for (const payload of payloads) {
+        try {
+            return await evolutionRequest('post', `/webhook/set/${encodeURIComponent(instance)}`, payload);
+        } catch (error) {
+            logger.warn(`[Evolution] No se pudo configurar webhook con formato ${payload.webhook ? 'v2' : 'simple'}: ${error.message}`);
+        }
+    }
+
+    return null;
+};
 
 const resolveChatIdentity = (message = {}) => {
     const key = message.key || {};
@@ -252,6 +446,11 @@ const waitForReady = async (timeoutMs = 12000) => {
 };
 
 const ensureReadyForNotification = async () => {
+    if (isEvolutionProvider()) {
+        const status = await refreshEvolutionStatus();
+        return Boolean(status.connected);
+    }
+
     if (sock?.user && connectionStatus === 'READY') return true;
 
     if (!isInitializing && !['INITIALIZING', 'RECONNECTING', 'QR_RECEIVED'].includes(connectionStatus)) {
@@ -382,7 +581,8 @@ export const setSocketIO = (socketIoInstance) => {
     io = socketIoInstance;
 };
 
-export const getStatus = () => ({
+const getBaileysStatus = () => ({
+    provider: 'baileys',
     status: connectionStatus,
     connected: Boolean(sock?.user && connectionStatus === 'READY'),
     user: sock?.user || null,
@@ -392,9 +592,90 @@ export const getStatus = () => ({
     authDir: activeAuthDir,
 });
 
-export const getLatestQr = () => latestQr;
+export const getStatus = () => (isEvolutionProvider()
+    ? {
+        ...evolutionStatus,
+        provider: 'evolution',
+        instance: getEvolutionConfig().instance,
+        webhookUrl: maskEvolutionWebhookUrl(getEvolutionConfig().webhookUrl),
+    }
+    : getBaileysStatus());
+
+export const getLatestQr = () => (isEvolutionProvider() ? evolutionStatus.qr : latestQr);
+
+const initializeEvolution = async () => {
+    if (evolutionStatus.isInitializing) return getStatus();
+
+    updateEvolutionStatus({
+        status: 'INITIALIZING',
+        connected: false,
+        isInitializing: true,
+        lastError: null,
+        qr: null,
+    });
+
+    const { instance } = getEvolutionConfig();
+
+    try {
+        logger.info(`[Evolution] Inicializando instancia ${instance}...`);
+
+        let currentStatus = await refreshEvolutionStatus();
+        if (currentStatus.connected) return currentStatus;
+
+        try {
+            await evolutionRequest('post', '/instance/create', {
+                instanceName: instance,
+                qrcode: true,
+                integration: 'WHATSAPP-BAILEYS',
+            });
+        } catch (error) {
+            const message = error.response?.data?.message || error.message;
+            if (!String(message).toLowerCase().includes('exist')) {
+                logger.warn(`[Evolution] No se pudo crear instancia automaticamente: ${message}`);
+            }
+        }
+
+        await configureEvolutionWebhook();
+
+        const connectPayload = await evolutionRequest('get', `/instance/connect/${encodeURIComponent(instance)}`);
+        const qr = extractEvolutionQr(connectPayload);
+        latestQr = qr;
+
+        currentStatus = await refreshEvolutionStatus();
+        if (currentStatus.connected) return currentStatus;
+
+        if (qr) {
+            emitQr(qr);
+            return updateEvolutionStatus({
+                status: 'QR_RECEIVED',
+                connected: false,
+                isInitializing: false,
+                lastError: null,
+                qr,
+            });
+        }
+
+        return updateEvolutionStatus({
+            status: 'RECONNECTING',
+            connected: false,
+            isInitializing: false,
+            lastError: 'Evolution no devolvio QR. Revisa si la instancia ya esta conectada o si el endpoint /instance/connect responde.',
+            qr: null,
+        });
+    } catch (error) {
+        return updateEvolutionStatus({
+            status: 'ERROR',
+            connected: false,
+            isInitializing: false,
+            lastError: error.response?.data?.message || error.message,
+            qr: null,
+        });
+    }
+};
 
 export const initialize = async () => {
+    if (isEvolutionProvider()) return initializeEvolution();
+
     if (isInitializing) return getStatus();
 
     if (reconnectTimer) {
@@ -514,7 +795,28 @@ export const initialize = async () => {
 
 export const getClient = () => sock;
 
+const resetEvolutionSession = async () => {
+    const { instance } = getEvolutionConfig();
+    updateEvolutionStatus({
+        status: 'RESETTING',
+        connected: false,
+        isInitializing: true,
+        lastError: null,
+        qr: null,
+    });
+
+    try {
+        await evolutionRequest('delete', `/instance/logout/${encodeURIComponent(instance)}`);
+    } catch (error) {
+        logger.warn(`[Evolution] Logout omitido o no soportado: ${error.response?.data?.message || error.message}`);
+    }
+
+    return initializeEvolution();
+};
+
 export const resetSession = async () => {
+    if (isEvolutionProvider()) return resetEvolutionSession();
+
     resetInProgress = true;
     if (reconnectTimer) {
         clearTimeout(reconnectTimer);
@@ -570,7 +872,35 @@ export const listMessages = async (jid) => {
     return { chat: { ...chat, unreadCount: 0 }, messages };
 };
 
+const sendEvolutionTextMessage = async (number, message, sentBy = null) => {
+    const { instance } = getEvolutionConfig();
+    const text = String(message || '').trim();
+    if (!text) throw new BadRequestError('El mensaje no puede estar vacio.');
+
+    const phone = getPhoneForProvider(number);
+    const jid = getJidForPhone(String(number || '').includes('@') ? number : phone);
+    const result = await evolutionRequest('post', `/message/sendText/${encodeURIComponent(instance)}`, {
+        number: phone,
+        text,
+    });
+
+    await persistMessage({
+        jid,
+        messageId: unwrapEvolutionData(result)?.key?.id || unwrapEvolutionData(result)?.id || `evo-out-${Date.now()}`,
+        text,
+        fromMe: true,
+        phone,
+        createdAt: new Date(),
+        sentBy,
+    });
+
+    await refreshEvolutionStatus();
+    return result;
+};
+
 export const sendMessage = async (number, message, sentBy = null) => {
+    if (isEvolutionProvider()) return sendEvolutionTextMessage(number, message, sentBy);
+
     if (!sock || connectionStatus !== 'READY') {
         throw new BadRequestError('WhatsApp no esta conectado. Escanea el QR desde Configuracion.');
     }
@@ -617,7 +947,57 @@ const getOutgoingMediaPayload = (file, caption = '') => {
     };
 };
 
+const sendEvolutionMediaMessage = async (number, file, caption = '', sentBy = null) => {
+    if (!file?.buffer?.length) throw new BadRequestError('Selecciona un archivo para enviar.');
+
+    const { instance } = getEvolutionConfig();
+    const phone = getPhoneForProvider(number);
+    const jid = getJidForPhone(String(number || '').includes('@') ? number : phone);
+    const cleanCaption = String(caption || '').trim();
+    const mimeType = file.mimetype || 'application/octet-stream';
+    const fileName = file.originalname || 'archivo';
+    const mediaType = mimeType.startsWith('image/')
+        ? 'image'
+        : mimeType.startsWith('video/')
+            ? 'video'
+            : mimeType.startsWith('audio/')
+                ? 'audio'
+                : 'document';
+
+    const savedMedia = await saveMediaBuffer({
+        buffer: file.buffer,
+        jid,
+        type: mediaType,
+        mimeType,
+        fileName,
+    });
+
+    const result = await evolutionRequest('post', `/message/sendMedia/${encodeURIComponent(instance)}`, {
+        number: phone,
+        mediatype: mediaType,
+        mimetype: mimeType,
+        caption: cleanCaption,
+        media: file.buffer.toString('base64'),
+        fileName,
+    });
+
+    await persistMessage({
+        jid,
+        messageId: unwrapEvolutionData(result)?.key?.id || unwrapEvolutionData(result)?.id || `evo-media-${Date.now()}`,
+        text: cleanCaption || getMediaLabel(savedMedia),
+        fromMe: true,
+        phone,
+        createdAt: new Date(),
+        sentBy,
+        ...savedMedia,
+    });
+
+    return result;
+};
+
 export const sendMediaMessage = async (number, file, caption = '', sentBy = null) => {
+    if (isEvolutionProvider()) return sendEvolutionMediaMessage(number, file, caption, sentBy);
+
     if (!sock || connectionStatus !== 'READY') {
         throw new BadRequestError('WhatsApp no esta conectado. Escanea el QR desde Configuracion.');
     }
@@ -646,6 +1026,128 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
     });
 
     return result;
+};
+
+const getEvolutionRemoteJid = (message = {}) => {
+    const candidate = message?.key?.remoteJid
+        || message?.remoteJid
+        || message?.chatId
+        || message?.jid
+        || message?.from
+        || message?.sender
+        || message?.number;
+    if (!candidate) return null;
+    if (String(candidate).includes('@')) return candidate;
+    return toJid(candidate);
+};
+
+const getEvolutionMessageId = (message = {}) => message?.key?.id
+    || message?.id
+    || message?.messageId
+    || `evo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const getEvolutionMessageTimestamp = (message = {}) => {
+    const raw = message?.messageTimestamp || message?.timestamp || message?.date_time || message?.createdAt;
+    if (!raw) return new Date();
+    if (raw instanceof Date) return raw;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric)) return new Date(numeric > 1000000000000 ? numeric : numeric * 1000);
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
+const getEvolutionText = (message = {}) => {
+    const content = unwrapMessageContent(message?.message || message || {});
+    return message?.text
+        || message?.body
+        || message?.messageText
+        || content?.conversation
+        || content?.extendedTextMessage?.text
+        || content?.imageMessage?.caption
+        || content?.videoMessage?.caption
+        || content?.documentMessage?.caption
+        || content?.buttonsResponseMessage?.selectedDisplayText
+        || content?.listResponseMessage?.title
+        || null;
+};
+
+const getEvolutionMedia = async (message = {}, jid) => {
+    const content = unwrapMessageContent(message?.message || message || {});
+    const definition = mediaTypeDefinitions.find((item) => content[item.key]);
+    const media = definition ? content[definition.key] : null;
+    const base64 = message?.base64
+        || message?.media
+        || media?.base64
+        || media?.jpegThumbnail;
+
+    if (!definition || !base64 || typeof base64 !== 'string') return null;
+
+    const cleanBase64 = base64.includes(',') ? base64.split(',').pop() : base64;
+    try {
+        return saveMediaBuffer({
+            buffer: Buffer.from(cleanBase64, 'base64'),
+            jid,
+            type: definition.type,
+            mimeType: media?.mimetype || message?.mimetype || 'application/octet-stream',
+            fileName: media?.fileName || message?.fileName,
+            messageId: getEvolutionMessageId(message),
+        });
+    } catch (error) {
+        logger.warn(`[Evolution] No se pudo guardar adjunto entrante: ${error.message}`);
+        return null;
+    }
+};
+
+export const handleEvolutionWebhook = async (payload = {}) => {
+    const event = String(payload?.event || payload?.type || '').toUpperCase();
+    const data = payload?.data || payload;
+
+    if (event.includes('CONNECTION') || data?.state || data?.instance?.state) {
+        const state = getEvolutionState(payload);
+        const connected = ['open', 'connected', 'ready'].includes(state);
+        updateEvolutionStatus({
+            status: connected ? 'READY' : (state ? state.toUpperCase() : 'DISCONNECTED'),
+            connected,
+            isInitializing: false,
+            lastError: connected ? null : evolutionStatus.lastError,
+            qr: connected ? null : evolutionStatus.qr,
+            user: data?.instance || evolutionStatus.user,
+        });
+    }
+
+    const rawMessages = Array.isArray(data?.messages)
+        ? data.messages
+        : Array.isArray(data)
+            ? data
+            : [data];
+
+    let processedMessages = 0;
+    for (const message of rawMessages) {
+        const jid = getEvolutionRemoteJid(message);
+        if (!jid || ignoredJids.has(jid) || jid.endsWith('@g.us')) continue;
+
+        const fromMe = Boolean(message?.key?.fromMe || message?.fromMe);
+        const media = await getEvolutionMedia(message, jid);
+        const text = getEvolutionText(message) || getMediaLabel(media);
+
+        try {
+            const saved = await persistMessage({
+                jid,
+                messageId: getEvolutionMessageId(message),
+                text,
+                fromMe,
+                pushName: message?.pushName || message?.senderName || message?.name,
+                phone: getPhoneForProvider(jid),
+                createdAt: getEvolutionMessageTimestamp(message),
+                ...media,
+            });
+            if (saved) processedMessages += 1;
+        } catch (error) {
+            logger.error(`[Evolution] No se pudo guardar mensaje webhook: ${error.message}`);
+        }
+    }
+
+    return { processedMessages, event: event || 'UNKNOWN' };
 };
 
 const currency = new Intl.NumberFormat('es-MX', {

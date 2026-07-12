@@ -13,7 +13,7 @@ Este documento es la guía técnica central y única fuente de verdad para el pr
 - **Omnicanal:** Sistema centralizado que se integra con múltiples canales de venta, incluyendo redes sociales (Facebook, Instagram, TikTok Shop) y marketplaces (Mercado Libre, Amazon).
 - **Comunicación Automatizada:**
 
-    - **Bot de WhatsApp:** Conectado a través de **Baileys** (librería ligera de WebSockets), gestionado y configurable desde el panel de administración. Se reemplazó `whatsapp-web.js` para eliminar la dependencia de Chromium y asegurar compatibilidad con cPanel.
+    - **Bot de WhatsApp:** Soporta proveedor local **Baileys** y proveedor externo **Evolution API**. Para producción se recomienda Evolution API por estabilidad operativa, menor dependencia de sesiones locales y mejor separación del VPS principal.
     - **Chatbot Web:** Sincronizado con el sistema para ofrecer soporte en tiempo real.
 - **UI/UX:** Interfaz limpia, moderna y premium.
 
@@ -529,7 +529,7 @@ Para la estrategia de **"Desarrollo en Vivo"**, estas variables deben configurar
 
 -   **Base de Datos:** PostgreSQL (Supabase o Local en cPanel si está disponible).
 -   **Backend:** Ejecutándose como aplicación Node.js nativa en cPanel.
--   **WhatsApp:** Integrado mediante **Baileys** (Socket) dentro del backend.
+-   **WhatsApp:** Integrado mediante capa de proveedor. Baileys queda como respaldo local; Evolution API es la ruta recomendada para producción.
 -   **Automatización (n8n):** Ejecutándose en el mismo servidor cPanel (vía Node.js).
 
 #### 8.3.1. Guía de Despliegue en Producción (Frontend en cPanel)
@@ -647,7 +647,7 @@ Antes del primer despliegue, es **crítico** añadir la dirección IP de tu serv
     cat stderr.log
     ```
 
-> **Nota sobre WhatsApp:** Se utiliza **Baileys** por su ligereza y compatibilidad nativa con cPanel. Si en el futuro se requiere una API externa más robusta y se dispone de soporte Docker completo, se recomienda evaluar **EvolutionAPI**.
+> **Nota sobre WhatsApp:** Baileys se conserva como fallback local. La ruta recomendada actual es **Evolution API**, configurada con `WHATSAPP_PROVIDER=evolution`, para evitar ciclos agresivos de reconexión y mantener la sesión fuera del contenedor principal.
 
 ---
 
@@ -787,7 +787,8 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 - **Backend:** El servicio `whatsappService.js` y los endpoints de control en `index.js` gestionan la inicialización y el estado de la conexión mediante **Socket.IO**.
 - **Inicialización:** Al arrancar el servidor (`npm start`), `index.js` inicializa `whatsappService` y le pasa la instancia de `io` (Socket.IO) para permitir la comunicación en tiempo real con el frontend (QR, estados).
 - **Frontend:** La pantalla `WhatsappSettingsScreen.js` escucha estos eventos de WebSockets para mostrar el código QR y el estado de la conexión sin necesidad de recargar la página.
-- **Sesion Baileys persistente:** Supabase/PostgreSQL guarda configuracion operativa, chats y mensajes, pero no reemplaza los archivos de sesion de Baileys. La autenticacion real de WhatsApp vive en `WHATSAPP_AUTH_DIR` o, por defecto, en `/app/auth_info_baileys`. Ese directorio debe estar montado como volumen persistente en el VPS para que WhatsApp se reconecte despues de reinicios o redeploys sin pedir QR de nuevo.
+- **Proveedor WhatsApp:** `WHATSAPP_PROVIDER=baileys` usa sesion local persistente; `WHATSAPP_PROVIDER=evolution` usa Evolution API para conectar, enviar, recibir y persistir mensajes en la base de datos de Tecnotitlan.
+- **Sesion Baileys persistente:** Si se usa Baileys, Supabase/PostgreSQL guarda configuracion operativa, chats y mensajes, pero no reemplaza los archivos de sesion. La autenticacion real vive en `WHATSAPP_AUTH_DIR` o `/app/auth_info_baileys`.
 - **Notificaciones transaccionales:** Antes de omitir un aviso por WhatsApp, el backend debe intentar reconectar usando la sesion persistente y esperar unos segundos. Si la sesion esta invalida, fue cerrada desde el telefono o WhatsApp fuerza reautenticacion, se genera QR desde Configuracion > WhatsApp. Los pedidos nunca deben fallar por WhatsApp desconectado; correo e inventario siguen su flujo y el evento queda en logs.
 - **Connection Failure:** Cuando Baileys cierra con `Connection Failure`, el log debe incluir `StatusCode`. Si es una caida recuperable, el backend reintenta. Si el codigo/mensaje indica logout o sesion invalida, el backend rota la sesion activa y solicita QR nuevo automaticamente.
 - **Atencion Operativa:** La pantalla `WhatsAppChatScreen.js` es la vista de trabajo para vendedores/supervisores. Debe mantener lista de conversaciones, mensajes y adjuntos dentro de contenedores con scroll interno para evitar que el panel se vuelva inmanejable en conversaciones largas.
@@ -879,6 +880,35 @@ Regla: antes de publicar un producto, debe tener descripcion comercial, imagenes
 En el formulario de producto, las etiquetas principales se seleccionan como chips y se guardan dentro de la caracteristica `Etiquetas Tecatl`. Tambien se pueden agregar etiquetas personalizadas. Estas etiquetas son internas: Tecatl las usa para buscar, recomendar y contestar preguntas de seguimiento, pero no debe mostrarlas al cliente como ficha publica. Por ejemplo, si un producto tiene `Etiquetas Tecatl: usb-c, viaje, audio`, el cliente no debe ver "Etiquetas Tecatl"; solo debe recibir una respuesta natural como "si, maneja carga USB-C / Tipo C" cuando pregunte por compatibilidad.
 
 Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues algo como "es tipo C?", "sirve para viaje?" o "es bluetooth?", Tecatl debe usar el contexto reciente de la conversacion y las caracteristicas/etiquetas internas del producto. Si la ficha no trae ese dato, entonces si debe pedir confirmacion humana para no inventar informacion.
+
+### WhatsApp con Evolution API
+
+Después de las restricciones temporales provocadas por reconexiones de Baileys, Tecnotitlan soporta dos proveedores de WhatsApp:
+
+- `WHATSAPP_PROVIDER=baileys`: modo local anterior. Requiere volumen persistente en `WHATSAPP_AUTH_DIR` o `/app/auth_info_baileys`.
+- `WHATSAPP_PROVIDER=evolution`: modo recomendado para producción. El backend usa Evolution API para conectar la instancia, obtener QR, enviar mensajes, adjuntos y recibir webhooks.
+
+Variables requeridas para Evolution:
+
+- `WHATSAPP_PROVIDER=evolution`
+- `EVOLUTION_API_URL`: URL base de Evolution API, sin slash final. Ejemplo: `https://evolution.tudominio.com`
+- `EVOLUTION_API_KEY`: API key global/instancia de Evolution.
+- `EVOLUTION_INSTANCE`: nombre de instancia, por ejemplo `tecnotitlan`.
+- `API_PUBLIC_URL`: URL pública del backend, normalmente `https://api.tecnotitlan.com.mx`.
+- `EVOLUTION_WEBHOOK_URL`: opcional; si se deja vacío, Tecnotitlan usa `https://api.tecnotitlan.com.mx/api/integrations/whatsapp/evolution/webhook`.
+- `EVOLUTION_WEBHOOK_SECRET`: opcional; si se configura, la URL del webhook debe incluir `?secret=...` o Evolution debe enviar header `x-evolution-secret`.
+
+Flujo recomendado:
+
+1. Configurar las variables anteriores en `Configuracion -> Sistema`.
+2. Guardar configuracion y redeplegar/reiniciar la API.
+3. Entrar a `Configuracion -> WhatsApp QR`.
+4. Presionar `Conectar / obtener QR`.
+5. Escanear el QR desde WhatsApp.
+6. En Evolution, configurar webhook hacia `/api/integrations/whatsapp/evolution/webhook`.
+7. Probar desde el panel `WhatsApp`: enviar texto, enviar imagen y recibir un mensaje entrante.
+
+Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Evolution reporta la instancia como conectada. Si no esta conectada, el sistema registra el aviso omitido en logs y no bloquea la compra ni el correo transaccional.
 
 ---
 

@@ -10,8 +10,21 @@ const sections = [
   },
   {
     title: 'Automatizacion y soporte',
-    description: 'WhatsApp administrativo y webhooks para n8n.',
-    keys: ['ADMIN_WHATSAPP_NUMBER', 'WHATSAPP_AUTH_DIR', 'N8N_ORDER_WEBHOOK_URL', 'N8N_SUPPORT_WEBHOOK_URL'],
+    description: 'WhatsApp administrativo, Evolution API y webhooks para n8n.',
+    keys: [
+      'API_PUBLIC_URL',
+      'ADMIN_WHATSAPP_NUMBER',
+      'WHATSAPP_PROVIDER',
+      'WHATSAPP_AUTO_CONNECT',
+      'WHATSAPP_AUTH_DIR',
+      'EVOLUTION_API_URL',
+      'EVOLUTION_API_KEY',
+      'EVOLUTION_INSTANCE',
+      'EVOLUTION_WEBHOOK_URL',
+      'EVOLUTION_WEBHOOK_SECRET',
+      'N8N_ORDER_WEBHOOK_URL',
+      'N8N_SUPPORT_WEBHOOK_URL',
+    ],
   },
   {
     title: 'Pagos y marketplaces',
