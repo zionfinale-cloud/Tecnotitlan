@@ -872,7 +872,9 @@ Ejemplo: si un cliente escribe "voy a viajar, que me recomiendas?", Tecatl busca
 
 Regla: antes de publicar un producto, debe tener descripcion comercial, imagenes y al menos 3 caracteristicas utiles para cliente y para Tecatl. Esto mejora busqueda, recomendaciones y soporte sin crear una tabla extra de etiquetas.
 
-En el formulario de producto, las etiquetas principales se seleccionan como chips y se guardan dentro de la caracteristica `Etiquetas Tecatl`. Tambien se pueden agregar etiquetas personalizadas. Estas etiquetas no son visibles como configuracion tecnica para el cliente, pero alimentan la busqueda conversacional de Tecatl y ayudan a recomendar por intencion: viaje, bateria, audio, regalo, oficina, auto, gaming, emergencia, etc.
+En el formulario de producto, las etiquetas principales se seleccionan como chips y se guardan dentro de la caracteristica `Etiquetas Tecatl`. Tambien se pueden agregar etiquetas personalizadas. Estas etiquetas son internas: Tecatl las usa para buscar, recomendar y contestar preguntas de seguimiento, pero no debe mostrarlas al cliente como ficha publica. Por ejemplo, si un producto tiene `Etiquetas Tecatl: usb-c, viaje, audio`, el cliente no debe ver "Etiquetas Tecatl"; solo debe recibir una respuesta natural como "si, maneja carga USB-C / Tipo C" cuando pregunte por compatibilidad.
+
+Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues algo como "es tipo C?", "sirve para viaje?" o "es bluetooth?", Tecatl debe usar el contexto reciente de la conversacion y las caracteristicas/etiquetas internas del producto. Si la ficha no trae ese dato, entonces si debe pedir confirmacion humana para no inventar informacion.
 
 ---
 

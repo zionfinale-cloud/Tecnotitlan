@@ -1,7 +1,12 @@
 import prisma from '../../config/prisma.js';
 import { classifyIntent } from './tecatlIntentService.js';
 import { getRelevantKnowledge } from './tecatlKnowledgeService.js';
-import { buildProductRecommendationText, searchProductsForMessage } from './tecatlProductAdvisorService.js';
+import {
+  buildProductDetailAnswer,
+  buildProductRecommendationText,
+  findProductsBySkus,
+  searchProductsForMessage,
+} from './tecatlProductAdvisorService.js';
 
 const defaultProfile = {
   name: 'Tecatl',
@@ -109,6 +114,33 @@ const createHandoff = async (conversationId, reason) => {
   });
 };
 
+const extractSkusFromText = (text = '') => [...text.matchAll(/\b[A-Z]{2,5}-\d{3,}\b/gi)]
+  .map((match) => match[0].toUpperCase());
+
+const findRecentProductContext = async (conversationId) => {
+  const recentMessages = await prisma.chatMessage.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'desc' },
+    take: 8,
+    select: { content: true, role: true },
+  });
+
+  const skus = recentMessages.flatMap((message) => extractSkusFromText(message.content));
+  return findProductsBySkus(skus);
+};
+
+const answerProductFollowUp = async ({ message, conversationId }) => {
+  const directMatches = await searchProductsForMessage(message, 1);
+  const directAnswer = buildProductDetailAnswer(message, directMatches[0]);
+  if (directAnswer) return directAnswer;
+
+  const contextProducts = await findRecentProductContext(conversationId);
+  const contextAnswer = buildProductDetailAnswer(message, contextProducts[0]);
+  if (contextAnswer) return contextAnswer;
+
+  return null;
+};
+
 const buildTemplateReply = async ({ intent, message, profile, conversationId }) => {
   if (intent === 'saludo') return profile.welcomeMessage;
 
@@ -119,6 +151,8 @@ const buildTemplateReply = async ({ intent, message, profile, conversationId }) 
 
   if (['buscar_producto', 'recomendar_producto', 'comparar_productos'].includes(intent)) {
     const products = await searchProductsForMessage(message);
+    const productAnswer = buildProductDetailAnswer(message, products[0]);
+    if (productAnswer) return productAnswer;
     return buildProductRecommendationText(products);
   }
 
@@ -149,6 +183,9 @@ const buildTemplateReply = async ({ intent, message, profile, conversationId }) 
     await createHandoff(conversationId, 'Cliente solicito asesor humano');
     return 'Claro, te paso con un asesor humano. Mientras tanto dejo registrada tu solicitud para que el equipo le de seguimiento.';
   }
+
+  const productFollowUp = await answerProductFollowUp({ message, conversationId });
+  if (productFollowUp) return productFollowUp;
 
   await createHandoff(conversationId, 'Tecatl no encontro respuesta confiable');
   return profile.fallbackMessage;
