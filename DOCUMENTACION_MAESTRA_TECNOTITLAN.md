@@ -857,6 +857,21 @@ Para iniciar n8n sin riesgo, los primeros workflows deben ser:
 4. Aviso de paquetes enviados sin marcar como entregados despues de X dias.
 5. Resumen de gastos operativos e imprevistos de la semana.
 
+### Etiquetas operativas para Tecatl
+
+Tecatl no debe adivinar solo por el nombre del producto. Para que pueda recomendar por necesidad real del cliente, las `Especificaciones / caracteristicas` del producto tambien funcionan como etiquetas semanticas.
+
+Campos recomendados al crear productos:
+
+- **Uso recomendado:** viaje, oficina, escuela, auto, gaming, emergencia.
+- **Etiquetas Tecatl:** bateria, audio, regalo, usb-c, bluetooth, carga rapida, compacto.
+- **Compatibilidad:** Android, iPhone, USB-C, Lightning, Bluetooth, laptop, tablet.
+- **Ideal para:** personas que viajan, estudiantes, repartidores, oficina, clientes que necesitan respaldo de energia.
+
+Ejemplo: si un cliente escribe "voy a viajar, que me recomiendas?", Tecatl busca en nombre, descripcion, categoria, marca, SKU y caracteristicas. Si un powerbank tiene `Uso recomendado: viaje` y `Etiquetas Tecatl: bateria, carga, emergencia`, el asistente puede sugerirlo aunque el cliente nunca escriba "powerbank".
+
+Regla: antes de publicar un producto, debe tener descripcion comercial, imagenes y al menos 3 caracteristicas utiles para cliente y para Tecatl. Esto mejora busqueda, recomendaciones y soporte sin crear una tabla extra de etiquetas.
+
 ---
 
 ## 15. Troubleshooting

@@ -20,6 +20,13 @@ const SKU_PREFIXES = [
 ];
 const CUSTOM_SKU_PREFIX_VALUE = '__CUSTOM__';
 
+const TECATL_CHARACTERISTIC_PRESETS = [
+  { key: 'Uso recomendado', value: 'Viaje, oficina, escuela, auto, gaming' },
+  { key: 'Etiquetas Tecatl', value: 'viaje, bateria, audio, regalo, emergencia' },
+  { key: 'Compatibilidad', value: 'Android, iPhone, USB-C, Bluetooth' },
+  { key: 'Ideal para', value: 'personas que viajan, estudiantes, repartidores, oficina' },
+];
+
 const normalizeSkuPrefix = (value) => String(value || '')
   .replace(/[^a-zA-Z0-9]/g, '')
   .slice(0, 3)
@@ -162,6 +169,25 @@ const ProductEditScreen = () => {
       ...current,
       characteristics: [...current.characteristics, { key: '', value: '' }],
     }));
+  };
+
+  const addCharacteristicPreset = (preset) => {
+    setForm((current) => {
+      const emptyIndex = current.characteristics.findIndex((item) => !item.key && !item.value);
+      if (emptyIndex >= 0) {
+        return {
+          ...current,
+          characteristics: current.characteristics.map((item, index) =>
+            index === emptyIndex ? preset : item
+          ),
+        };
+      }
+
+      return {
+        ...current,
+        characteristics: [...current.characteristics, preset],
+      };
+    });
   };
 
   const removeCharacteristic = (index) => {
@@ -413,6 +439,25 @@ const ProductEditScreen = () => {
 
             <div className={`${styles.field} ${styles.fieldFull}`}>
               <label className={styles.label}>Especificaciones / caracteristicas</label>
+              <div className={styles.assistBox}>
+                <strong>Para que Tecatl recomiende mejor</strong>
+                <small>
+                  Agrega usos, etiquetas y compatibilidad. Asi cuando alguien diga "voy a viajar" o "necesito bateria",
+                  Tecatl puede encontrar productos aunque no diga el nombre exacto.
+                </small>
+                <div className={styles.inlineActions}>
+                  {TECATL_CHARACTERISTIC_PRESETS.map((preset) => (
+                    <button
+                      key={preset.key}
+                      className={styles.secondaryButton}
+                      type="button"
+                      onClick={() => addCharacteristicPreset(preset)}
+                    >
+                      + {preset.key}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {form.characteristics.map((item, index) => (
                 <div className={styles.formGrid} key={index} style={{ marginBottom: '0.75rem' }}>
                   <input className={styles.input} value={item.key} onChange={(event) => updateCharacteristic(index, 'key', event.target.value)} placeholder="Ej. Capacidad" />

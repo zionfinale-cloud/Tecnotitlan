@@ -3,6 +3,9 @@ import { normalizeText } from './tecatlIntentService.js';
 
 const stopWords = new Set([
   'hola',
+  'voy',
+  'vas',
+  'van',
   'busco',
   'quiero',
   'necesito',
@@ -21,12 +24,29 @@ const stopWords = new Set([
   'comprarme',
 ]);
 
+const intentTermMap = {
+  viaje: ['viaje', 'viajar', 'viajero', 'viajera', 'powerbank', 'bateria', 'cable', 'cargador', 'audifonos', 'auriculares', 'audio'],
+  viajar: ['viaje', 'viajar', 'viajero', 'viajera', 'powerbank', 'bateria', 'cable', 'cargador', 'audifonos', 'auriculares', 'audio'],
+  bateria: ['bateria', 'powerbank', 'energia', 'carga', 'cargador', 'cable'],
+  cargar: ['bateria', 'powerbank', 'energia', 'carga', 'cargador', 'cable'],
+  carga: ['bateria', 'powerbank', 'energia', 'carga', 'cargador', 'cable'],
+  musica: ['audio', 'audifonos', 'auriculares', 'bocina', 'bluetooth'],
+  llamadas: ['audio', 'audifonos', 'auriculares', 'microfono', 'bluetooth'],
+  gaming: ['gaming', 'control', 'consola', 'hdmi', 'juego'],
+  regalo: ['regalo', 'premium', 'util', 'practico'],
+  coche: ['auto', 'coche', 'carro', 'cargador', 'cable'],
+  carro: ['auto', 'coche', 'carro', 'cargador', 'cable'],
+};
+
 const extractSearchTerms = (message = '') => {
   const normalized = normalizeText(message).replace(/[^a-z0-9\s-]/g, ' ');
-  return normalized
+  const baseTerms = normalized
     .split(/\s+/)
     .filter((word) => word.length >= 3 && !stopWords.has(word))
     .slice(0, 6);
+
+  const expandedTerms = baseTerms.flatMap((term) => [term, ...(intentTermMap[term] || [])]);
+  return [...new Set(expandedTerms)].slice(0, 12);
 };
 
 const toPublicProduct = (product) => ({
@@ -56,6 +76,16 @@ const searchProductsForMessage = async (message = '', limit = 3) => {
         { sku: { contains: term, mode: 'insensitive' } },
         { brand: { contains: term, mode: 'insensitive' } },
         { category: { name: { contains: term, mode: 'insensitive' } } },
+        {
+          characteristics: {
+            some: {
+              OR: [
+                { key: { contains: term, mode: 'insensitive' } },
+                { value: { contains: term, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
       ]),
     } : {}),
   };

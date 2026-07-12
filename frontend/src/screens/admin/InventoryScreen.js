@@ -137,6 +137,33 @@ const InventoryScreen = () => {
     }
   ), [movements]);
 
+  const inventoryTotals = useMemo(() => inventoryOverview.reduce(
+    (acc, item) => {
+      const warehouseStock = Number(item.channelStock?.WEB || 0);
+      const marketplaceStock = MARKETPLACE_CHANNELS.reduce(
+        (sum, channel) => sum + Number(item.channelStock?.[channel.value] || 0),
+        0
+      );
+      const totalStock = Number(item.totalPhysicalStock || 0);
+      const cost = Number(item.costPrice || 0);
+
+      return {
+        totalStock: acc.totalStock + totalStock,
+        warehouseStock: acc.warehouseStock + warehouseStock,
+        marketplaceStock: acc.marketplaceStock + marketplaceStock,
+        inventoryValue: acc.inventoryValue + (totalStock * cost),
+        reorderCount: acc.reorderCount + (item.reorderSuggested ? 1 : 0),
+      };
+    },
+    {
+      totalStock: 0,
+      warehouseStock: 0,
+      marketplaceStock: 0,
+      inventoryValue: 0,
+      reorderCount: 0,
+    }
+  ), [inventoryOverview]);
+
   const setQuickMovementType = (type) => {
     setMovementFilters((current) => ({ ...current, type }));
   };
@@ -374,6 +401,77 @@ const InventoryScreen = () => {
           </button>
         ))}
       </div>
+
+      <section className={styles.flowPanel}>
+        <div className={styles.flowHeader}>
+          <div>
+            <span className={styles.kicker}>Flujo operativo</span>
+            <h2>Del dinero a la venta, sin revolver piezas ni caja</h2>
+            <p>
+              Primero entra dinero en Inversiones, despues compras mercancia, luego la mandas a canales y finalmente registras salidas por venta.
+            </p>
+          </div>
+          <div className={styles.flowMetricGrid}>
+            <div className={styles.flowMetric}>
+              <span>Stock total</span>
+              <strong>{inventoryTotals.totalStock}</strong>
+              <small>piezas fisicas</small>
+            </div>
+            <div className={styles.flowMetric}>
+              <span>Bodega/Web</span>
+              <strong>{inventoryTotals.warehouseStock}</strong>
+              <small>listo para surtir</small>
+            </div>
+            <div className={styles.flowMetric}>
+              <span>Canales</span>
+              <strong>{inventoryTotals.marketplaceStock}</strong>
+              <small>asignado a marketplaces</small>
+            </div>
+            <div className={styles.flowMetric}>
+              <span>Recompra</span>
+              <strong>{inventoryTotals.reorderCount}</strong>
+              <small>productos por revisar</small>
+            </div>
+            {showCosts && (
+              <div className={styles.flowMetric}>
+                <span>Valor inventario</span>
+                <strong>{currency.format(inventoryTotals.inventoryValue)}</strong>
+                <small>costo aproximado</small>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.flowSteps}>
+          <a className={styles.flowStep} href="/admin/investments">
+            <span>1</span>
+            <strong>Inversion</strong>
+            <small>Capital, gastos, imprevistos y recuperaciones de dinero.</small>
+          </a>
+          {showCosts && (
+            <button className={styles.flowStep} type="button" onClick={() => setActiveInventoryTab('entries')}>
+              <span>2</span>
+              <strong>Entrada</strong>
+              <small>Compra real de producto. La mercancia entra a bodega/web.</small>
+            </button>
+          )}
+          <button className={styles.flowStep} type="button" onClick={() => setActiveInventoryTab('transfers')}>
+            <span>3</span>
+            <strong>Traspaso</strong>
+            <small>Mueve piezas de bodega/web a Meli, TikTok Shop o Amazon.</small>
+          </button>
+          <button className={styles.flowStep} type="button" onClick={() => setActiveInventoryTab('sales')}>
+            <span>4</span>
+            <strong>Salida</strong>
+            <small>Venta por canal. Aqui se descuenta el stock asignado.</small>
+          </button>
+          <button className={styles.flowStep} type="button" onClick={() => setActiveInventoryTab('overview')}>
+            <span>5</span>
+            <strong>Corte</strong>
+            <small>Ventas, utilidad y productos que necesitan recompra.</small>
+          </button>
+        </div>
+      </section>
 
       {activeInventoryTab === 'entries' && showCosts && (
       <>

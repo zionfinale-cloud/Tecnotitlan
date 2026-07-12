@@ -104,6 +104,143 @@
     padding: 1rem;
 }
 
+.flowPanel {
+    border: 1px solid #cdeee3;
+    border-radius: 1.25rem;
+    background:
+        radial-gradient(circle at top left, rgba(0, 208, 132, 0.16), transparent 32%),
+        linear-gradient(135deg, #ffffff 0%, #f8fffc 52%, #eefcf6 100%);
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    margin-bottom: 1.25rem;
+    padding: 1.15rem;
+}
+
+.flowHeader {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.flowHeader h2 {
+    color: #06111f;
+    font-size: 1.35rem;
+    margin: 0.2rem 0 0.35rem;
+}
+
+.flowHeader p {
+    color: #475569;
+    margin: 0;
+    line-height: 1.45;
+}
+
+.kicker {
+    color: #008f5c;
+    font-size: 0.75rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.flowMetricGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.flowMetric {
+    border: 1px solid #dbe7ef;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.86);
+    padding: 0.85rem;
+    display: grid;
+    gap: 0.2rem;
+}
+
+.flowMetric span {
+    color: #64748b;
+    font-size: 0.74rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.flowMetric strong {
+    color: #06111f;
+    font-size: 1.25rem;
+    line-height: 1.1;
+}
+
+.flowMetric small {
+    color: #64748b;
+}
+
+.flowSteps {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.flowStep {
+    border: 1px solid #dbe7ef;
+    border-radius: 1rem;
+    background: #ffffff;
+    color: #0f172a;
+    cursor: pointer;
+    display: grid;
+    gap: 0.35rem;
+    min-height: 120px;
+    padding: 0.9rem;
+    text-align: left;
+    text-decoration: none;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flowStep:hover {
+    border-color: #00d084;
+    box-shadow: 0 16px 30px rgba(0, 208, 132, 0.12);
+    color: #06111f;
+    transform: translateY(-1px);
+}
+
+.flowStep span {
+    align-items: center;
+    background: #06111f;
+    border-radius: 999px;
+    color: #6dff2f;
+    display: inline-flex;
+    font-weight: 900;
+    height: 2rem;
+    justify-content: center;
+    width: 2rem;
+}
+
+.flowStep strong {
+    font-size: 1rem;
+}
+
+.flowStep small {
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.assistBox {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 1rem;
+    color: #0f172a;
+    display: grid;
+    gap: 0.45rem;
+    margin-bottom: 0.9rem;
+    padding: 0.9rem;
+}
+
+.assistBox small {
+    color: #475569;
+    line-height: 1.4;
+}
+
 .tableWrap {
     overflow-x: auto;
 }
@@ -406,6 +543,15 @@
 
 @media (max-width: 800px) {
     .formGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .flowHeader {
+        grid-template-columns: 1fr;
+    }
+
+    .flowMetricGrid,
+    .flowSteps {
         grid-template-columns: 1fr;
     }
 
