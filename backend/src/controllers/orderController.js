@@ -56,7 +56,7 @@ const STATUS_HISTORY_NOTES = {
 };
 
 const ORDER_INCLUDE = {
-  user: { select: { id: true, firstName: true, lastName: true, email: true } },
+  user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
   orderItems: {
     include: {
       product: {
@@ -391,7 +391,7 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
         },
       },
       include: {
-        user: { select: { firstName: true, lastName: true, email: true } },
+        user: { select: { firstName: true, lastName: true, email: true, phone: true } },
         orderItems: { include: { product: true } },
       },
     });
@@ -409,6 +409,7 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
   });
 
   await sendOrderPaidEmail(updatedOrder);
+  await whatsappService.sendCustomerOrderPaidNotification(updatedOrder);
   whatsappService.sendAdminOrderPaidNotification(updatedOrder);
   res.status(200).json({ status: 'success', data: { order: updatedOrder } });
 });
@@ -477,6 +478,7 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
     });
 
     await sendOrderPaidEmail(updatedOrder);
+    await whatsappService.sendCustomerOrderPaidNotification(updatedOrder);
     whatsappService.sendAdminOrderPaidNotification(updatedOrder);
 
     res.status(200).json({ status: 'success', data: { order: updatedOrder } });
@@ -540,12 +542,13 @@ const updateOrderStatus = asyncHandler(async (req, res, next) => {
       where: { id: req.params.id },
       data: dataToUpdate,
       include: {
-        user: { select: { firstName: true, lastName: true, email: true } },
+        user: { select: { firstName: true, lastName: true, email: true, phone: true } },
         orderItems: true,
       },
     });
     if (trackingNumber) {
       await sendOrderShippedEmail(updatedOrder);
+      await whatsappService.sendCustomerOrderShippedNotification(updatedOrder);
     }
     res.status(200).json({ status: 'success', data: { order: updatedOrder } });
   } catch (error) {
@@ -689,8 +692,12 @@ const updateOrderStatusOperational = asyncHandler(async (req, res, next) => {
 
   if (hasShippingUpdate) {
     await sendOrderShippedEmail(updatedOrder);
+    await whatsappService.sendCustomerOrderShippedNotification(updatedOrder);
   } else if (nextStatus === 'DELIVERED') {
     await sendOrderDeliveredEmail(updatedOrder);
+    await whatsappService.sendCustomerOrderDeliveredNotification(updatedOrder);
+  } else if (nextStatus === 'CANCELLED') {
+    await whatsappService.sendCustomerOrderStatusNotification(updatedOrder);
   }
 
   res.status(200).json({ status: 'success', data: { order: updatedOrder } });

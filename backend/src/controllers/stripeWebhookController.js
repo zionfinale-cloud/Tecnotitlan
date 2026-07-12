@@ -42,7 +42,7 @@ const markStripeOrderPaid = async (paymentIntent) => {
       ].filter(Boolean),
     },
     include: {
-      user: { select: { firstName: true, lastName: true, email: true } },
+      user: { select: { firstName: true, lastName: true, email: true, phone: true } },
       orderItems: { include: { product: true } },
     },
   });
@@ -99,7 +99,7 @@ const markStripeOrderPaid = async (paymentIntent) => {
             },
           },
           include: {
-            user: { select: { firstName: true, lastName: true, email: true } },
+            user: { select: { firstName: true, lastName: true, email: true, phone: true } },
             orderItems: { include: { product: true } },
           },
         });
@@ -116,6 +116,7 @@ const markStripeOrderPaid = async (paymentIntent) => {
 
   if (!wasAlreadyPaid) {
     await sendOrderPaidEmail(updatedOrder);
+    await whatsappService.sendCustomerOrderPaidNotification(updatedOrder);
     whatsappService.sendAdminOrderPaidNotification(updatedOrder);
   }
   logger.info(`[Stripe Webhook] Pedido ${updatedOrder.orderNumber} marcado como pagado.`);

@@ -803,14 +803,15 @@ El flujo base para operar ventas reales queda definido asi:
 4. Si la salida de inventario falla por falta de stock o inconsistencia, el pedido conserva el pago confirmado, pero registra una alerta en el historial: `salida de inventario requiere revision manual`.
 5. En `Pedidos`, el administrador o usuario con `order:update` ve una alerta visible y puede usar `Reintentar inventario` despues de corregir stock.
 6. El reintento usa `PUT /api/orders/:id/retry-inventory`, respeta idempotencia por pedido/producto y no duplica salidas ya registradas.
-7. Al registrar guia, el pedido pasa a `SHIPPED` y se envia correo al cliente.
-8. Al marcar como entregado, el pedido pasa a `DELIVERED` y se envia correo final.
+7. Al registrar guia, el pedido pasa a `SHIPPED` y se envia correo y WhatsApp al cliente.
+8. Al marcar como entregado, el pedido pasa a `DELIVERED` y se envia correo final y WhatsApp de cierre.
 
 Reglas importantes:
 
 - Nunca se debe descontar inventario si el pedido no esta pagado.
 - Las salidas de inventario por pedido usan `referenceType = ORDER` y `referenceId = order.id`.
 - Si Stripe webhook y frontend confirman el mismo pago, `orderInventoryService.js` evita duplicar movimientos `SALE`.
+- Al confirmarse pago, envio, entrega o cancelacion, el backend intenta notificar por correo y WhatsApp. Si WhatsApp esta desconectado o el pedido no tiene telefono, el pedido no se bloquea: se registra el aviso en logs para revision operativa.
 - La pantalla de `Pedidos` es el centro operativo para confirmar pago, registrar guia, marcar entregado y corregir salidas pendientes.
 
 ### Separacion de Inversion e Inventario

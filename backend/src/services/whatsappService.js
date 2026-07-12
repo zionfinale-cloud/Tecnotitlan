@@ -593,6 +593,128 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
     return result;
 };
 
+const currency = new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN',
+});
+
+const getOrderNumber = (order) => order?.orderNumber || order?.id || 'sin folio';
+
+const getOrderTrackingUrl = (order) => {
+    const clientUrl = getConfig().CLIENT_URL_PRIMARY || 'https://tecnotitlan.com.mx';
+    return `${clientUrl}/order/${order?.id}`;
+};
+
+const getCustomerPhone = (order) => {
+    const rawPhone = order?.shippingAddress?.whatsapp
+        || order?.shippingAddress?.phone
+        || order?.shippingAddress?.telefono
+        || order?.user?.phone
+        || null;
+
+    const digits = String(rawPhone || '').replace(/\D/g, '');
+    if (!digits) return null;
+    if (digits.length === 10) return `52${digits}`;
+    return digits;
+};
+
+const buildItemsSummary = (order) => {
+    const items = order?.orderItems || [];
+    if (!items.length) return '';
+
+    return items
+        .slice(0, 4)
+        .map((item) => {
+            const productName = item.name || item.product?.name || item.productName || 'Producto';
+            return `- ${item.qty || 1} x ${productName}`;
+        })
+        .join('\n');
+};
+
+const sendCustomerOrderMessage = async (order, messageBuilder, eventName) => {
+    const orderNumber = getOrderNumber(order);
+
+    try {
+        const phone = getCustomerPhone(order);
+        if (!phone) {
+            logger.warn(`[WhatsApp] ${eventName} omitido para ${orderNumber}: pedido sin telefono/WhatsApp de cliente.`);
+            return;
+        }
+
+        if (!sock || connectionStatus !== 'READY') {
+            logger.warn(`[WhatsApp] ${eventName} omitido para ${orderNumber}: WhatsApp no conectado.`);
+            return;
+        }
+
+        await sendMessage(phone, messageBuilder(order), 'Sistema');
+        logger.info(`[WhatsApp] ${eventName} enviado para ${orderNumber} a ${phone}`);
+    } catch (error) {
+        logger.error(`[WhatsApp] No se pudo enviar ${eventName} para ${orderNumber}: ${error.message}`);
+    }
+};
+
+export const sendCustomerOrderPaidNotification = async (order) => sendCustomerOrderMessage(
+    order,
+    (currentOrder) => {
+        const itemsText = buildItemsSummary(currentOrder);
+        return [
+            'Hola, tu pago en Tecnotitlan fue confirmado.',
+            `Pedido: ${getOrderNumber(currentOrder)}`,
+            `Total: ${currency.format(currentOrder?.totalPrice || 0)}`,
+            itemsText ? `\nProductos:\n${itemsText}` : '',
+            `\nPuedes revisar el seguimiento aqui: ${getOrderTrackingUrl(currentOrder)}`,
+        ].filter(Boolean).join('\n');
+    },
+    'aviso de pago al cliente'
+);
+
+export const sendCustomerOrderShippedNotification = async (order) => sendCustomerOrderMessage(
+    order,
+    (currentOrder) => {
+        const trackingNumber = currentOrder?.shippingInfo?.trackingNumber || currentOrder?.shippingInfo?.tracking;
+        const carrier = currentOrder?.shippingInfo?.carrier;
+        const trackingUrl = currentOrder?.shippingInfo?.trackingUrl;
+
+        return [
+            'Tu pedido Tecnotitlan ya va en camino.',
+            `Pedido: ${getOrderNumber(currentOrder)}`,
+            trackingNumber ? `Guia: ${trackingNumber}` : '',
+            carrier ? `Paqueteria: ${carrier}` : '',
+            trackingUrl ? `Rastreo: ${trackingUrl}` : `Seguimiento: ${getOrderTrackingUrl(currentOrder)}`,
+        ].filter(Boolean).join('\n');
+    },
+    'aviso de envio al cliente'
+);
+
+export const sendCustomerOrderDeliveredNotification = async (order) => sendCustomerOrderMessage(
+    order,
+    (currentOrder) => [
+        'Marcamos tu pedido Tecnotitlan como entregado.',
+        `Pedido: ${getOrderNumber(currentOrder)}`,
+        'Gracias por tu compra. Si necesitas soporte, escribenos por este medio o a hola@tecnotitlan.com.mx.',
+        `Detalle: ${getOrderTrackingUrl(currentOrder)}`,
+    ].join('\n'),
+    'aviso de entrega al cliente'
+);
+
+export const sendCustomerOrderStatusNotification = async (order) => {
+    const status = order?.status;
+    if (status === 'SHIPPED') return sendCustomerOrderShippedNotification(order);
+    if (status === 'DELIVERED') return sendCustomerOrderDeliveredNotification(order);
+    if (status === 'CANCELLED') {
+        return sendCustomerOrderMessage(
+            order,
+            (currentOrder) => [
+                'Tu pedido Tecnotitlan fue actualizado.',
+                `Pedido: ${getOrderNumber(currentOrder)}`,
+                'Estado: Cancelado',
+                'Si tienes dudas, escribenos por este medio o a hola@tecnotitlan.com.mx.',
+            ].join('\n'),
+            'aviso de cancelacion al cliente'
+        );
+    }
+    return null;
+};
 export const sendAdminOrderPaidNotification = async (order) => {
     try {
         const config = getConfig();
