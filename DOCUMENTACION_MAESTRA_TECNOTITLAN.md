@@ -872,6 +872,8 @@ Ejemplo: si un cliente escribe "voy a viajar, que me recomiendas?", Tecatl busca
 
 Regla: antes de publicar un producto, debe tener descripcion comercial, imagenes y al menos 3 caracteristicas utiles para cliente y para Tecatl. Esto mejora busqueda, recomendaciones y soporte sin crear una tabla extra de etiquetas.
 
+En el formulario de producto, las etiquetas principales se seleccionan como chips y se guardan dentro de la caracteristica `Etiquetas Tecatl`. Tambien se pueden agregar etiquetas personalizadas. Estas etiquetas no son visibles como configuracion tecnica para el cliente, pero alimentan la busqueda conversacional de Tecatl y ayudan a recomendar por intencion: viaje, bateria, audio, regalo, oficina, auto, gaming, emergencia, etc.
+
 ---
 
 ## 15. Troubleshooting

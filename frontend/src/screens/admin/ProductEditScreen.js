@@ -19,13 +19,55 @@ const SKU_PREFIXES = [
   { value: 'GEN', label: 'GEN - General' },
 ];
 const CUSTOM_SKU_PREFIX_VALUE = '__CUSTOM__';
+const TECATL_TAG_CHARACTERISTIC_KEY = 'Etiquetas Tecatl';
+
+const TECATL_TAG_OPTIONS = [
+  'viaje',
+  'bateria',
+  'audio',
+  'auriculares',
+  'carga rapida',
+  'usb-c',
+  'bluetooth',
+  'regalo',
+  'oficina',
+  'escuela',
+  'auto',
+  'gaming',
+  'emergencia',
+  'compacto',
+  'premium',
+];
 
 const TECATL_CHARACTERISTIC_PRESETS = [
   { key: 'Uso recomendado', value: 'Viaje, oficina, escuela, auto, gaming' },
-  { key: 'Etiquetas Tecatl', value: 'viaje, bateria, audio, regalo, emergencia' },
+  { key: TECATL_TAG_CHARACTERISTIC_KEY, value: 'viaje, bateria, audio, regalo, emergencia' },
   { key: 'Compatibilidad', value: 'Android, iPhone, USB-C, Bluetooth' },
   { key: 'Ideal para', value: 'personas que viajan, estudiantes, repartidores, oficina' },
 ];
+
+const normalizeLabel = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLowerCase();
+
+const normalizeTag = (value) => normalizeLabel(value)
+  .replace(/[^a-z0-9\s-]/g, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const splitTags = (value) => String(value || '')
+  .split(',')
+  .map(normalizeTag)
+  .filter(Boolean);
+
+const getTecatlTagsFromCharacteristics = (characteristics = []) => {
+  const tagRow = characteristics.find(
+    (item) => normalizeLabel(item.key) === normalizeLabel(TECATL_TAG_CHARACTERISTIC_KEY)
+  );
+  return tagRow ? splitTags(tagRow.value) : [];
+};
 
 const normalizeSkuPrefix = (value) => String(value || '')
   .replace(/[^a-zA-Z0-9]/g, '')
@@ -74,6 +116,7 @@ const ProductEditScreen = () => {
   const [error, setError] = useState('');
   const [imageWarnings, setImageWarnings] = useState({});
   const [customSkuMode, setCustomSkuMode] = useState(false);
+  const [customTecatlTag, setCustomTecatlTag] = useState('');
 
   const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
   const predefinedSkuValues = useMemo(() => SKU_PREFIXES.map((prefix) => prefix.value), []);
@@ -84,6 +127,10 @@ const ProductEditScreen = () => {
     return CUSTOM_SKU_PREFIX_VALUE;
   }, [customSkuMode, form.skuPrefix, predefinedSkuValues]);
   const isCustomSkuPrefix = selectedSkuPrefixMode === CUSTOM_SKU_PREFIX_VALUE;
+  const tecatlTags = useMemo(
+    () => getTecatlTagsFromCharacteristics(form.characteristics),
+    [form.characteristics]
+  );
 
   useEffect(() => {
     const loadData = async () => {
@@ -188,6 +235,66 @@ const ProductEditScreen = () => {
         characteristics: [...current.characteristics, preset],
       };
     });
+  };
+
+  const setTecatlTags = (tags) => {
+    const cleanTags = [...new Set(tags.map(normalizeTag).filter(Boolean))];
+    const tagValue = cleanTags.join(', ');
+
+    setForm((current) => {
+      const tagIndex = current.characteristics.findIndex(
+        (item) => normalizeLabel(item.key) === normalizeLabel(TECATL_TAG_CHARACTERISTIC_KEY)
+      );
+
+      if (tagIndex >= 0) {
+        const nextCharacteristics = current.characteristics.map((item, index) =>
+          index === tagIndex
+            ? { ...item, key: TECATL_TAG_CHARACTERISTIC_KEY, value: tagValue }
+            : item
+        );
+
+        return { ...current, characteristics: nextCharacteristics };
+      }
+
+      if (!tagValue) return current;
+
+      const emptyIndex = current.characteristics.findIndex((item) => !item.key && !item.value);
+      if (emptyIndex >= 0) {
+        return {
+          ...current,
+          characteristics: current.characteristics.map((item, index) =>
+            index === emptyIndex ? { key: TECATL_TAG_CHARACTERISTIC_KEY, value: tagValue } : item
+          ),
+        };
+      }
+
+      return {
+        ...current,
+        characteristics: [
+          ...current.characteristics,
+          { key: TECATL_TAG_CHARACTERISTIC_KEY, value: tagValue },
+        ],
+      };
+    });
+  };
+
+  const toggleTecatlTag = (tag) => {
+    const cleanTag = normalizeTag(tag);
+    if (!cleanTag) return;
+
+    setTecatlTags(
+      tecatlTags.includes(cleanTag)
+        ? tecatlTags.filter((item) => item !== cleanTag)
+        : [...tecatlTags, cleanTag]
+    );
+  };
+
+  const addCustomTecatlTag = (event) => {
+    event.preventDefault();
+    const cleanTag = normalizeTag(customTecatlTag);
+    if (!cleanTag) return;
+    setTecatlTags([...tecatlTags, cleanTag]);
+    setCustomTecatlTag('');
   };
 
   const removeCharacteristic = (index) => {
@@ -445,6 +552,41 @@ const ProductEditScreen = () => {
                   Agrega usos, etiquetas y compatibilidad. Asi cuando alguien diga "voy a viajar" o "necesito bateria",
                   Tecatl puede encontrar productos aunque no diga el nombre exacto.
                 </small>
+                <div className={styles.tagCloud} aria-label="Etiquetas para Tecatl">
+                  {TECATL_TAG_OPTIONS.map((tag) => {
+                    const isSelected = tecatlTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        className={`${styles.tagChip} ${isSelected ? styles.tagChipActive : ''}`}
+                        type="button"
+                        onClick={() => toggleTecatlTag(tag)}
+                        aria-pressed={isSelected}
+                      >
+                        {isSelected ? '✓ ' : '+ '}{tag}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className={styles.inlineForm}>
+                  <input
+                    className={styles.input}
+                    value={customTecatlTag}
+                    onChange={(event) => setCustomTecatlTag(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') addCustomTecatlTag(event);
+                    }}
+                    placeholder="Agregar etiqueta personalizada, ej. campismo"
+                  />
+                  <button className={styles.secondaryButton} type="button" onClick={addCustomTecatlTag}>
+                    Agregar etiqueta
+                  </button>
+                </div>
+                {tecatlTags.length > 0 && (
+                  <small>
+                    Activas: <strong>{tecatlTags.join(', ')}</strong>
+                  </small>
+                )}
                 <div className={styles.inlineActions}>
                   {TECATL_CHARACTERISTIC_PRESETS.map((preset) => (
                     <button
