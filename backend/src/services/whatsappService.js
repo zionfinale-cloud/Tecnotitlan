@@ -261,6 +261,37 @@ const ensureReadyForNotification = async () => {
     return waitForReady();
 };
 
+const getDisconnectStatusCode = (lastDisconnect) => lastDisconnect?.error?.output?.statusCode
+    || lastDisconnect?.error?.statusCode
+    || lastDisconnect?.error?.data?.statusCode
+    || null;
+
+const isLoggedOutDisconnect = (lastDisconnect, statusCode, message = '') => {
+    const lowerMessage = String(message || lastDisconnect?.error?.message || '').toLowerCase();
+    return statusCode === DisconnectReason.loggedOut
+        || lowerMessage.includes('logged out')
+        || lowerMessage.includes('multidevice mismatch')
+        || lowerMessage.includes('bad session');
+};
+
+const rotateSessionAndRequestQr = (reason) => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+
+    reconnectTimer = setTimeout(async () => {
+        try {
+            const authDir = await rotateActiveAuthDir();
+            logger.warn(`[WhatsApp] Sesion invalida. Se activo una sesion nueva en ${authDir} para generar QR. Motivo: ${reason}`);
+            await initialize();
+        } catch (error) {
+            connectionStatus = 'ERROR';
+            lastError = error.message;
+            isInitializing = false;
+            emitStatus();
+            logger.error(`[WhatsApp] No se pudo generar una sesion nueva: ${error.message}`);
+        }
+    }, 1500);
+};
+
 const getMessageDate = (timestamp) => {
     if (!timestamp) return new Date();
     const value = typeof timestamp === 'number'
@@ -405,16 +436,20 @@ export const initialize = async () => {
             }
 
             if (connection === 'close') {
-                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                const statusCode = getDisconnectStatusCode(lastDisconnect);
                 lastError = lastDisconnect?.error?.message || `Conexion cerrada${statusCode ? ` (${statusCode})` : ''}`;
-                const shouldReconnect = !resetInProgress && statusCode !== DisconnectReason.loggedOut;
-                logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}. Reason: ${lastError}`);
-                connectionStatus = shouldReconnect ? 'RECONNECTING' : 'DISCONNECTED';
+                const loggedOut = isLoggedOutDisconnect(lastDisconnect, statusCode, lastError);
+                const shouldReconnect = !resetInProgress && !loggedOut;
+                const shouldRequestQr = !resetInProgress && loggedOut;
+                logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}. Request QR: ${shouldRequestQr}. StatusCode: ${statusCode || 'n/a'}. Reason: ${lastError}`);
+                connectionStatus = shouldReconnect || shouldRequestQr ? 'RECONNECTING' : 'DISCONNECTED';
                 isInitializing = false;
                 emitStatus();
 
                 if (shouldReconnect) {
                     reconnectTimer = setTimeout(() => initialize().catch((error) => logger.error(`[WhatsApp] Reconnect failed: ${error.message}`)), 5000);
+                } else if (shouldRequestQr) {
+                    rotateSessionAndRequestQr(lastError);
                 }
             }
 
