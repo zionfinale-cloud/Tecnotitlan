@@ -4,6 +4,7 @@ import { getConfig } from '../services/configService.js';
 import { generateRandomString, generateCodeChallenge } from '../utils/pkce.js';
 import logger from '../utils/logger.js';
 import prisma from '../config/prisma.js';
+import { syncMercadoLibreListingStock } from '../services/channelStockSyncService.js';
 
 const oauthStates = new Map();
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -158,7 +159,15 @@ const getMeliItemDetails = asyncHandler(async (req, res) => {
 
 const syncStock = asyncHandler(async (req, res) => {
   const { sku } = req.params;
-  const product = await prisma.product.findUnique({ where: { sku } });
+  const product = await prisma.product.findUnique({
+    where: { sku },
+    include: {
+      marketplaceListings: {
+        where: { channel: 'MERCADOLIBRE' },
+        take: 1,
+      },
+    },
+  });
 
   if (!product) {
     res.status(404);
@@ -170,15 +179,20 @@ const syncStock = asyncHandler(async (req, res) => {
     throw new Error('Este producto no esta vinculado a una publicacion de Mercado Libre.');
   }
 
-  await mercadoLibreService.updateStock(req.user.id, product.meliItemId, product.countInStock);
-
-  await prisma.product.update({
-    where: { id: product.id },
-    data: { lastMeliSync: new Date() },
+  const listing = product.marketplaceListings?.[0] || null;
+  const syncResult = await syncMercadoLibreListingStock({
+    userId: req.user.id,
+    product,
+    listing,
   });
 
-  logger.info(`[Meli Sync] Stock ${sku} -> ${product.countInStock} en Mercado Libre`);
-  res.status(200).json({ status: 'success', message: `Stock actualizado a ${product.countInStock} en Mercado Libre.` });
+  if (syncResult.status !== 'synced') {
+    res.status(400);
+    throw new Error(syncResult.reason || 'No se pudo sincronizar Mercado Libre.');
+  }
+
+  logger.info(`[Meli Sync] Stock ${sku} -> ${syncResult.stock} en Mercado Libre`);
+  res.status(200).json({ status: 'success', message: syncResult.message });
 });
 
 const disconnectMeli = asyncHandler(async (req, res) => {

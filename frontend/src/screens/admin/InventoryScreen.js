@@ -330,13 +330,22 @@ const InventoryScreen = () => {
     setError('');
     setSuccess('');
     try {
-      await api.post('/inventory/transfers', {
+      const { data } = await api.post('/inventory/transfers', {
         ...transferForm,
         quantity: Number(transferForm.quantity),
         price: transferForm.price === '' ? undefined : Number(transferForm.price),
         stockBuffer: Number(transferForm.stockBuffer || 0),
       });
-      setSuccess('Stock movido al canal.');
+      const channelSync = data?.data?.channelSync;
+      if (channelSync?.status === 'synced') {
+        setSuccess(data.message || channelSync.message || 'Stock movido y sincronizado con el canal.');
+      } else if (transferForm.channel === 'MERCADOLIBRE' && channelSync?.status === 'skipped') {
+        setSuccess(`Stock movido a Mercado Libre, pero queda pendiente: ${channelSync.reason}`);
+      } else if (transferForm.channel === 'MERCADOLIBRE' && channelSync?.status === 'error') {
+        setSuccess(`Stock movido a Mercado Libre, pero no se pudo sincronizar: ${channelSync.reason}`);
+      } else {
+        setSuccess(data.message || 'Stock movido al canal.');
+      }
       setTransferForm({
         productId: '',
         channel: 'MERCADOLIBRE',
@@ -716,6 +725,9 @@ const InventoryScreen = () => {
                 onChange={(event) => setTransferForm({ ...transferForm, stockBuffer: event.target.value })}
                 placeholder="2"
               />
+              <small className={styles.muted}>
+                En Mercado Libre se publica el stock asignado menos este buffer. Si el producto no esta vinculado a una publicacion, el traspaso queda como pendiente.
+              </small>
             </div>
             <div className={styles.field} style={{ marginTop: '1rem' }}>
               <label className={styles.label}>Notas</label>

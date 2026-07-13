@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js';
 import { BadRequestError, NotFoundError } from '../utils/errorUtils.js';
+import { syncMercadoLibreListingStock } from '../services/channelStockSyncService.js';
 
 const toDateRange = (startDate, endDate) => {
   const filter = {};
@@ -430,10 +431,34 @@ const transferStockToChannel = asyncHandler(async (req, res, next) => {
       },
     });
 
-    return { movement, listing };
+    return {
+      movement,
+      listing,
+      product: {
+        id: product.id,
+        sku: product.sku,
+        name: product.name,
+        meliItemId: product.meliItemId,
+      },
+    };
   });
 
-  res.status(201).json({ status: 'success', data: result });
+  let channelSync = null;
+  if (channel === 'MERCADOLIBRE') {
+    channelSync = await syncMercadoLibreListingStock({
+      userId: req.user.id,
+      product: result.product,
+      listing: result.listing,
+    });
+  }
+
+  res.status(201).json({
+    status: 'success',
+    message: channelSync?.status === 'synced'
+      ? `Stock movido al canal. ${channelSync.message}`
+      : 'Stock movido al canal.',
+    data: { ...result, channelSync },
+  });
 });
 
 const getMovements = asyncHandler(async (req, res) => {

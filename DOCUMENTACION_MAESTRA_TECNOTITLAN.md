@@ -919,6 +919,18 @@ Flujo operativo actual:
 
 Regla de seguridad: los webhooks de Mercado Libre no deben descontar inventario directo hasta que el flujo de conciliacion por canal este terminado. Por ahora se registran como eventos/orden externa para revision. Una venta importada debera generar una salida `SALE` en `InventoryMovement` con canal `MERCADOLIBRE`, referencia externa y validacion contra stock asignado al canal. Si no existe stock traspasado/asignado a Mercado Libre, la venta debe quedar marcada para revision en vez de inventar existencia.
 
+### Mercado Libre - traspaso y sincronizacion de stock
+
+El traspaso desde `Inventario > Traspasos` es el acto operativo de mover piezas desde `Bodega/Web` hacia un canal externo. Para Mercado Libre la regla queda asi:
+
+1. La entrada de mercancia aumenta primero `Product.countInStock` (bodega/web).
+2. Un traspaso a `MERCADOLIBRE` descuenta bodega/web y aumenta el stock asignado del canal en `MarketplaceListing.publishedStock`.
+3. Si el producto ya tiene `meliItemId`, Tecnotitlan intenta sincronizar automaticamente la cantidad publicable en Mercado Libre.
+4. La cantidad publicable es `stock asignado al canal - buffer de seguridad`, nunca el stock total de bodega/web.
+5. Si el producto no tiene `meliItemId`, el traspaso queda registrado localmente, pero la publicacion queda pendiente de crear o vincular desde el producto/canal.
+
+No se debe crear una publicacion de Mercado Libre automaticamente solo por traspasar stock. Crear una publicacion requiere validar categoria, atributos obligatorios, condicion, precio, imagenes, envio, garantia y reglas comerciales. Ese flujo debe ser un paso controlado: `Preparar publicacion` -> `Validar datos` -> `Publicar o vincular` -> `Sincronizar stock`.
+
 Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues algo como "es tipo C?", "sirve para viaje?" o "es bluetooth?", Tecatl debe usar el contexto reciente de la conversacion y las caracteristicas/etiquetas internas del producto. Si la ficha no trae ese dato, entonces si debe pedir confirmacion humana para no inventar informacion.
 
 ### WhatsApp operativo - decision actual 2026-07
