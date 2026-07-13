@@ -17,6 +17,7 @@ Este documento es la guía técnica central y única fuente de verdad para el pr
     - **Chatbot Web:** Sincronizado con el sistema para ofrecer soporte en tiempo real.
     - **Actualizacion WhatsApp 2026-07:** La ruta operativa actual es **Baileys v7** con volumen persistente en el VPS. **Evolution API queda como experimental** hasta resolver los errores de creacion de instancia y licenciamiento observados en v2.4.
 - **UI/UX:** Interfaz limpia, moderna y premium.
+- **Canales oficiales Tecnotitlan:** Facebook `https://www.facebook.com/profile.php?id=61591872000643`, TikTok `https://www.tiktok.com/@tecnotitlan_mx` y WhatsApp operativo `+52 348 151 0949`.
 
 ---
 

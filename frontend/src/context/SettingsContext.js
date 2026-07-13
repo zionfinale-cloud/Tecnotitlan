@@ -6,6 +6,10 @@ import api from '../services/apiService';
 export const SettingsContext = createContext({
     settings: {
         siteName: 'Tecnotitlan',
+        contact_email: 'hola@tecnotitlan.com.mx',
+        social_facebook: 'https://www.facebook.com/profile.php?id=61591872000643',
+        social_tiktok: 'https://www.tiktok.com/@tecnotitlan_mx',
+        social_whatsapp: 'https://wa.me/523481510949',
         logoUrl: '/images/logo.png', // Debe estar en frontend/public/images/
         accentColor: '#00DC82', // Verde Neón (Valor por defecto de index.css)
         currencySymbol: '$', // Símbolo de moneda
@@ -17,6 +21,10 @@ export const SettingsContext = createContext({
 export const SettingsProvider = ({ children }) => {
     const [settings, setSettings] = useState({
         siteName: 'Tecnotitlan',
+        contact_email: 'hola@tecnotitlan.com.mx',
+        social_facebook: 'https://www.facebook.com/profile.php?id=61591872000643',
+        social_tiktok: 'https://www.tiktok.com/@tecnotitlan_mx',
+        social_whatsapp: 'https://wa.me/523481510949',
         logoUrl: '/images/logo.png',
         accentColor: '#00DC82',
         currencySymbol: '$',
