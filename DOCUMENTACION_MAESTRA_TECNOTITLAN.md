@@ -15,6 +15,7 @@ Este documento es la guía técnica central y única fuente de verdad para el pr
 
     - **Bot de WhatsApp:** Soporta proveedor local **Baileys** y proveedor externo **Evolution API**. Para producción se recomienda Evolution API por estabilidad operativa, menor dependencia de sesiones locales y mejor separación del VPS principal.
     - **Chatbot Web:** Sincronizado con el sistema para ofrecer soporte en tiempo real.
+    - **Actualizacion WhatsApp 2026-07:** La ruta operativa actual es **Baileys v7** con volumen persistente en el VPS. **Evolution API queda como experimental** hasta resolver los errores de creacion de instancia y licenciamiento observados en v2.4.
 - **UI/UX:** Interfaz limpia, moderna y premium.
 
 ---
@@ -789,6 +790,8 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 - **Frontend:** La pantalla `WhatsappSettingsScreen.js` escucha estos eventos de WebSockets para mostrar el código QR y el estado de la conexión sin necesidad de recargar la página.
 - **Proveedor WhatsApp:** `WHATSAPP_PROVIDER=baileys` usa sesion local persistente; `WHATSAPP_PROVIDER=evolution` usa Evolution API para conectar, enviar, recibir y persistir mensajes en la base de datos de Tecnotitlan.
 - **Sesion Baileys persistente:** Si se usa Baileys, Supabase/PostgreSQL guarda configuracion operativa, chats y mensajes, pero no reemplaza los archivos de sesion. La autenticacion real vive en `WHATSAPP_AUTH_DIR` o `/app/auth_info_baileys`.
+- **Decision operativa actual:** usar `WHATSAPP_PROVIDER=baileys`. En EasyPanel la API debe tener un volumen persistente montado en `/app/auth_info_baileys`. Evolution API se deja apagado/experimental porque v2.4 presento errores al crear instancias (`integrationSession.update`, foreign keys en `Setting`, licenciamiento y Redis/Postgres).
+- **Reconexiones Baileys:** el backend usa backoff exponencial y pausa despues de `WHATSAPP_MAX_RECONNECT_ATTEMPTS` intentos para no provocar restricciones de WhatsApp. Si el estado queda `PAUSED`, se debe entrar a `Configuracion > WhatsApp QR`, borrar sesion si hace falta y escanear de nuevo.
 - **Notificaciones transaccionales:** Antes de omitir un aviso por WhatsApp, el backend debe intentar reconectar usando la sesion persistente y esperar unos segundos. Si la sesion esta invalida, fue cerrada desde el telefono o WhatsApp fuerza reautenticacion, se genera QR desde Configuracion > WhatsApp. Los pedidos nunca deben fallar por WhatsApp desconectado; correo e inventario siguen su flujo y el evento queda en logs.
 - **Connection Failure:** Cuando Baileys cierra con `Connection Failure`, el log debe incluir `StatusCode`. Si es una caida recuperable, el backend reintenta. Si el codigo/mensaje indica logout o sesion invalida, el backend rota la sesion activa y solicita QR nuevo automaticamente.
 - **Atencion Operativa:** La pantalla `WhatsAppChatScreen.js` es la vista de trabajo para vendedores/supervisores. Debe mantener lista de conversaciones, mensajes y adjuntos dentro de contenedores con scroll interno para evitar que el panel se vuelva inmanejable en conversaciones largas.
@@ -880,6 +883,20 @@ Regla: antes de publicar un producto, debe tener descripcion comercial, imagenes
 En el formulario de producto, las etiquetas principales se seleccionan como chips y se guardan dentro de la caracteristica `Etiquetas Tecatl`. Tambien se pueden agregar etiquetas personalizadas. Estas etiquetas son internas: Tecatl las usa para buscar, recomendar y contestar preguntas de seguimiento, pero no debe mostrarlas al cliente como ficha publica. Por ejemplo, si un producto tiene `Etiquetas Tecatl: usb-c, viaje, audio`, el cliente no debe ver "Etiquetas Tecatl"; solo debe recibir una respuesta natural como "si, maneja carga USB-C / Tipo C" cuando pregunte por compatibilidad.
 
 Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues algo como "es tipo C?", "sirve para viaje?" o "es bluetooth?", Tecatl debe usar el contexto reciente de la conversacion y las caracteristicas/etiquetas internas del producto. Si la ficha no trae ese dato, entonces si debe pedir confirmacion humana para no inventar informacion.
+
+### WhatsApp operativo - decision actual 2026-07
+
+La ruta operativa recomendada para Tecnotitlan es **Baileys v7** con `WHATSAPP_PROVIDER=baileys`, `WHATSAPP_AUTH_DIR=/app/auth_info_baileys` y volumen persistente en EasyPanel. Evolution API v2.4 queda como experimental porque en el VPS presento errores de instancia (`integrationSession.update`), foreign keys en `Setting`, licenciamiento y dependencia Redis/Postgres. No se considera estable para operar ventas ahora.
+
+Variables recomendadas:
+
+- `WHATSAPP_PROVIDER=baileys`
+- `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
+- `WHATSAPP_MAX_RECONNECT_ATTEMPTS=6`
+- `WHATSAPP_RECONNECT_BASE_DELAY_MS=5000`
+- `WHATSAPP_RECONNECT_MAX_DELAY_MS=120000`
+
+Operativa: montar el volumen persistente en `/app/auth_info_baileys`, redeplegar API, entrar a `Configuracion -> WhatsApp QR`, generar QR solo cuando el estado lo pida y probar recepcion/envio desde el panel de WhatsApp.
 
 ### WhatsApp con Evolution API
 

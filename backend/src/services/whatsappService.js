@@ -1,18 +1,20 @@
 import path from 'path';
 import fs from 'fs/promises';
-import {
-    DisconnectReason,
-    downloadMediaMessage,
-    fetchLatestBaileysVersion,
-    makeWASocket,
-    useMultiFileAuthState,
-} from '@whiskeysockets/baileys';
+import * as baileys from '@whiskeysockets/baileys';
 import pino from 'pino';
 import axios from 'axios';
 import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
 import { BadRequestError } from '../utils/errorUtils.js';
 import { getConfig } from './configService.js';
+
+const {
+    DisconnectReason,
+    downloadMediaMessage,
+    fetchLatestBaileysVersion,
+    useMultiFileAuthState,
+} = baileys;
+const makeWASocket = baileys.default || baileys.makeWASocket;
 
 let sock;
 let io;
@@ -21,6 +23,7 @@ let connectionStatus = 'DISCONNECTED';
 let isInitializing = false;
 let lastError = null;
 let reconnectTimer = null;
+let reconnectAttempt = 0;
 let resetInProgress = false;
 let evolutionStatus = {
     provider: 'evolution',
@@ -37,6 +40,9 @@ let evolutionStatus = {
 
 const ignoredJids = new Set(['status@broadcast']);
 const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+const MAX_AUTO_RECONNECT_ATTEMPTS = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || 6);
+const RECONNECT_BASE_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_BASE_DELAY_MS || 5000);
+const RECONNECT_MAX_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_MAX_DELAY_MS || 120000);
 
 const mediaTypeDefinitions = [
     { key: 'imageMessage', type: 'image' },
@@ -104,6 +110,17 @@ const maskEvolutionWebhookUrl = (url = '') => String(url || '').replace(/([?&]se
 let activeAuthDir = null;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const clearReconnectTimer = () => {
+    if (!reconnectTimer) return;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+};
+
+const getReconnectDelayMs = () => Math.min(
+    RECONNECT_BASE_DELAY_MS * (2 ** reconnectAttempt),
+    RECONNECT_MAX_DELAY_MS,
+);
 
 const sanitizeSessionName = (value) => {
     const safe = String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -452,6 +469,7 @@ const ensureReadyForNotification = async () => {
     }
 
     if (sock?.user && connectionStatus === 'READY') return true;
+    if (connectionStatus === 'PAUSED') return false;
 
     if (!isInitializing && !['INITIALIZING', 'RECONNECTING', 'QR_RECEIVED'].includes(connectionStatus)) {
         initialize().catch((error) => logger.warn(`[WhatsApp] Reconexion automatica fallida: ${error.message}`));
@@ -474,9 +492,10 @@ const isLoggedOutDisconnect = (lastDisconnect, statusCode, message = '') => {
 };
 
 const rotateSessionAndRequestQr = (reason) => {
-    if (reconnectTimer) clearTimeout(reconnectTimer);
+    clearReconnectTimer();
 
     reconnectTimer = setTimeout(async () => {
+        reconnectTimer = null;
         try {
             const authDir = await rotateActiveAuthDir();
             logger.warn(`[WhatsApp] Sesion invalida. Se activo una sesion nueva en ${authDir} para generar QR. Motivo: ${reason}`);
@@ -489,6 +508,34 @@ const rotateSessionAndRequestQr = (reason) => {
             logger.error(`[WhatsApp] No se pudo generar una sesion nueva: ${error.message}`);
         }
     }, 1500);
+};
+
+const scheduleBaileysReconnect = (reason) => {
+    if (reconnectTimer || resetInProgress) return;
+
+    if (reconnectAttempt >= MAX_AUTO_RECONNECT_ATTEMPTS) {
+        connectionStatus = 'PAUSED';
+        lastError = `Reconexión pausada después de ${MAX_AUTO_RECONNECT_ATTEMPTS} intentos. Último motivo: ${reason || 'desconocido'}`;
+        logger.warn(`[WhatsApp] ${lastError}`);
+        emitStatus();
+        return;
+    }
+
+    const delayMs = getReconnectDelayMs();
+    reconnectAttempt += 1;
+    connectionStatus = 'RECONNECTING';
+    emitStatus();
+
+    logger.warn(`[WhatsApp] Reintento automatico ${reconnectAttempt}/${MAX_AUTO_RECONNECT_ATTEMPTS} en ${Math.round(delayMs / 1000)}s. Motivo: ${reason || 'desconocido'}`);
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        initialize().catch((error) => {
+            lastError = error.message;
+            logger.error(`[WhatsApp] Reconnect failed: ${error.message}`);
+            scheduleBaileysReconnect(error.message);
+        });
+    }, delayMs);
+    reconnectTimer.unref?.();
 };
 
 const getMessageDate = (timestamp) => {
@@ -590,6 +637,8 @@ const getBaileysStatus = () => ({
     isInitializing,
     lastError,
     authDir: activeAuthDir,
+    reconnectAttempt,
+    maxReconnectAttempts: MAX_AUTO_RECONNECT_ATTEMPTS,
 });
 
 export const getStatus = () => (isEvolutionProvider()
@@ -676,12 +725,10 @@ const initializeEvolution = async () => {
 export const initialize = async () => {
     if (isEvolutionProvider()) return initializeEvolution();
 
+    if (sock?.user && connectionStatus === 'READY') return getStatus();
     if (isInitializing) return getStatus();
 
-    if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-    }
+    clearReconnectTimer();
 
     isInitializing = true;
     connectionStatus = 'INITIALIZING';
@@ -723,12 +770,13 @@ export const initialize = async () => {
                 const shouldReconnect = !resetInProgress && !loggedOut;
                 const shouldRequestQr = !resetInProgress && loggedOut;
                 logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}. Request QR: ${shouldRequestQr}. StatusCode: ${statusCode || 'n/a'}. Reason: ${lastError}`);
+                sock = undefined;
                 connectionStatus = shouldReconnect || shouldRequestQr ? 'RECONNECTING' : 'DISCONNECTED';
                 isInitializing = false;
                 emitStatus();
 
                 if (shouldReconnect) {
-                    reconnectTimer = setTimeout(() => initialize().catch((error) => logger.error(`[WhatsApp] Reconnect failed: ${error.message}`)), 5000);
+                    scheduleBaileysReconnect(lastError);
                 } else if (shouldRequestQr) {
                     rotateSessionAndRequestQr(lastError);
                 }
@@ -739,6 +787,8 @@ export const initialize = async () => {
                 connectionStatus = 'READY';
                 isInitializing = false;
                 lastError = null;
+                reconnectAttempt = 0;
+                clearReconnectTimer();
                 logger.info('WhatsApp connection opened');
                 emitStatus();
             }
@@ -818,13 +868,11 @@ export const resetSession = async () => {
     if (isEvolutionProvider()) return resetEvolutionSession();
 
     resetInProgress = true;
-    if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-    }
+    clearReconnectTimer();
 
     latestQr = null;
     lastError = null;
+    reconnectAttempt = 0;
     isInitializing = false;
     connectionStatus = 'RESETTING';
     emitStatus();
