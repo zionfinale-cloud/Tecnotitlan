@@ -107,6 +107,18 @@ const getPausedRetryAfterMs = () => {
     return Number.isFinite(rawValue) && rawValue >= 60000 ? rawValue : DEFAULT_PAUSED_RETRY_AFTER_MS;
 };
 
+const shouldAutoRetryPaused = () => String(
+    getConfig().WHATSAPP_AUTO_RETRY_PAUSED
+    ?? process.env.WHATSAPP_AUTO_RETRY_PAUSED
+    ?? 'false',
+).toLowerCase() === 'true';
+
+const shouldAutoRotateSessionOnLogout = () => String(
+    getConfig().WHATSAPP_AUTO_ROTATE_SESSION_ON_LOGOUT
+    ?? process.env.WHATSAPP_AUTO_ROTATE_SESSION_ON_LOGOUT
+    ?? 'false',
+).toLowerCase() === 'true';
+
 const getApiPublicUrl = () => trimTrailingSlash(
     getConfig().API_PUBLIC_URL
     || process.env.API_PUBLIC_URL
@@ -558,6 +570,22 @@ const rotateSessionAndRequestQr = (reason) => {
     }, 1500);
 };
 
+const pauseBaileysForManualReview = (reason, statusCode = null) => {
+    clearReconnectTimer();
+    reconnectAttempt = 0;
+    pausedAt = Date.now();
+    connectionStatus = 'PAUSED';
+    isInitializing = false;
+    lastError = [
+        'WhatsApp pausado para proteger la cuenta.',
+        reason || 'Sesion cerrada o invalida.',
+        statusCode ? `Codigo: ${statusCode}.` : '',
+        'Revisa Configuracion > WhatsApp QR y vuelve a vincular manualmente cuando termine la restriccion.',
+    ].filter(Boolean).join(' ');
+    logger.warn(`[WhatsApp] ${lastError}`);
+    emitStatus();
+};
+
 const scheduleBaileysReconnect = (reason) => {
     if (reconnectTimer || resetInProgress) return;
 
@@ -817,9 +845,15 @@ export const initialize = async () => {
                 lastError = lastDisconnect?.error?.message || `Conexion cerrada${statusCode ? ` (${statusCode})` : ''}`;
                 const loggedOut = isLoggedOutDisconnect(lastDisconnect, statusCode, lastError);
                 const shouldReconnect = !resetInProgress && !loggedOut;
-                const shouldRequestQr = !resetInProgress && loggedOut;
+                const shouldRequestQr = !resetInProgress && loggedOut && shouldAutoRotateSessionOnLogout();
                 logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}. Request QR: ${shouldRequestQr}. StatusCode: ${statusCode || 'n/a'}. Reason: ${lastError}`);
                 sock = undefined;
+
+                if (!resetInProgress && loggedOut && !shouldRequestQr) {
+                    pauseBaileysForManualReview(lastError, statusCode);
+                    return;
+                }
+
                 connectionStatus = shouldReconnect || shouldRequestQr ? 'RECONNECTING' : 'DISCONNECTED';
                 isInitializing = false;
                 emitStatus();
@@ -913,6 +947,8 @@ const attemptAutoConnect = async (reason = 'watchdog') => {
     if (sock?.user && connectionStatus === 'READY') return getStatus();
 
     if (connectionStatus === 'PAUSED') {
+        if (!shouldAutoRetryPaused()) return getStatus();
+
         const elapsedMs = pausedAt ? Date.now() - pausedAt : getPausedRetryAfterMs();
         if (elapsedMs < getPausedRetryAfterMs()) return getStatus();
 
