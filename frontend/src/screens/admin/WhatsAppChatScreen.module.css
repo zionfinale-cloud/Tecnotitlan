@@ -10,6 +10,14 @@
   align-items: flex-start;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: .65rem;
+}
+
 .title {
   margin: 0;
   font-size: 1.8rem;
@@ -20,6 +28,29 @@
 .subtitle {
   margin: .35rem 0 0;
   color: #64748b;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  border-radius: 999px;
+  padding: .55rem .75rem;
+  font-size: .84rem;
+  font-weight: 900;
+  border: 1px solid transparent;
+}
+
+.statusReady {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.statusOffline {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
 }
 
 .workspace {

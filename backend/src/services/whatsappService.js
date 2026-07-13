@@ -199,6 +199,26 @@ const getJidForPhone = (value = '') => {
     return toJid(value);
 };
 
+const getOutgoingTargets = async (value = '') => {
+    const requestedJid = toJid(String(value || ''));
+    const targets = [requestedJid];
+
+    try {
+        const chat = await prisma.whatsAppChat.findUnique({
+            where: { jid: requestedJid },
+            select: { phone: true },
+        });
+        if (chat?.phone) {
+            const phoneJid = toJid(chat.phone);
+            if (!targets.includes(phoneJid)) targets.push(phoneJid);
+        }
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo resolver telefono alterno para ${requestedJid}: ${error.message}`);
+    }
+
+    return { requestedJid, targets };
+};
+
 const evolutionRequest = async (method, resourcePath, data = undefined, options = {}) => {
     const { apiUrl, apiKey } = getEvolutionConfig();
     if (!apiUrl || !apiKey) {
@@ -953,13 +973,32 @@ export const sendMessage = async (number, message, sentBy = null) => {
         throw new BadRequestError('WhatsApp no esta conectado. Escanea el QR desde Configuracion.');
     }
 
-    const jid = toJid(number);
     const text = String(message || '').trim();
     if (!text) throw new BadRequestError('El mensaje no puede estar vacio.');
 
-    const result = await sock.sendMessage(jid, { text });
+    const { requestedJid, targets } = await getOutgoingTargets(number);
+    let result;
+    let lastSendError;
+
+    for (const targetJid of targets) {
+        try {
+            result = await sock.sendMessage(targetJid, { text });
+            if (targetJid !== requestedJid) {
+                logger.info(`[WhatsApp] Mensaje enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
+            }
+            break;
+        } catch (error) {
+            lastSendError = error;
+            logger.warn(`[WhatsApp] No se pudo enviar a ${targetJid}: ${error.message}`);
+        }
+    }
+
+    if (!result) {
+        throw new BadRequestError(`No se pudo enviar el mensaje por WhatsApp: ${lastSendError?.message || 'destino no disponible'}`);
+    }
+
     await persistMessage({
-        jid,
+        jid: requestedJid,
         messageId: result?.key?.id,
         text,
         fromMe: true,
@@ -1051,20 +1090,38 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
     }
     if (!file?.buffer?.length) throw new BadRequestError('Selecciona un archivo para enviar.');
 
-    const jid = toJid(number);
     const cleanCaption = String(caption || '').trim();
     const { payload, type } = getOutgoingMediaPayload(file, cleanCaption);
+    const { requestedJid, targets } = await getOutgoingTargets(number);
     const savedMedia = await saveMediaBuffer({
         buffer: file.buffer,
-        jid,
+        jid: requestedJid,
         type,
         mimeType: file.mimetype,
         fileName: file.originalname,
     });
 
-    const result = await sock.sendMessage(jid, payload);
+    let result;
+    let lastSendError;
+    for (const targetJid of targets) {
+        try {
+            result = await sock.sendMessage(targetJid, payload);
+            if (targetJid !== requestedJid) {
+                logger.info(`[WhatsApp] Adjunto enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
+            }
+            break;
+        } catch (error) {
+            lastSendError = error;
+            logger.warn(`[WhatsApp] No se pudo enviar adjunto a ${targetJid}: ${error.message}`);
+        }
+    }
+
+    if (!result) {
+        throw new BadRequestError(`No se pudo enviar el adjunto por WhatsApp: ${lastSendError?.message || 'destino no disponible'}`);
+    }
+
     await persistMessage({
-        jid,
+        jid: requestedJid,
         messageId: result?.key?.id,
         text: cleanCaption || getMediaLabel(savedMedia),
         fromMe: true,

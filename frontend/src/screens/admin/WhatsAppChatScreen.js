@@ -43,6 +43,7 @@ const WhatsAppChatScreen = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [status, setStatus] = useState(null);
   const bottomRef = useRef(null);
   const messagesRef = useRef(null);
   const selectedChatRef = useRef(null);
@@ -62,6 +63,17 @@ const WhatsAppChatScreen = () => {
       setError(err.response?.data?.message || 'No se pudieron cargar los chats de WhatsApp.');
     } finally {
       if (!silent) setLoading(false);
+    }
+  };
+
+  const loadStatus = async ({ silent = false } = {}) => {
+    try {
+      const { data } = await api.get('/integrations/whatsapp/status');
+      setStatus(data.data || null);
+    } catch (err) {
+      if (!silent) {
+        setError(err.response?.data?.message || err.message || 'No se pudo leer el estado de WhatsApp.');
+      }
     }
   };
 
@@ -88,8 +100,10 @@ const WhatsAppChatScreen = () => {
 
   useEffect(() => {
     loadChats();
+    loadStatus({ silent: true });
     const timer = window.setInterval(() => {
       loadChats({ silent: true });
+      loadStatus({ silent: true });
       const currentChat = selectedChatRef.current;
       if (currentChat?.jid) {
         loadMessages(currentChat);
@@ -112,6 +126,10 @@ const WhatsAppChatScreen = () => {
     event.preventDefault();
     const cleanText = text.trim();
     if (!selectedChat?.jid || (!cleanText && !file)) return;
+    if (status && !status.connected) {
+      setError('WhatsApp no esta conectado. Revisa Configuracion > WhatsApp QR antes de enviar.');
+      return;
+    }
 
     setSending(true);
     setError('');
@@ -132,11 +150,16 @@ const WhatsAppChatScreen = () => {
       setFile(null);
       await loadChats({ silent: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'No se pudo enviar el mensaje.');
+      setError(err.response?.data?.message || err.message || 'No se pudo enviar el mensaje.');
     } finally {
       setSending(false);
     }
   };
+
+  const isConnected = Boolean(status?.connected);
+  const statusLabel = status
+    ? `${status.provider === 'evolution' ? 'Evolution' : 'Baileys'}: ${isConnected ? 'Conectado' : (status.status || 'Desconectado')}`
+    : 'Revisando WhatsApp...';
 
   return (
     <div className={styles.shell}>
@@ -145,9 +168,15 @@ const WhatsAppChatScreen = () => {
           <h1 className={styles.title}>WhatsApp</h1>
           <p className={styles.subtitle}>Atencion a clientes desde el panel. Configuracion y QR viven en Configuracion.</p>
         </div>
-        <button className={styles.secondaryButton} type="button" onClick={() => loadChats()}>
-          <i className="fas fa-sync-alt"></i> Actualizar
-        </button>
+        <div className={styles.headerActions}>
+          <span className={`${styles.statusPill} ${isConnected ? styles.statusReady : styles.statusOffline}`}>
+            <i className={`fas ${isConnected ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
+            {statusLabel}
+          </span>
+          <button className={styles.secondaryButton} type="button" onClick={() => { loadStatus(); loadChats(); }}>
+            <i className="fas fa-sync-alt"></i> Actualizar
+          </button>
+        </div>
       </div>
 
       {error && <div className={`${styles.notice} ${styles.error}`}>{error}</div>}
@@ -254,7 +283,7 @@ const WhatsAppChatScreen = () => {
                     )}
                   </div>
                 </div>
-                <button className={styles.primaryButton} type="submit" disabled={sending || (!text.trim() && !file)}>
+                <button className={styles.primaryButton} type="submit" disabled={sending || (status && !status.connected) || (!text.trim() && !file)}>
                   {sending ? 'Enviando...' : 'Enviar'}
                 </button>
               </form>
