@@ -75,6 +75,7 @@ const normalizeSkuPrefix = (value) => String(value || '')
   .toUpperCase();
 
 const emptyProduct = {
+  sku: '',
   name: '',
   description: '',
   price: '',
@@ -92,6 +93,9 @@ const emptyProduct = {
   lengthCm: '',
   widthCm: '',
   heightCm: '',
+  meliItemId: '',
+  meliPublicationUrl: '',
+  lastMeliSync: '',
   media: [],
   characteristics: [{ key: '', value: '' }],
 };
@@ -117,6 +121,10 @@ const ProductEditScreen = () => {
   const [imageWarnings, setImageWarnings] = useState({});
   const [customSkuMode, setCustomSkuMode] = useState(false);
   const [customTecatlTag, setCustomTecatlTag] = useState('');
+  const [meliLoading, setMeliLoading] = useState(false);
+  const [meliPreview, setMeliPreview] = useState(null);
+  const [meliMessage, setMeliMessage] = useState('');
+  const [meliError, setMeliError] = useState('');
 
   const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
   const predefinedSkuValues = useMemo(() => SKU_PREFIXES.map((prefix) => prefix.value), []);
@@ -150,6 +158,7 @@ const ProductEditScreen = () => {
           setCustomSkuMode(Boolean(loadedSkuPrefix && !SKU_PREFIXES.some((prefix) => prefix.value === loadedSkuPrefix)));
           setForm({
             ...emptyProduct,
+            sku: product.sku || '',
             name: product.name || '',
             description: product.description || '',
             price: product.price ?? '',
@@ -167,6 +176,9 @@ const ProductEditScreen = () => {
             lengthCm: product.lengthCm ?? '',
             widthCm: product.widthCm ?? '',
             heightCm: product.heightCm ?? '',
+            meliItemId: product.meliItemId || '',
+            meliPublicationUrl: product.meliPublicationUrl || '',
+            lastMeliSync: product.lastMeliSync || '',
             media: product.media || [],
             characteristics: product.characteristics?.length
               ? product.characteristics.map((item) => ({ key: item.key, value: item.value }))
@@ -339,6 +351,82 @@ const ProductEditScreen = () => {
     }));
   };
 
+  const validateMeliPublication = async () => {
+    const itemId = String(form.meliItemId || '').trim();
+    if (!itemId) {
+      setMeliError('Escribe el ID de la publicacion de Mercado Libre, por ejemplo MLM123456789.');
+      setMeliMessage('');
+      return;
+    }
+
+    setMeliLoading(true);
+    setMeliError('');
+    setMeliMessage('');
+
+    try {
+      const { data } = await api.get(`/mercadolibre/items/${encodeURIComponent(itemId)}`);
+      const item = data.data || {};
+      setMeliPreview(item);
+      setMeliMessage(`Publicacion encontrada: ${item.title || item.id}. Stock Meli: ${item.available_quantity ?? 'sin dato'}.`);
+    } catch (err) {
+      setMeliPreview(null);
+      setMeliError(err.response?.data?.message || 'No se pudo validar la publicacion de Mercado Libre.');
+    } finally {
+      setMeliLoading(false);
+    }
+  };
+
+  const linkMeliPublication = async () => {
+    const itemId = String(form.meliItemId || '').trim();
+    if (!isEditing || !itemId) {
+      setMeliError('Guarda primero el producto y escribe el ID de publicacion de Mercado Libre.');
+      setMeliMessage('');
+      return;
+    }
+
+    setMeliLoading(true);
+    setMeliError('');
+    setMeliMessage('');
+
+    try {
+      const { data } = await api.put(`/products/${encodeURIComponent(id)}/link-meli`, { meliItemId: itemId });
+      const product = data.data?.product || {};
+      setForm((current) => ({
+        ...current,
+        meliItemId: product.meliItemId || itemId,
+        meliPublicationUrl: product.meliPublicationUrl || current.meliPublicationUrl,
+        lastMeliSync: product.lastMeliSync || '',
+      }));
+      setMeliMessage('Producto vinculado a Mercado Libre. Ya puedes sincronizar stock cuando lo necesites.');
+    } catch (err) {
+      setMeliError(err.response?.data?.message || 'No se pudo vincular el producto con Mercado Libre.');
+    } finally {
+      setMeliLoading(false);
+    }
+  };
+
+  const syncMeliStock = async () => {
+    if (!form.sku) {
+      setMeliError('No se encontro el SKU local para sincronizar.');
+      setMeliMessage('');
+      return;
+    }
+
+    setMeliLoading(true);
+    setMeliError('');
+    setMeliMessage('');
+
+    try {
+      const { data } = await api.put(`/mercadolibre/products/${encodeURIComponent(form.sku)}/sync`);
+      setForm((current) => ({ ...current, lastMeliSync: new Date().toISOString() }));
+      setMeliMessage(data.message || 'Stock sincronizado con Mercado Libre.');
+    } catch (err) {
+      setMeliError(err.response?.data?.message || 'No se pudo sincronizar el stock con Mercado Libre.');
+    } finally {
+      setMeliLoading(false);
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -507,6 +595,58 @@ const ProductEditScreen = () => {
                 <input className={styles.input} type="number" step="0.1" min="0" value={form.heightCm} onChange={(event) => updateField('heightCm', event.target.value)} placeholder="Alto" />
               </div>
             </div>
+
+            {isEditing && (
+              <div className={`${styles.field} ${styles.fieldFull}`}>
+                <label className={styles.label}>Mercado Libre</label>
+                <div className={styles.assistBox}>
+                  <strong>Vinculo de publicacion</strong>
+                  <small>
+                    Pega aqui el ID de la publicacion de Mercado Libre para validar que existe, guardar el vinculo
+                    y sincronizar el stock local cuando lo decidas.
+                  </small>
+                  <div className={styles.inlineForm}>
+                    <input
+                      className={styles.input}
+                      value={form.meliItemId}
+                      onChange={(event) => {
+                        updateField('meliItemId', event.target.value.trim());
+                        setMeliPreview(null);
+                        setMeliError('');
+                        setMeliMessage('');
+                      }}
+                      placeholder="Ej. MLM123456789"
+                    />
+                    <button className={styles.secondaryButton} type="button" onClick={validateMeliPublication} disabled={meliLoading}>
+                      Validar
+                    </button>
+                    <button className={styles.secondaryButton} type="button" onClick={linkMeliPublication} disabled={meliLoading}>
+                      Guardar vinculo
+                    </button>
+                    <button className={styles.button} type="button" onClick={syncMeliStock} disabled={meliLoading || !form.meliItemId}>
+                      Sincronizar stock
+                    </button>
+                  </div>
+                  {form.meliPublicationUrl && (
+                    <a href={form.meliPublicationUrl} target="_blank" rel="noreferrer">
+                      Abrir publicacion en Mercado Libre
+                    </a>
+                  )}
+                  {form.lastMeliSync && (
+                    <small>Ultima sincronizacion: {new Date(form.lastMeliSync).toLocaleString()}</small>
+                  )}
+                  {meliPreview && (
+                    <small>
+                      Meli: <strong>{meliPreview.title || meliPreview.id}</strong>
+                      {meliPreview.status ? ` / Estado: ${meliPreview.status}` : ''}
+                    </small>
+                  )}
+                  {meliMessage && <div className={styles.success}>{meliMessage}</div>}
+                  {meliError && <div className={styles.error}>{meliError}</div>}
+                </div>
+              </div>
+            )}
+
             <div className={`${styles.field} ${styles.fieldFull}`}>
               <label className={styles.label} htmlFor="product-description">Descripcion comercial</label>
               <textarea id="product-description" className={styles.textarea} value={form.description} onChange={(event) => updateField('description', event.target.value)} required />

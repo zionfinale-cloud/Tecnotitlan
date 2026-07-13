@@ -883,9 +883,9 @@ Regla: antes de publicar un producto, debe tener descripcion comercial, imagenes
 
 En el formulario de producto, las etiquetas principales se seleccionan como chips y se guardan dentro de la caracteristica `Etiquetas Tecatl`. Tambien se pueden agregar etiquetas personalizadas. Estas etiquetas son internas: Tecatl las usa para buscar, recomendar y contestar preguntas de seguimiento, pero no debe mostrarlas al cliente como ficha publica. Por ejemplo, si un producto tiene `Etiquetas Tecatl: usb-c, viaje, audio`, el cliente no debe ver "Etiquetas Tecatl"; solo debe recibir una respuesta natural como "si, maneja carga USB-C / Tipo C" cuando pregunte por compatibilidad.
 
-### Mercado Libre - fase 1 de integracion
+### Mercado Libre - fase 2 manual-controlada
 
-Mercado Libre queda en fase 1 como integracion segura de conexion y lectura. El objetivo de esta fase no es publicar automaticamente ni descontar inventario sin supervision; primero se debe autorizar la cuenta, guardar tokens, validar pedidos y confirmar que los productos locales esten vinculados a publicaciones reales.
+Mercado Libre queda conectado como marketplace externo, pero el control maestro sigue en Tecnotitlan. Si la pantalla de pedidos muestra `0 pedidos`, no significa por si solo que la conexion este rota: normalmente significa que la cuenta autorizada no tiene ordenes recientes disponibles para la app, o que todavia no se ha vendido desde Mercado Libre. Antes de automatizar importaciones, se trabaja con vinculacion manual de publicaciones y sincronizacion supervisada de stock.
 
 Configuracion requerida:
 
@@ -906,9 +906,18 @@ Backend disponible:
 - `GET /api/mercadolibre/callback`: recibe el codigo, guarda token y redirige al admin.
 - `GET /api/mercadolibre/orders`: lee pedidos recientes con el token vigente.
 - `GET /api/mercadolibre/items/:meliItemId`: revisa una publicacion vinculada.
+- `PUT /api/products/:sku/link-meli`: vincula un producto local con una publicacion real de Mercado Libre. Tambien acepta el ID interno del producto para compatibilidad.
 - `PUT /api/mercadolibre/products/:sku/sync`: actualiza stock en la publicacion vinculada.
 
-Regla de seguridad: los webhooks de Mercado Libre no deben descontar inventario directo hasta que el flujo de conciliacion por canal este terminado. Por ahora se registran como eventos/orden externa para revision. Cuando la fase 2 quede lista, una venta importada debera generar una salida `SALE` en `InventoryMovement` con canal `MERCADOLIBRE`, referencia externa y validacion contra stock asignado al canal.
+Flujo operativo actual:
+
+1. Crear o revisar el producto maestro en Tecnotitlan con SKU interno, imagenes, costo, precio y stock.
+2. Publicar o crear el articulo en Mercado Libre desde Seller Center cuando sea necesario.
+3. Copiar el ID de publicacion (`MLM...`) y pegarlo en el editor del producto en Tecnotitlan.
+4. Validar la publicacion desde Tecnotitlan para confirmar que existe y pertenece a la cuenta autorizada.
+5. Guardar el vinculo y sincronizar stock solo cuando el inventario por canal este correcto.
+
+Regla de seguridad: los webhooks de Mercado Libre no deben descontar inventario directo hasta que el flujo de conciliacion por canal este terminado. Por ahora se registran como eventos/orden externa para revision. Una venta importada debera generar una salida `SALE` en `InventoryMovement` con canal `MERCADOLIBRE`, referencia externa y validacion contra stock asignado al canal. Si no existe stock traspasado/asignado a Mercado Libre, la venta debe quedar marcada para revision en vez de inventar existencia.
 
 Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues algo como "es tipo C?", "sirve para viaje?" o "es bluetooth?", Tecatl debe usar el contexto reciente de la conversacion y las caracteristicas/etiquetas internas del producto. Si la ficha no trae ese dato, entonces si debe pedir confirmacion humana para no inventar informacion.
 

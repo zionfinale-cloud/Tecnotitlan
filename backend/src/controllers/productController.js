@@ -647,14 +647,22 @@ const countProducts = asyncHandler(async (req, res) => {
  */
 const linkProductToMeli = asyncHandler(async (req, res, next) => {
   const { meliItemId } = req.body;
-  const { id: productId } = req.params;
+  const { id: productIdentifier } = req.params;
   const userId = req.user.id;
 
   if (!meliItemId) {
     return next(new BadRequestError('Se requiere el ID del artículo de Mercado Libre (meliItemId).'));
   }
 
-  const product = await prisma.product.findUnique({ where: { id: productId } });
+  const normalizedIdentifier = String(productIdentifier || '').toUpperCase();
+  const product = await prisma.product.findFirst({
+    where: {
+      OR: [
+        { id: productIdentifier },
+        { sku: normalizedIdentifier },
+      ],
+    },
+  });
   if (!product) {
     return next(new NotFoundError('Producto no encontrado'));
   }
@@ -666,10 +674,11 @@ const linkProductToMeli = asyncHandler(async (req, res, next) => {
   }
 
   const updatedProduct = await prisma.product.update({
-    where: { id: productId },
+    where: { id: product.id },
     data: {
       meliItemId: meliItem.id,
       meliPublicationUrl: meliItem.permalink,
+      lastMeliSync: null,
     },
   });
 

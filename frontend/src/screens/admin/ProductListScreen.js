@@ -14,6 +14,7 @@ const ProductListScreen = () => {
   const [keyword, setKeyword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [syncingMeliSku, setSyncingMeliSku] = useState('');
 
   const loadProducts = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -67,6 +68,28 @@ const ProductListScreen = () => {
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo restaurar el producto.');
     }
+  };
+
+  const syncMeliStock = async (product) => {
+    setError('');
+    setSuccess('');
+    setSyncingMeliSku(product.sku);
+    try {
+      const { data } = await api.put(`/mercadolibre/products/${encodeURIComponent(product.sku)}/sync`);
+      setSuccess(data.message || `Stock sincronizado con Mercado Libre para ${product.sku}.`);
+      await loadProducts({ silent: true });
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo sincronizar el stock con Mercado Libre.');
+    } finally {
+      setSyncingMeliSku('');
+    }
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return 'Sin sincronizar';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Sin sincronizar';
+    return date.toLocaleString();
   };
 
   return (
@@ -127,6 +150,7 @@ const ProductListScreen = () => {
                   <th>Precio</th>
                   {showCosts && <th>Costo</th>}
                   <th>Stock</th>
+                  <th>Mercado Libre</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
@@ -140,11 +164,29 @@ const ProductListScreen = () => {
                     <td>${Number(product.price || 0).toFixed(2)}</td>
                     {showCosts && <td>${Number(product.costPrice || 0).toFixed(2)}</td>}
                     <td>{product.countInStock}</td>
+                    <td>
+                      <span className={styles.stockCell}>
+                        <strong>{product.meliItemId || 'Sin vincular'}</strong>
+                        <small>{product.meliItemId ? formatDateTime(product.lastMeliSync) : 'Edita el producto para ligar una publicacion'}</small>
+                      </span>
+                    </td>
                     <td>{product.isArchived ? 'Archivado' : 'Activo'}</td>
                     <td>
                       <Link className={styles.secondaryButton} to={`/admin/product/${product.sku}/edit`}>
                         Editar
                       </Link>{' '}
+                      {product.meliItemId && !product.isArchived && (
+                        <>
+                          <button
+                            className={styles.secondaryButton}
+                            type="button"
+                            onClick={() => syncMeliStock(product)}
+                            disabled={syncingMeliSku === product.sku}
+                          >
+                            {syncingMeliSku === product.sku ? 'Sync...' : 'Sync Meli'}
+                          </button>{' '}
+                        </>
+                      )}
                       {product.isArchived ? (
                         <button className={styles.secondaryButton} type="button" onClick={() => restoreProduct(product)}>
                           Restaurar
