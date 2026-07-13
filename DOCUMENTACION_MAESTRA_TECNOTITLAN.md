@@ -791,7 +791,7 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 - **Proveedor WhatsApp:** `WHATSAPP_PROVIDER=baileys` usa sesion local persistente; `WHATSAPP_PROVIDER=evolution` usa Evolution API para conectar, enviar, recibir y persistir mensajes en la base de datos de Tecnotitlan.
 - **Sesion Baileys persistente:** Si se usa Baileys, Supabase/PostgreSQL guarda configuracion operativa, chats y mensajes, pero no reemplaza los archivos de sesion. La autenticacion real vive en `WHATSAPP_AUTH_DIR` o `/app/auth_info_baileys`.
 - **Decision operativa actual:** usar `WHATSAPP_PROVIDER=baileys`. En EasyPanel la API debe tener un volumen persistente montado en `/app/auth_info_baileys`. Evolution API se deja apagado/experimental porque v2.4 presento errores al crear instancias (`integrationSession.update`, foreign keys en `Setting`, licenciamiento y Redis/Postgres).
-- **Reconexiones Baileys:** el backend usa backoff exponencial y pausa despues de `WHATSAPP_MAX_RECONNECT_ATTEMPTS` intentos para no provocar restricciones de WhatsApp. Si el estado queda `PAUSED`, se debe entrar a `Configuracion > WhatsApp QR`, borrar sesion si hace falta y escanear de nuevo.
+- **Reconexiones Baileys:** el backend usa backoff exponencial y pausa despues de `WHATSAPP_MAX_RECONNECT_ATTEMPTS` intentos para no provocar restricciones de WhatsApp. Un watchdog interno intenta mantener la sesion viva al arrancar la API y vuelve a intentar despues de una pausa controlada (`WHATSAPP_PAUSED_RETRY_AFTER_MS`). Si el estado pide QR o la sesion fue cerrada desde el telefono, se debe entrar a `Configuracion > WhatsApp QR`, borrar sesion si hace falta y escanear de nuevo.
 - **Panel de atencion WhatsApp:** la pantalla de chat muestra proveedor/estado de conexion antes de enviar. Si Baileys recibe conversaciones con identificadores internos de WhatsApp (`@lid`), el backend conserva la conversacion original y, al enviar, intenta usar el JID principal y despues el telefono asociado cuando exista. Si no hay sesion activa, el panel bloquea el envio y muestra un error claro.
 - **Notificaciones transaccionales:** Antes de omitir un aviso por WhatsApp, el backend debe intentar reconectar usando la sesion persistente y esperar unos segundos. Si la sesion esta invalida, fue cerrada desde el telefono o WhatsApp fuerza reautenticacion, se genera QR desde Configuracion > WhatsApp. Los pedidos nunca deben fallar por WhatsApp desconectado; correo e inventario siguen su flujo y el evento queda en logs.
 - **Connection Failure:** Cuando Baileys cierra con `Connection Failure`, el log debe incluir `StatusCode`. Si es una caida recuperable, el backend reintenta. Si el codigo/mensaje indica logout o sesion invalida, el backend rota la sesion activa y solicita QR nuevo automaticamente.
@@ -893,18 +893,23 @@ Variables recomendadas:
 
 - `WHATSAPP_PROVIDER=baileys`
 - `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
+- `WHATSAPP_AUTO_CONNECT=true`
 - `WHATSAPP_MAX_RECONNECT_ATTEMPTS=6`
 - `WHATSAPP_RECONNECT_BASE_DELAY_MS=5000`
 - `WHATSAPP_RECONNECT_MAX_DELAY_MS=120000`
+- `WHATSAPP_KEEP_ALIVE_INTERVAL_MS=60000`
+- `WHATSAPP_PAUSED_RETRY_AFTER_MS=600000`
 
-Operativa: montar el volumen persistente en `/app/auth_info_baileys`, redeplegar API, entrar a `Configuracion -> WhatsApp QR`, generar QR solo cuando el estado lo pida y probar recepcion/envio desde el panel de WhatsApp.
+Operativa: montar el volumen persistente en `/app/auth_info_baileys`, redeplegar API y dejar `WHATSAPP_AUTO_CONNECT=true`. Al iniciar, el backend levanta el watchdog de WhatsApp y reusa la sesion persistente. Solo se entra a `Configuracion -> WhatsApp QR` cuando el estado pida QR, cuando WhatsApp cierre la sesion desde el telefono o cuando se necesite borrar/vincular una sesion nueva. Despues de cada redeploy se debe revisar que el estado vuelva a `READY` sin presionar botones manualmente.
 
 ### WhatsApp con Evolution API
 
 Después de las restricciones temporales provocadas por reconexiones de Baileys, Tecnotitlan soporta dos proveedores de WhatsApp:
 
 - `WHATSAPP_PROVIDER=baileys`: modo local anterior. Requiere volumen persistente en `WHATSAPP_AUTH_DIR` o `/app/auth_info_baileys`.
-- `WHATSAPP_PROVIDER=evolution`: modo recomendado para producción. El backend usa Evolution API para conectar la instancia, obtener QR, enviar mensajes, adjuntos y recibir webhooks.
+- `WHATSAPP_PROVIDER=evolution`: modo experimental. El backend puede usar Evolution API para conectar la instancia, obtener QR, enviar mensajes, adjuntos y recibir webhooks, pero no queda como ruta operativa actual hasta resolver estabilidad/licenciamiento.
+
+Nota: los valores guardados en `Configuracion -> Sistema` se cargan desde base de datos y pueden ganar sobre el `.env`. Si se cambio temporalmente a Evolution, se debe volver a guardar `WHATSAPP_PROVIDER=baileys` en el panel o limpiar ese setting antes de esperar que Baileys arranque automaticamente.
 
 Variables requeridas para Evolution:
 

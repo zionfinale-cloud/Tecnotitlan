@@ -41,6 +41,8 @@ const SENSITIVE_SETTING_DEFINITIONS = [
     { key: 'WHATSAPP_PROVIDER', label: 'Proveedor WhatsApp (baileys/evolution)', type: 'string' },
     { key: 'WHATSAPP_AUTH_DIR', label: 'Carpeta persistente WhatsApp', type: 'string' },
     { key: 'WHATSAPP_AUTO_CONNECT', label: 'WhatsApp auto conectar al iniciar', type: 'string' },
+    { key: 'WHATSAPP_KEEP_ALIVE_INTERVAL_MS', label: 'WhatsApp intervalo de vigilancia (ms)', type: 'string' },
+    { key: 'WHATSAPP_PAUSED_RETRY_AFTER_MS', label: 'WhatsApp reintento despues de pausa (ms)', type: 'string' },
     { key: 'EVOLUTION_API_URL', label: 'Evolution API URL', type: 'string' },
     { key: 'EVOLUTION_API_KEY', label: 'Evolution API key', type: 'password' },
     { key: 'EVOLUTION_INSTANCE', label: 'Evolution instancia', type: 'string' },

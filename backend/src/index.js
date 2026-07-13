@@ -200,14 +200,7 @@ app.use(express.json());
 serverReadyPromise = startServer();
 
 serverReadyPromise.then(() => {
-  const shouldAutoConnectWhatsApp = String(getConfig().WHATSAPP_AUTO_CONNECT ?? 'true').toLowerCase() !== 'false';
-  if (!shouldAutoConnectWhatsApp) return;
-
-  setTimeout(() => {
-    whatsappService.initialize()
-      .then((status) => logger.info(`[WhatsApp] Auto connect status: ${status.status}`))
-      .catch((error) => logger.warn(`[WhatsApp] Auto connect skipped: ${error.message}`));
-  }, 1500);
+  whatsappService.startAutoConnectWatchdog();
 }).catch(() => {
   // startServer ya registra el error. Evitamos una promesa sin manejar en test/dev.
 });
@@ -216,6 +209,7 @@ serverReadyPromise.then(() => {
 // Vital para cPanel: Asegura que los procesos viejos mueran realmente al reiniciar.
 const gracefulShutdown = async (signal) => {
   logger.info(`${signal} recibido. Cerrando servidor ordenadamente...`);
+  whatsappService.stopAutoConnectWatchdog();
   
   if (server) {
     server.close(() => {

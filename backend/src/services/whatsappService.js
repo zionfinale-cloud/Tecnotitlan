@@ -43,6 +43,11 @@ const uploadsRoot = path.resolve(process.cwd(), 'uploads');
 const MAX_AUTO_RECONNECT_ATTEMPTS = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || 6);
 const RECONNECT_BASE_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_BASE_DELAY_MS || 5000);
 const RECONNECT_MAX_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_MAX_DELAY_MS || 120000);
+const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 60000;
+const DEFAULT_PAUSED_RETRY_AFTER_MS = 10 * 60 * 1000;
+let autoConnectTimer = null;
+let autoConnectStarted = false;
+let pausedAt = null;
 
 const mediaTypeDefinitions = [
     { key: 'imageMessage', type: 'image' },
@@ -78,6 +83,29 @@ const getWhatsAppProvider = () => String(
 ).trim().toLowerCase();
 
 const isEvolutionProvider = () => getWhatsAppProvider() === 'evolution';
+const isAutoConnectEnabled = () => String(
+    getConfig().WHATSAPP_AUTO_CONNECT
+    ?? process.env.WHATSAPP_AUTO_CONNECT
+    ?? 'true',
+).toLowerCase() !== 'false';
+
+const getKeepAliveIntervalMs = () => {
+    const rawValue = Number(
+        getConfig().WHATSAPP_KEEP_ALIVE_INTERVAL_MS
+        || process.env.WHATSAPP_KEEP_ALIVE_INTERVAL_MS
+        || DEFAULT_KEEP_ALIVE_INTERVAL_MS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= 15000 ? rawValue : DEFAULT_KEEP_ALIVE_INTERVAL_MS;
+};
+
+const getPausedRetryAfterMs = () => {
+    const rawValue = Number(
+        getConfig().WHATSAPP_PAUSED_RETRY_AFTER_MS
+        || process.env.WHATSAPP_PAUSED_RETRY_AFTER_MS
+        || DEFAULT_PAUSED_RETRY_AFTER_MS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= 60000 ? rawValue : DEFAULT_PAUSED_RETRY_AFTER_MS;
+};
 
 const getApiPublicUrl = () => trimTrailingSlash(
     getConfig().API_PUBLIC_URL
@@ -535,6 +563,7 @@ const scheduleBaileysReconnect = (reason) => {
 
     if (reconnectAttempt >= MAX_AUTO_RECONNECT_ATTEMPTS) {
         connectionStatus = 'PAUSED';
+        pausedAt = Date.now();
         lastError = `Reconexión pausada después de ${MAX_AUTO_RECONNECT_ATTEMPTS} intentos. Último motivo: ${reason || 'desconocido'}`;
         logger.warn(`[WhatsApp] ${lastError}`);
         emitStatus();
@@ -808,6 +837,7 @@ export const initialize = async () => {
                 isInitializing = false;
                 lastError = null;
                 reconnectAttempt = 0;
+                pausedAt = null;
                 clearReconnectTimer();
                 logger.info('WhatsApp connection opened');
                 emitStatus();
@@ -860,6 +890,70 @@ export const initialize = async () => {
         emitStatus();
         logger.error(`[WhatsApp] No se pudo inicializar: ${error.message}`);
         throw error;
+    }
+};
+
+const shouldSkipAutoConnect = () => resetInProgress
+    || isInitializing
+    || Boolean(reconnectTimer)
+    || connectionStatus === 'QR_RECEIVED';
+
+const attemptAutoConnect = async (reason = 'watchdog') => {
+    if (!isAutoConnectEnabled()) return getStatus();
+
+    if (isEvolutionProvider()) {
+        const status = await refreshEvolutionStatus();
+        if (!status.connected && !status.isInitializing) {
+            logger.info(`[WhatsApp] Auto connect (${reason}) intentando inicializar Evolution.`);
+            return initializeEvolution();
+        }
+        return status;
+    }
+
+    if (sock?.user && connectionStatus === 'READY') return getStatus();
+
+    if (connectionStatus === 'PAUSED') {
+        const elapsedMs = pausedAt ? Date.now() - pausedAt : getPausedRetryAfterMs();
+        if (elapsedMs < getPausedRetryAfterMs()) return getStatus();
+
+        reconnectAttempt = 0;
+        pausedAt = null;
+        connectionStatus = 'RECONNECTING';
+        lastError = `Reintentando reconexion automatica tras pausa (${reason}).`;
+        emitStatus();
+    }
+
+    if (shouldSkipAutoConnect()) return getStatus();
+
+    logger.info(`[WhatsApp] Auto connect (${reason}) iniciando proveedor ${getWhatsAppProvider()}.`);
+    return initialize();
+};
+
+export const startAutoConnectWatchdog = () => {
+    if (autoConnectStarted) return;
+    autoConnectStarted = true;
+
+    const tick = async () => {
+        try {
+            await attemptAutoConnect('watchdog');
+        } catch (error) {
+            logger.warn(`[WhatsApp] Watchdog no pudo conectar: ${error.message}`);
+        } finally {
+            if (!autoConnectStarted) return;
+            autoConnectTimer = setTimeout(tick, getKeepAliveIntervalMs());
+            autoConnectTimer.unref?.();
+        }
+    };
+
+    autoConnectTimer = setTimeout(tick, 1500);
+    autoConnectTimer.unref?.();
+};
+
+export const stopAutoConnectWatchdog = () => {
+    autoConnectStarted = false;
+    if (autoConnectTimer) {
+        clearTimeout(autoConnectTimer);
+        autoConnectTimer = null;
     }
 };
 
