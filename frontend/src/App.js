@@ -46,6 +46,7 @@ import WhatsappSettingsScreen from './screens/admin/WhatsappSettingsScreen';
 import WhatsAppChatScreen from './screens/admin/WhatsAppChatScreen';
 import TecatlAdminScreen from './screens/admin/TecatlAdminScreen';
 import TikTokShopSettingsScreen from './screens/admin/TikTokShopSettingsScreen';
+import MercadoLibreSettingsScreen from './screens/admin/MercadoLibreSettingsScreen';
 import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-rutas
 import SystemSettingsScreen from './screens/admin/SystemSettingsScreen';
 import StorefrontSettingsScreen from './screens/admin/StorefrontSettingsScreen';
@@ -132,6 +133,7 @@ function App() {
                                                     <Route path="legal" element={<LegalPagesScreen />} />
                                                     <Route path="whatsapp" element={<WhatsappSettingsScreen />} />
                                                     <Route path="tiktok" element={<TikTokShopSettingsScreen />} />
+                                                    <Route path="mercadolibre" element={<MercadoLibreSettingsScreen />} />
                                                 </Route>
 
                                             </Route>

@@ -510,7 +510,7 @@ Para la estrategia de **"Desarrollo en Vivo"**, estas variables deben configurar
     # =================================
     MERCADOLIBRE_APP_ID=tu_app_id_de_meli
     MERCADOLIBRE_CLIENT_SECRET=tu_client_secret_de_meli
-    MERCADOLIBRE_REDIRECT_URI=https://api.tecnotitlan.com.mx/admin/settings/mercado-libre/callback
+    MERCADOLIBRE_REDIRECT_URI=https://api.tecnotitlan.com.mx/api/mercadolibre/callback
     CLIENT_URL_PRIMARY=https://www.tecnotitlan.com.mx # URL del Frontend (necesario para CORS)
     RECAPTCHA_SECRET_KEY=tu_clave_secreta_de_google_recaptcha
     ```
@@ -882,6 +882,33 @@ Ejemplo: si un cliente escribe "voy a viajar, que me recomiendas?", Tecatl busca
 Regla: antes de publicar un producto, debe tener descripcion comercial, imagenes y al menos 3 caracteristicas utiles para cliente y para Tecatl. Esto mejora busqueda, recomendaciones y soporte sin crear una tabla extra de etiquetas.
 
 En el formulario de producto, las etiquetas principales se seleccionan como chips y se guardan dentro de la caracteristica `Etiquetas Tecatl`. Tambien se pueden agregar etiquetas personalizadas. Estas etiquetas son internas: Tecatl las usa para buscar, recomendar y contestar preguntas de seguimiento, pero no debe mostrarlas al cliente como ficha publica. Por ejemplo, si un producto tiene `Etiquetas Tecatl: usb-c, viaje, audio`, el cliente no debe ver "Etiquetas Tecatl"; solo debe recibir una respuesta natural como "si, maneja carga USB-C / Tipo C" cuando pregunte por compatibilidad.
+
+### Mercado Libre - fase 1 de integracion
+
+Mercado Libre queda en fase 1 como integracion segura de conexion y lectura. El objetivo de esta fase no es publicar automaticamente ni descontar inventario sin supervision; primero se debe autorizar la cuenta, guardar tokens, validar pedidos y confirmar que los productos locales esten vinculados a publicaciones reales.
+
+Configuracion requerida:
+
+- `MERCADOLIBRE_APP_ID`
+- `MERCADOLIBRE_CLIENT_SECRET`
+- `MERCADOLIBRE_REDIRECT_URI=https://api.tecnotitlan.com.mx/api/mercadolibre/callback`
+
+Pantalla operativa:
+
+- Ruta admin: `/admin/settings/mercadolibre`
+- Redirect URI para Mercado Libre Developers: `https://api.tecnotitlan.com.mx/api/mercadolibre/callback`
+- Webhook/notificaciones: `https://api.tecnotitlan.com.mx/api/mercadolibre/notifications`
+
+Backend disponible:
+
+- `GET /api/mercadolibre/status`: muestra configuracion y conexion sin exponer tokens.
+- `GET /api/mercadolibre/auth-url`: genera URL OAuth con PKCE para conectar la cuenta.
+- `GET /api/mercadolibre/callback`: recibe el codigo, guarda token y redirige al admin.
+- `GET /api/mercadolibre/orders`: lee pedidos recientes con el token vigente.
+- `GET /api/mercadolibre/items/:meliItemId`: revisa una publicacion vinculada.
+- `PUT /api/mercadolibre/products/:sku/sync`: actualiza stock en la publicacion vinculada.
+
+Regla de seguridad: los webhooks de Mercado Libre no deben descontar inventario directo hasta que el flujo de conciliacion por canal este terminado. Por ahora se registran como eventos/orden externa para revision. Cuando la fase 2 quede lista, una venta importada debera generar una salida `SALE` en `InventoryMovement` con canal `MERCADOLIBRE`, referencia externa y validacion contra stock asignado al canal.
 
 Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues algo como "es tipo C?", "sirve para viaje?" o "es bluetooth?", Tecatl debe usar el contexto reciente de la conversacion y las caracteristicas/etiquetas internas del producto. Si la ficha no trae ese dato, entonces si debe pedir confirmacion humana para no inventar informacion.
 

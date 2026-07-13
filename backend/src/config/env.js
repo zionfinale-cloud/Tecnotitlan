@@ -28,6 +28,9 @@ const optionalIntegrationVars = [
   'CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',
   'CLOUDINARY_API_SECRET',
+  'MERCADOLIBRE_APP_ID',
+  'MERCADOLIBRE_CLIENT_SECRET',
+  'MERCADOLIBRE_REDIRECT_URI',
 ];
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -77,6 +80,9 @@ export const config = {
   TIKTOK_SHOP_REDIRECT_URI: process.env.TIKTOK_SHOP_REDIRECT_URI,
   TIKTOK_SHOP_AUTH_BASE_URL: process.env.TIKTOK_SHOP_AUTH_BASE_URL || 'https://auth.tiktok-shops.com/api/v2',
   TIKTOK_SHOP_API_BASE_URL: process.env.TIKTOK_SHOP_API_BASE_URL || 'https://open-api.tiktokglobalshop.com',
+  MERCADOLIBRE_APP_ID: process.env.MERCADOLIBRE_APP_ID,
+  MERCADOLIBRE_CLIENT_SECRET: process.env.MERCADOLIBRE_CLIENT_SECRET,
+  MERCADOLIBRE_REDIRECT_URI: process.env.MERCADOLIBRE_REDIRECT_URI,
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,

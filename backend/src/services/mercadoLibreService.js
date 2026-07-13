@@ -4,15 +4,78 @@ import logger from '../utils/logger.js';
 import { getConfig } from './configService.js';
 import prisma from '../config/prisma.js';
 
+const MELI_API_BASE_URL = 'https://api.mercadolibre.com';
 
-/**
- * Refresca un access token de Mercado Libre que ha expirado.
- * @param {object} integration - El documento de integración de Meli de la base de datos.
- * @returns {Promise<string>} - El nuevo access token.
- */
-const refreshAccessToken = async (integration) => {
-  logger.info(`[Meli Service] Refrescando token para el usuario: ${integration.user}`);
+const assertMeliConfig = () => {
   const config = getConfig();
+  const missing = [
+    ['MERCADOLIBRE_APP_ID', config.MERCADOLIBRE_APP_ID],
+    ['MERCADOLIBRE_CLIENT_SECRET', config.MERCADOLIBRE_CLIENT_SECRET],
+    ['MERCADOLIBRE_REDIRECT_URI', config.MERCADOLIBRE_REDIRECT_URI],
+  ].filter(([, value]) => !value);
+
+  if (missing.length > 0) {
+    throw new Error(`Falta configurar Mercado Libre: ${missing.map(([key]) => key).join(', ')}`);
+  }
+
+  return config;
+};
+
+const toExpiresAt = (expiresIn) => {
+  if (!expiresIn) return null;
+  return new Date(Date.now() + Number(expiresIn) * 1000);
+};
+
+const getCurrentUserProfile = async (accessToken) => {
+  try {
+    const { data } = await axios.get(`${MELI_API_BASE_URL}/users/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return data;
+  } catch (error) {
+    logger.warn('[Meli Service] No se pudo obtener perfil de vendedor:', error.response?.data || error.message);
+    return null;
+  }
+};
+
+const serializeIntegration = (integration) => {
+  if (!integration) return null;
+  return {
+    id: integration.id,
+    meliUserId: integration.meliUserId,
+    nickname: integration.nickname,
+    expiresAt: integration.expiresAt,
+    connectedAt: integration.connectedAt,
+    updatedAt: integration.updatedAt,
+    needsReconnect: !integration.refreshToken,
+  };
+};
+
+const getIntegration = async (userId = null) => {
+  const where = userId ? { userId } : {};
+  return prisma.meliIntegration.findFirst({
+    where,
+    orderBy: { updatedAt: 'desc' },
+  });
+};
+
+const getIntegrationStatus = async (userId = null) => {
+  const integration = await getIntegration(userId);
+  return {
+    isConnected: Boolean(integration),
+    integration: serializeIntegration(integration),
+  };
+};
+
+const refreshAccessToken = async (integration) => {
+  assertMeliConfig();
+
+  if (!integration?.refreshToken) {
+    throw new Error('Mercado Libre no tiene refresh token. Reconecta la cuenta.');
+  }
+
+  const config = getConfig();
+  logger.info(`[Meli Service] Refrescando token para usuario Mercado Libre: ${integration.meliUserId || integration.userId}`);
 
   const params = new URLSearchParams();
   params.append('grant_type', 'refresh_token');
@@ -21,10 +84,10 @@ const refreshAccessToken = async (integration) => {
   params.append('refresh_token', integration.refreshToken);
 
   try {
-    const { data } = await axios.post('https://api.mercadolibre.com/oauth/token', params, {
+    const { data } = await axios.post(`${MELI_API_BASE_URL}/oauth/token`, params, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
     });
 
@@ -32,31 +95,28 @@ const refreshAccessToken = async (integration) => {
       where: { id: integration.id },
       data: {
         accessToken: data.access_token,
-        refreshToken: data.refresh_token,
+        refreshToken: data.refresh_token || integration.refreshToken,
         expiresIn: data.expires_in,
-        expiresAt: new Date(Date.now() + data.expires_in * 1000),
+        expiresAt: toExpiresAt(data.expires_in),
+        tokenType: data.token_type,
+        scope: data.scope,
+        rawData: data,
       },
     });
 
-    logger.success(`[Meli Service] Token refrescado exitosamente para el usuario: ${integration.user}`);
+    logger.success(`[Meli Service] Token refrescado para usuario Mercado Libre: ${updatedIntegration.meliUserId || updatedIntegration.userId}`);
     return updatedIntegration.accessToken;
   } catch (error) {
-    logger.error('[Meli Service] Error al refrescar el token de Mercado Libre:', error.response?.data || error.message);
-    throw new Error('No se pudo refrescar el token de Mercado Libre. Por favor, reconecta tu cuenta.');
+    logger.error('[Meli Service] Error al refrescar token:', error.response?.data || error.message);
+    throw new Error('No se pudo refrescar Mercado Libre. Reconecta la cuenta.');
   }
 };
 
-/**
- * Obtiene un access token válido, refrescándolo si es necesario.
- * @param {string} [userId] - El ID del usuario. Si se omite, busca la primera integración.
- * @returns {Promise<string|null>} - El access token válido o null.
- */
 const getValidAccessToken = async (userId = null) => {
-  const whereClause = userId ? { userId: userId } : {};
-  const integration = await prisma.meliIntegration.findFirst({ where: whereClause });
+  const integration = await getIntegration(userId);
 
   if (!integration) {
-    logger.warn(`[Meli Service] No se encontró integración de Mercado Libre.`);
+    logger.warn('[Meli Service] No se encontro integracion de Mercado Libre.');
     return null;
   }
 
@@ -64,148 +124,180 @@ const getValidAccessToken = async (userId = null) => {
   const isTokenExpired = !integration.expiresAt || new Date() > new Date(integration.expiresAt.getTime() - bufferSeconds * 1000);
 
   if (isTokenExpired) {
-    return await refreshAccessToken(integration);
+    return refreshAccessToken(integration);
   }
+
   return integration.accessToken;
 };
 
-/**
- * Intercambia el código de autorización por un token de acceso y lo guarda en la DB.
- * @param {string} code - El código de autorización de Meli.
- * @param {string} codeVerifier - El verificador PKCE.
- * @param {string} userId - El ID del usuario admin que realiza la conexión.
- */
 const exchangeCodeForToken = async (code, codeVerifier, userId) => {
-  const config = getConfig();
+  const config = assertMeliConfig();
+
   const params = new URLSearchParams();
   params.append('grant_type', 'authorization_code');
   params.append('client_id', config.MERCADOLIBRE_APP_ID);
   params.append('client_secret', config.MERCADOLIBRE_CLIENT_SECRET);
-  params.append('code_verifier', codeVerifier);
   params.append('code', code);
   params.append('redirect_uri', config.MERCADOLIBRE_REDIRECT_URI);
+  if (codeVerifier) params.append('code_verifier', codeVerifier);
 
   try {
-    const { data } = await axios.post('https://api.mercadolibre.com/oauth/token', params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+    const { data } = await axios.post(`${MELI_API_BASE_URL}/oauth/token`, params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
     });
 
-    await prisma.meliIntegration.upsert({
-      where: { userId: userId },
+    const profile = await getCurrentUserProfile(data.access_token);
+
+    const integration = await prisma.meliIntegration.upsert({
+      where: { userId },
       update: {
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         expiresIn: data.expires_in,
-        expiresAt: new Date(Date.now() + data.expires_in * 1000),
-        meliUserId: data.user_id,
+        expiresAt: toExpiresAt(data.expires_in),
+        meliUserId: data.user_id ? String(data.user_id) : null,
+        nickname: profile?.nickname || profile?.email || null,
+        tokenType: data.token_type,
+        scope: data.scope,
+        rawData: { token: data, profile },
       },
       create: {
-        userId: userId,
+        userId,
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         expiresIn: data.expires_in,
-        expiresAt: new Date(Date.now() + data.expires_in * 1000),
-        meliUserId: data.user_id,
+        expiresAt: toExpiresAt(data.expires_in),
+        meliUserId: data.user_id ? String(data.user_id) : null,
+        nickname: profile?.nickname || profile?.email || null,
+        tokenType: data.token_type,
+        scope: data.scope,
+        rawData: { token: data, profile },
       },
     });
-    logger.success(`[Meli Service] Integración con Meli guardada/actualizada para el usuario ${userId}`);
+
+    logger.success(`[Meli Service] Integracion guardada para usuario ${userId}`);
+    return serializeIntegration(integration);
   } catch (error) {
-    logger.error('[Meli Service] Error al intercambiar el código con Mercado Libre:', error.response?.data || error.message);
-    throw new Error('Error al intercambiar el código con Mercado Libre. Verifica las credenciales.');
+    logger.error('[Meli Service] Error al intercambiar codigo:', error.response?.data || error.message);
+    throw new Error('Error al conectar Mercado Libre. Verifica App ID, Secret y Redirect URI.');
   }
 };
 
-/**
- * Procesa una notificación de webhook de Mercado Libre.
- * @param {object} notification - El cuerpo de la notificación.
- */
-const processWebhookNotification = async (notification) => {
-  if (notification.topic !== 'orders_v2') {
-    logger.info(`[Meli Service] Ignorando notificación con topic: ${notification.topic}`);
-    return;
-  }
-
-  try {
-    const resourceUrl = notification.resource;
-    const orderId = resourceUrl.split('/').pop();
-    const orderDetails = await getOrder(orderId);
-
-    if (orderDetails && orderDetails.status === 'paid') {
-      logger.info(`[Meli Service] Orden ${orderId} pagada. Procesando stock...`);
-      for (const item of orderDetails.order_items) {
-        const product = await prisma.product.findUnique({ where: { meliItemId: item.item.id } });
-        if (product) {
-          const updatedProduct = await prisma.product.update({
-            where: { id: product.id },
-            data: { countInStock: { decrement: item.quantity } },
-          });
-          logger.success(`[Meli Service] Stock actualizado para ${updatedProduct.name}. Nuevo stock: ${updatedProduct.countInStock}`);
-        }
-      }
-    }
-  } catch (error) {
-    logger.error(`[Meli Service] Error procesando webhook: ${error.message}`);
-  }
-};
-
-/**
- * Obtiene el ID de vendedor de la integración activa de Mercado Libre.
- * @returns {Promise<string|null>}
- */
 const getMeliSellerId = async () => {
-  const integration = await prisma.meliIntegration.findFirst();
-  return integration ? integration.meliUserId : null;
+  const integration = await getIntegration();
+  return integration?.meliUserId || null;
 };
 
-/**
- * Obtiene los pedidos recientes de un vendedor desde la API de Mercado Libre.
- * @param {string} sellerId - El ID del vendedor en Mercado Libre.
- * @returns {Promise<Array>} - Un array de pedidos.
- */
-const fetchMeliOrders = async (sellerId) => {
-  const accessToken = await getValidAccessToken();
+const fetchMeliOrders = async (sellerId, userId = null) => {
+  const accessToken = await getValidAccessToken(userId);
   if (!accessToken) {
-    throw new Error('No se pudo obtener un token de acceso válido para Mercado Libre.');
+    throw new Error('No hay token valido de Mercado Libre.');
   }
 
   try {
-    const { data } = await axios.get(`https://api.mercadolibre.com/orders/search`, {
+    const { data } = await axios.get(`${MELI_API_BASE_URL}/orders/search`, {
       params: { seller: sellerId, sort: 'date_desc', limit: 50 },
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     return data.results || [];
   } catch (error) {
-    logger.error('[Meli Service] Error al obtener pedidos de Meli:', error.response?.data || error.message);
-    throw new Error('No se pudieron obtener los pedidos de Mercado Libre.');
+    logger.error('[Meli Service] Error al obtener pedidos:', error.response?.data || error.message);
+    throw new Error('No se pudieron obtener pedidos de Mercado Libre.');
   }
 };
 
-/**
- * Obtiene los detalles de una orden de Mercado Libre.
- * @param {string} orderId - El ID de la orden en Mercado Libre.
- * @returns {Promise<object|null>}
- */
-const getOrder = async (orderId) => {
-  const accessToken = await getValidAccessToken();
+const getOrder = async (orderId, userId = null) => {
+  const accessToken = await getValidAccessToken(userId);
   if (!accessToken) {
-    throw new Error('No se pudo obtener un token de acceso válido.');
+    throw new Error('No hay token valido de Mercado Libre.');
   }
+
   try {
-    const { data } = await axios.get(`https://api.mercadolibre.com/orders/${orderId}`, {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
+    const { data } = await axios.get(`${MELI_API_BASE_URL}/orders/${orderId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     return data;
   } catch (error) {
-    logger.error(`[Meli Service] Error al obtener la orden ${orderId}:`, error.response?.data || error.message);
+    logger.error(`[Meli Service] Error al obtener orden ${orderId}:`, error.response?.data || error.message);
     return null;
   }
 };
 
+const getItem = async (userId, meliItemId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.get(`${MELI_API_BASE_URL}/items/${meliItemId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return data;
+  } catch (error) {
+    logger.error(`[Meli Service] Error al obtener item ${meliItemId}:`, error.response?.data || error.message);
+    return null;
+  }
+};
+
+const updateStock = async (userId, meliItemId, newStock) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.put(
+      `${MELI_API_BASE_URL}/items/${meliItemId}`,
+      { available_quantity: Number(newStock) },
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    return data;
+  } catch (error) {
+    logger.error(`[Meli Service] Error al actualizar stock ${meliItemId}:`, error.response?.data || error.message);
+    throw new Error('No se pudo sincronizar el stock con Mercado Libre.');
+  }
+};
+
+const processWebhookNotification = async (notification) => {
+  logger.info(`[Meli Webhook] Evento recibido topic=${notification?.topic || 'sin-topic'} resource=${notification?.resource || 'sin-resource'}`);
+
+  if (!notification?.topic || !notification?.resource) return;
+
+  await prisma.externalOrder.upsert({
+    where: {
+      channel_externalOrderId: {
+        channel: 'MERCADOLIBRE',
+        externalOrderId: String(notification.resource),
+      },
+    },
+    update: {
+      externalStatus: notification.topic,
+      rawData: notification,
+    },
+    create: {
+      channel: 'MERCADOLIBRE',
+      externalOrderId: String(notification.resource),
+      externalStatus: notification.topic,
+      rawData: notification,
+    },
+  }).catch((error) => {
+    logger.warn('[Meli Webhook] No se pudo guardar evento como orden externa:', error.message);
+  });
+};
+
 export {
+  assertMeliConfig,
+  getIntegrationStatus,
   getValidAccessToken,
   exchangeCodeForToken,
   processWebhookNotification,
   getMeliSellerId,
   fetchMeliOrders,
   getOrder,
+  getItem,
+  updateStock,
 };

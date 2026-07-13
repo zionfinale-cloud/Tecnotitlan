@@ -47,6 +47,7 @@ model User {
   tecatlHandoffs          ConversationHandoff[]    @relation("TecatlHandoffAssignee")
   permissionGrants        UserPermissionGrant[]
   permissionDenies        UserPermissionDeny[]
+  meliIntegrations        MeliIntegration[]
 
   @@map("users")
 }
@@ -454,6 +455,26 @@ model TikTokShopIntegration {
 
   @@index([openId])
   @@map("tiktok_shop_integrations")
+}
+
+model MeliIntegration {
+  id           String    @id @default(cuid())
+  userId       String    @unique @map("user_id")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meliUserId   String?   @map("meli_user_id")
+  nickname     String?
+  accessToken  String    @map("access_token") @db.Text
+  refreshToken String?   @map("refresh_token") @db.Text
+  expiresIn    Int?      @map("expires_in")
+  expiresAt    DateTime? @map("expires_at")
+  tokenType    String?   @map("token_type")
+  scope        String?   @db.Text
+  rawData      Json?     @map("raw_data")
+  connectedAt  DateTime  @default(now()) @map("connected_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([meliUserId])
+  @@map("meli_integrations")
 }
 
 model TikTokShopWebhookEvent {
