@@ -25,6 +25,7 @@ let lastError = null;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
 let resetInProgress = false;
+let shutdownInProgress = false;
 let evolutionStatus = {
     provider: 'evolution',
     status: 'DISCONNECTED',
@@ -40,14 +41,19 @@ let evolutionStatus = {
 
 const ignoredJids = new Set(['status@broadcast']);
 const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-const MAX_AUTO_RECONNECT_ATTEMPTS = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || 6);
-const RECONNECT_BASE_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_BASE_DELAY_MS || 5000);
-const RECONNECT_MAX_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_MAX_DELAY_MS || 120000);
-const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 60000;
+const MAX_AUTO_RECONNECT_ATTEMPTS = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || 2);
+const RECONNECT_BASE_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_BASE_DELAY_MS || 60000);
+const RECONNECT_MAX_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_MAX_DELAY_MS || 600000);
+const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_PAUSED_RETRY_AFTER_MS = 10 * 60 * 1000;
+const SESSION_LOCK_STALE_MS = Number(process.env.WHATSAPP_SESSION_LOCK_STALE_MS || 2 * 60 * 1000);
+const SESSION_LOCK_HEARTBEAT_MS = Number(process.env.WHATSAPP_SESSION_LOCK_HEARTBEAT_MS || 15000);
+const INSTANCE_ID = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 let autoConnectTimer = null;
 let autoConnectStarted = false;
 let pausedAt = null;
+let sessionLockTimer = null;
+let hasSessionLock = false;
 
 const mediaTypeDefinitions = [
     { key: 'imageMessage', type: 'image' },
@@ -272,6 +278,78 @@ const sanitizeSessionName = (value) => {
 };
 
 const getActiveSessionFile = () => path.join(getBaseAuthDir(), 'active-session.txt');
+const getSessionLockFile = () => path.join(getBaseAuthDir(), 'baileys-session.lock.json');
+
+const readSessionLock = async () => {
+    try {
+        const raw = await fs.readFile(getSessionLockFile(), 'utf8');
+        return JSON.parse(raw);
+    } catch (error) {
+        return null;
+    }
+};
+
+const writeSessionLock = async () => {
+    const baseDir = getBaseAuthDir();
+    await fs.mkdir(baseDir, { recursive: true });
+    await fs.writeFile(getSessionLockFile(), JSON.stringify({
+        owner: INSTANCE_ID,
+        pid: process.pid,
+        updatedAt: new Date().toISOString(),
+    }), 'utf8');
+};
+
+const stopSessionLockHeartbeat = () => {
+    if (sessionLockTimer) {
+        clearInterval(sessionLockTimer);
+        sessionLockTimer = null;
+    }
+};
+
+const startSessionLockHeartbeat = () => {
+    stopSessionLockHeartbeat();
+    sessionLockTimer = setInterval(() => {
+        writeSessionLock().catch((error) => {
+            logger.warn(`[WhatsApp] No se pudo actualizar lock de sesion: ${error.message}`);
+        });
+    }, SESSION_LOCK_HEARTBEAT_MS);
+    sessionLockTimer.unref?.();
+};
+
+const acquireSessionLock = async () => {
+    const currentLock = await readSessionLock();
+    const lockAge = currentLock?.updatedAt ? Date.now() - new Date(currentLock.updatedAt).getTime() : Infinity;
+    const lockIsFresh = Number.isFinite(lockAge) && lockAge < SESSION_LOCK_STALE_MS;
+
+    if (currentLock?.owner && currentLock.owner !== INSTANCE_ID && lockIsFresh) {
+        return {
+            acquired: false,
+            owner: currentLock.owner,
+            ageMs: lockAge,
+        };
+    }
+
+    await writeSessionLock();
+    hasSessionLock = true;
+    startSessionLockHeartbeat();
+    return { acquired: true };
+};
+
+const releaseSessionLock = async () => {
+    stopSessionLockHeartbeat();
+    if (!hasSessionLock) return;
+
+    try {
+        const currentLock = await readSessionLock();
+        if (currentLock?.owner === INSTANCE_ID) {
+            await fs.rm(getSessionLockFile(), { force: true });
+        }
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo liberar lock de sesion: ${error.message}`);
+    } finally {
+        hasSessionLock = false;
+    }
+};
 
 const ensureActiveAuthDir = async () => {
     if (activeAuthDir) return activeAuthDir;
@@ -676,6 +754,9 @@ const rotateSessionAndRequestQr = (reason) => {
 
 const pauseBaileysForManualReview = (reason, statusCode = null) => {
     clearReconnectTimer();
+    releaseSessionLock().catch((error) => {
+        logger.warn(`[WhatsApp] No se pudo liberar lock al pausar sesion: ${error.message}`);
+    });
     reconnectAttempt = 0;
     pausedAt = Date.now();
     connectionStatus = 'PAUSED';
@@ -905,6 +986,7 @@ const initializeEvolution = async () => {
 
 export const initialize = async () => {
     if (isEvolutionProvider()) return initializeEvolution();
+    if (shutdownInProgress) return getStatus();
 
     if (sock?.user && connectionStatus === 'READY') return getStatus();
     if (isInitializing) return getStatus();
@@ -919,6 +1001,17 @@ export const initialize = async () => {
 
     try {
         logger.info('Initializing WhatsApp Service (Baileys)...');
+        const lock = await acquireSessionLock();
+        if (!lock.acquired) {
+            connectionStatus = 'WAITING_FOR_SESSION_LOCK';
+            isInitializing = false;
+            lastError = `Otra instancia mantiene la sesion de WhatsApp activa. Reintentando en modo seguro.`;
+            logger.warn(`[WhatsApp] Inicializacion omitida: lock activo por ${lock.owner} (${Math.round((lock.ageMs || 0) / 1000)}s).`);
+            emitStatus();
+            scheduleBaileysReconnect('Sesion protegida por lock de despliegue');
+            return getStatus();
+        }
+
         const authDir = await ensureActiveAuthDir();
         await hydrateBaileysAuthFromDb(authDir);
         const { state, saveCreds } = await useMultiFileAuthState(authDir);
@@ -949,12 +1042,12 @@ export const initialize = async () => {
                 const statusCode = getDisconnectStatusCode(lastDisconnect);
                 lastError = lastDisconnect?.error?.message || `Conexion cerrada${statusCode ? ` (${statusCode})` : ''}`;
                 const loggedOut = isLoggedOutDisconnect(lastDisconnect, statusCode, lastError);
-                const shouldReconnect = !resetInProgress && !loggedOut;
-                const shouldRequestQr = !resetInProgress && loggedOut && shouldAutoRotateSessionOnLogout();
+                const shouldReconnect = !shutdownInProgress && !resetInProgress && !loggedOut;
+                const shouldRequestQr = !shutdownInProgress && !resetInProgress && loggedOut && shouldAutoRotateSessionOnLogout();
                 logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}. Request QR: ${shouldRequestQr}. StatusCode: ${statusCode || 'n/a'}. Reason: ${lastError}`);
                 sock = undefined;
 
-                if (!resetInProgress && loggedOut && !shouldRequestQr) {
+                if (!shutdownInProgress && !resetInProgress && loggedOut && !shouldRequestQr) {
                     pauseBaileysForManualReview(lastError, statusCode);
                     return;
                 }
@@ -1034,6 +1127,7 @@ export const initialize = async () => {
     } catch (error) {
         connectionStatus = 'ERROR';
         isInitializing = false;
+        await releaseSessionLock();
         emitStatus();
         logger.error(`[WhatsApp] No se pudo inicializar: ${error.message}`);
         throw error;
@@ -1104,6 +1198,38 @@ export const stopAutoConnectWatchdog = () => {
         clearTimeout(autoConnectTimer);
         autoConnectTimer = null;
     }
+};
+
+export const shutdown = async () => {
+    shutdownInProgress = true;
+    stopAutoConnectWatchdog();
+    clearReconnectTimer();
+
+    if (authSyncTimer) {
+        clearTimeout(authSyncTimer);
+        authSyncTimer = null;
+    }
+
+    if (!isEvolutionProvider() && activeAuthDir) {
+        await syncBaileysAuthToDb(activeAuthDir).catch((error) => {
+            logger.warn(`[WhatsApp] No se pudo sincronizar sesion durante shutdown: ${error.message}`);
+        });
+    }
+
+    try {
+        sock?.ws?.close?.(1000, 'server shutdown');
+        sock?.end?.(new Error('Server shutdown'));
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo cerrar socket durante shutdown: ${error.message}`);
+    }
+
+    sock = undefined;
+    isInitializing = false;
+    if (!resetInProgress) connectionStatus = 'DISCONNECTED';
+
+    await releaseSessionLock();
+    emitStatus();
+    shutdownInProgress = false;
 };
 
 export const getClient = () => sock;

@@ -943,15 +943,17 @@ Variables recomendadas:
 - `WHATSAPP_PROVIDER=baileys`
 - `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
 - `WHATSAPP_AUTO_CONNECT=true`
-- `WHATSAPP_MAX_RECONNECT_ATTEMPTS=6`
-- `WHATSAPP_RECONNECT_BASE_DELAY_MS=5000`
-- `WHATSAPP_RECONNECT_MAX_DELAY_MS=120000`
-- `WHATSAPP_KEEP_ALIVE_INTERVAL_MS=60000`
+- `WHATSAPP_MAX_RECONNECT_ATTEMPTS=2`
+- `WHATSAPP_RECONNECT_BASE_DELAY_MS=60000`
+- `WHATSAPP_RECONNECT_MAX_DELAY_MS=600000`
+- `WHATSAPP_KEEP_ALIVE_INTERVAL_MS=300000`
 - `WHATSAPP_PAUSED_RETRY_AFTER_MS=600000`
 - `WHATSAPP_AUTO_RETRY_PAUSED=false`
 - `WHATSAPP_AUTO_ROTATE_SESSION_ON_LOGOUT=false`
+- `WHATSAPP_SESSION_LOCK_STALE_MS=120000`
+- `WHATSAPP_SESSION_LOCK_HEARTBEAT_MS=15000`
 
-Operativa: montar el volumen persistente en `/app/auth_info_baileys`, redeplegar API y dejar `WHATSAPP_AUTO_CONNECT=true` solo cuando la cuenta no este restringida. Al iniciar, el backend levanta el watchdog de WhatsApp y reusa la sesion persistente. Si WhatsApp invalida la sesion, el estado pasa a `PAUSED`; no se debe borrar ni rotar sesion automaticamente. Solo se entra a `Configuracion -> WhatsApp QR` cuando se necesite borrar/vincular una sesion nueva y siempre despues de esperar cualquier ventana de restriccion indicada por WhatsApp.
+Operativa: montar el volumen persistente en `/app/auth_info_baileys`, redeplegar API y dejar `WHATSAPP_AUTO_CONNECT=true` solo cuando la cuenta no este restringida. Al iniciar, el backend levanta el watchdog de WhatsApp y reusa la sesion persistente. Para evitar bloqueos durante updates, Baileys crea un lock persistente `baileys-session.lock.json`; si un contenedor anterior sigue apagandose, el nuevo espera y reintenta en modo seguro en lugar de abrir otra sesion con las mismas llaves. En `SIGTERM`/`SIGINT`, el backend sincroniza las credenciales a DB, cierra el socket y libera el lock antes de desconectar Prisma. Si WhatsApp invalida la sesion, el estado pasa a `PAUSED`; no se debe borrar ni rotar sesion automaticamente. Solo se entra a `Configuracion -> WhatsApp QR` cuando se necesite borrar/vincular una sesion nueva y siempre despues de esperar cualquier ventana de restriccion indicada por WhatsApp.
 
 Regla de emergencia: si WhatsApp bloquea/restringe la cuenta por varias horas, poner temporalmente `WHATSAPP_AUTO_CONNECT=false`, redeplegar la API, esperar la ventana completa y despues volver a activar `WHATSAPP_AUTO_CONNECT=true` para vincular una sola vez.
 

@@ -209,12 +209,13 @@ serverReadyPromise.then(() => {
 // Vital para cPanel: Asegura que los procesos viejos mueran realmente al reiniciar.
 const gracefulShutdown = async (signal) => {
   logger.info(`${signal} recibido. Cerrando servidor ordenadamente...`);
-  whatsappService.stopAutoConnectWatchdog();
+  await whatsappService.shutdown();
   
   if (server) {
-    server.close(() => {
+    await new Promise((resolve) => server.close(() => {
       logger.info('Servidor HTTP cerrado.');
-    });
+      resolve();
+    }));
   }
 
   // Desconectar Prisma para liberar la conexión a la BD
