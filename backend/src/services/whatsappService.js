@@ -148,8 +148,112 @@ const getEvolutionConfig = () => {
 const maskEvolutionWebhookUrl = (url = '') => String(url || '').replace(/([?&]secret=)[^&]+/i, '$1********');
 
 let activeAuthDir = null;
+const BAILEYS_AUTH_PROVIDER = 'baileys';
+let authSyncTimer = null;
+let authSyncRunning = false;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isSafeAuthRelativePath = (relativePath = '') => {
+    if (!relativePath || path.isAbsolute(relativePath)) return false;
+    return !relativePath.split(/[\\/]/).includes('..');
+};
+
+const isJsonAuthFile = (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json');
+
+const collectAuthJsonFiles = async (baseDir, currentDir = baseDir) => {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true }).catch(() => []);
+    const files = [];
+
+    for (const entry of entries) {
+        const fullPath = path.join(currentDir, entry.name);
+        if (entry.isDirectory()) {
+            files.push(...await collectAuthJsonFiles(baseDir, fullPath));
+            continue;
+        }
+        if (!isJsonAuthFile(entry)) continue;
+
+        try {
+            const raw = await fs.readFile(fullPath, 'utf8');
+            files.push({
+                relativePath: path.relative(baseDir, fullPath).replace(/\\/g, '/'),
+                content: JSON.parse(raw),
+            });
+        } catch (error) {
+            logger.warn(`[WhatsApp] No se pudo leer credencial ${fullPath}: ${error.message}`);
+        }
+    }
+
+    return files;
+};
+
+const countAuthJsonFiles = async (authDir) => {
+    const files = await collectAuthJsonFiles(authDir);
+    return files.length;
+};
+
+const hydrateBaileysAuthFromDb = async (authDir) => {
+    const filesOnDisk = await countAuthJsonFiles(authDir).catch(() => 0);
+    if (filesOnDisk > 0) return;
+
+    const rows = await prisma.whatsAppAuthFile.findMany({
+        where: { provider: BAILEYS_AUTH_PROVIDER },
+    });
+
+    if (rows.length === 0) return;
+
+    const base = path.resolve(authDir);
+    for (const row of rows) {
+        if (!isSafeAuthRelativePath(row.relativePath)) continue;
+        const target = path.resolve(base, row.relativePath);
+        if (!target.startsWith(`${base}${path.sep}`)) continue;
+
+        await fs.mkdir(path.dirname(target), { recursive: true });
+        await fs.writeFile(target, JSON.stringify(row.content), 'utf8');
+    }
+
+    logger.info(`[WhatsApp] Sesion Baileys restaurada desde DB (${rows.length} archivos).`);
+};
+
+const syncBaileysAuthToDb = async (authDir) => {
+    if (authSyncRunning) return;
+    authSyncRunning = true;
+
+    try {
+        const files = await collectAuthJsonFiles(authDir);
+        await Promise.all(files.map((file) => prisma.whatsAppAuthFile.upsert({
+            where: {
+                provider_relativePath: {
+                    provider: BAILEYS_AUTH_PROVIDER,
+                    relativePath: file.relativePath,
+                },
+            },
+            create: {
+                provider: BAILEYS_AUTH_PROVIDER,
+                relativePath: file.relativePath,
+                content: file.content,
+            },
+            update: {
+                content: file.content,
+            },
+        })));
+
+        if (files.length > 0) {
+            logger.info(`[WhatsApp] Credenciales Baileys sincronizadas en DB (${files.length} archivos).`);
+        }
+    } finally {
+        authSyncRunning = false;
+    }
+};
+
+const scheduleBaileysAuthSync = (authDir) => {
+    if (authSyncTimer) clearTimeout(authSyncTimer);
+    authSyncTimer = setTimeout(() => {
+        syncBaileysAuthToDb(authDir).catch((error) => {
+            logger.warn(`[WhatsApp] No se pudo sincronizar sesion en DB: ${error.message}`);
+        });
+    }, 1500);
+};
 
 const clearReconnectTimer = () => {
     if (!reconnectTimer) return;
@@ -816,6 +920,7 @@ export const initialize = async () => {
     try {
         logger.info('Initializing WhatsApp Service (Baileys)...');
         const authDir = await ensureActiveAuthDir();
+        await hydrateBaileysAuthFromDb(authDir);
         const { state, saveCreds } = await useMultiFileAuthState(authDir);
         const { version } = await fetchLatestBaileysVersion();
 
@@ -873,6 +978,7 @@ export const initialize = async () => {
                 reconnectAttempt = 0;
                 pausedAt = null;
                 clearReconnectTimer();
+                scheduleBaileysAuthSync(authDir);
                 logger.info('WhatsApp connection opened');
                 emitStatus();
             }
@@ -916,7 +1022,14 @@ export const initialize = async () => {
             }
         });
 
-        sock.ev.on('creds.update', saveCreds);
+        sock.ev.on('creds.update', async () => {
+            try {
+                await saveCreds();
+                scheduleBaileysAuthSync(authDir);
+            } catch (error) {
+                logger.warn(`[WhatsApp] No se pudo guardar/sincronizar credenciales: ${error.message}`);
+            }
+        });
         return getStatus();
     } catch (error) {
         connectionStatus = 'ERROR';

@@ -33,6 +33,9 @@ const serializeAdminUser = (user) => ({
   phone: user.phone,
   roleId: user.roleId,
   role: user.role,
+  notificationEmailEnabled: user.notificationEmailEnabled,
+  notificationWhatsappEnabled: user.notificationWhatsappEnabled,
+  notificationWhatsapp: user.notificationWhatsapp,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
   isVerified: user.isVerified,
@@ -432,6 +435,20 @@ const updateUser = asyncHandler(async (req, res, next) => {
       secondLastName: req.body.secondLastName || user.secondLastName,
       email: req.body.email ? req.body.email.toLowerCase() : user.email,
     };
+
+    if (typeof req.body.notificationEmailEnabled === 'boolean') {
+      dataToUpdate.notificationEmailEnabled = req.body.notificationEmailEnabled;
+    }
+
+    if (typeof req.body.notificationWhatsappEnabled === 'boolean') {
+      dataToUpdate.notificationWhatsappEnabled = req.body.notificationWhatsappEnabled;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, 'notificationWhatsapp')) {
+      dataToUpdate.notificationWhatsapp = req.body.notificationWhatsapp
+        ? String(req.body.notificationWhatsapp).trim()
+        : null;
+    }
 
     const nextRoleId = req.body.roleId || user.roleId;
 

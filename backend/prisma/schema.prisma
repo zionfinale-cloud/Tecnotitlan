@@ -15,39 +15,42 @@ datasource db {
 // --- MODELOS DE LA APLICACIÓN ---
 
 model User {
-  id                      String                   @id @default(cuid())
-  customerNumber          String?                  @unique @map("customer_number")
-  firstName               String                   @map("first_name")
-  lastName                String                   @map("last_name")
-  secondLastName          String?                  @map("second_last_name")
-  email                   String                   @unique
-  password                String
-  countryCode             String?                  @map("country_code")
-  phone                   String?
-  street                  String?
-  neighborhood            String?
-  city                    String?
-  state                   String?
-  postalCode              String?                  @map("postal_code")
-  isVerified              Boolean                  @default(false) @map("is_verified")
-  verificationToken       String?                  @map("verification_token")
-  role                    Role                     @relation(fields: [roleId], references: [id])
-  roleId                  String
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  id                          String                   @id @default(cuid())
+  customerNumber              String?                  @unique @map("customer_number")
+  firstName                   String                   @map("first_name")
+  lastName                    String                   @map("last_name")
+  secondLastName              String?                  @map("second_last_name")
+  email                       String                   @unique
+  password                    String
+  countryCode                 String?                  @map("country_code")
+  phone                       String?
+  street                      String?
+  neighborhood                String?
+  city                        String?
+  state                       String?
+  postalCode                  String?                  @map("postal_code")
+  isVerified                  Boolean                  @default(false) @map("is_verified")
+  verificationToken           String?                  @map("verification_token")
+  notificationEmailEnabled    Boolean                  @default(true) @map("notification_email_enabled")
+  notificationWhatsappEnabled Boolean                  @default(false) @map("notification_whatsapp_enabled")
+  notificationWhatsapp        String?                  @map("notification_whatsapp")
+  role                        Role                     @relation(fields: [roleId], references: [id])
+  roleId                      String
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
   // Relaciones
-  products                Product[]
-  orders                  Order[]
-  reviews                 Review[]
-  supportTickets          SupportTicket[]
-  inventoryInvestments    InventoryInvestment[]
-  inventoryMovements      InventoryMovement[]
-  investmentCashMovements InvestmentCashMovement[]
-  tecatlConversations     ChatConversation[]
-  tecatlHandoffs          ConversationHandoff[]    @relation("TecatlHandoffAssignee")
-  permissionGrants        UserPermissionGrant[]
-  permissionDenies        UserPermissionDeny[]
-  meliIntegrations        MeliIntegration[]
+  products                    Product[]
+  orders                      Order[]
+  reviews                     Review[]
+  supportTickets              SupportTicket[]
+  inventoryInvestments        InventoryInvestment[]
+  inventoryMovements          InventoryMovement[]
+  investmentCashMovements     InvestmentCashMovement[]
+  tecatlConversations         ChatConversation[]
+  tecatlHandoffs              ConversationHandoff[]    @relation("TecatlHandoffAssignee")
+  permissionGrants            UserPermissionGrant[]
+  permissionDenies            UserPermissionDeny[]
+  meliIntegrations            MeliIntegration[]
 
   @@map("users")
 }
@@ -264,6 +267,7 @@ model Order {
   isPaid          Boolean         @default(false)
   paidAt          DateTime?
   paymentMethod   String
+  salesChannel    SalesChannel    @default(WEB) @map("sales_channel")
   isDelivered     Boolean         @default(false)
   deliveredAt     DateTime?
   status          OrderStatus     @default(PENDING_PAYMENT)
@@ -594,6 +598,18 @@ model WhatsAppMessage {
 
   @@index([chatId, createdAt])
   @@map("whatsapp_messages")
+}
+
+model WhatsAppAuthFile {
+  id           String   @id @default(cuid())
+  provider     String   @default("baileys")
+  relativePath String   @map("relative_path")
+  content      Json
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, relativePath])
+  @@map("whatsapp_auth_files")
 }
 
 // --- ENUMS ---

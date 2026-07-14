@@ -45,6 +45,20 @@ const statusTone = {
   CANCELLED: 'danger',
 };
 
+const channelLabels = {
+  WEB: 'Web',
+  MERCADOLIBRE: 'Mercado Libre',
+  TIKTOK_SHOP: 'TikTok Shop',
+  AMAZON: 'Amazon',
+};
+
+const channelTone = {
+  WEB: 'channelWeb',
+  MERCADOLIBRE: 'channelMeli',
+  TIKTOK_SHOP: 'channelTiktok',
+  AMAZON: 'channelAmazon',
+};
+
 const COMPLETED_ORDER_STATUSES = new Set(['DELIVERED', 'CANCELLED']);
 
 const getCustomerName = (order) => {
@@ -283,6 +297,9 @@ const OrderListScreen = () => {
                 </div>
 
                 <div className={styles.badges}>
+                  <span className={`${styles.badge} ${styles[channelTone[order.salesChannel] || 'channelWeb']}`}>
+                    {channelLabels[order.salesChannel] || order.salesChannel || 'Web'}
+                  </span>
                   <span className={`${styles.badge} ${styles[statusTone[order.status] || 'info']}`}>
                     {statusLabels[order.status] || order.status}
                   </span>

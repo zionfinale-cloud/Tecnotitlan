@@ -6,6 +6,7 @@ import { getConfig } from '../services/configService.js';
 import * as whatsappService from '../services/whatsappService.js';
 import { applyPaidOrderInventoryMovements } from '../services/orderInventoryService.js';
 import { sendOrderPaidEmail } from '../services/emailService.js';
+import { notifyStaffOrderPaid } from '../services/staffNotificationService.js';
 
 let stripe;
 
@@ -128,6 +129,7 @@ const markStripeOrderPaid = async (paymentIntent) => {
     await sendOrderPaidEmail(updatedOrder);
     await whatsappService.sendCustomerOrderPaidNotification(updatedOrder);
     whatsappService.sendAdminOrderPaidNotification(updatedOrder);
+    await notifyStaffOrderPaid(updatedOrder);
   }
   logger.info(`[Stripe Webhook] Pedido ${updatedOrder.orderNumber} marcado como pagado.`);
   return updatedOrder;

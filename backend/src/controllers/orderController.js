@@ -6,6 +6,7 @@ import * as whatsappService from '../services/whatsappService.js';
 import { getConfig } from '../services/configService.js';
 import { applyPaidOrderInventoryMovements } from '../services/orderInventoryService.js';
 import { sendOrderDeliveredEmail, sendOrderPaidEmail, sendOrderShippedEmail } from '../services/emailService.js';
+import { notifyStaffOrderPaid, notifyStaffOrderStatusChanged } from '../services/staffNotificationService.js';
 import Stripe from 'stripe';
 import axios from 'axios'; // <-- REQUERIDO
 
@@ -45,6 +46,13 @@ const VALID_ORDER_STATUSES = new Set([
   'DELIVERED',
   'CANCELLED',
 ]);
+
+const VALID_SALES_CHANNELS = new Set(['WEB', 'MERCADOLIBRE', 'TIKTOK_SHOP', 'AMAZON']);
+
+const normalizeSalesChannel = (value) => {
+  const normalized = String(value || 'WEB').trim().toUpperCase();
+  return VALID_SALES_CHANNELS.has(normalized) ? normalized : 'WEB';
+};
 
 const STATUS_HISTORY_NOTES = {
   PENDING_PAYMENT: 'Pedido creado y pendiente de pago.',
@@ -113,8 +121,11 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
   const {
     orderItems,
     shippingAddress,
-    paymentMethod,
-  } = req.body;
+  paymentMethod,
+  salesChannel,
+  channel,
+} = req.body;
+  const normalizedSalesChannel = normalizeSalesChannel(salesChannel || channel);
 
   if (!orderItems || orderItems.length === 0) {
     return next(new BadRequestError('No hay artículos en el pedido'));
@@ -202,6 +213,7 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
           totalPrice,
           shippingAddress, // Prisma maneja el JSON automáticamente
           paymentMethod,
+          salesChannel: normalizedSalesChannel,
           // 3. Crear los items del pedido y conectarlos
           orderItems: {
             create: orderItems.map(item => {
@@ -428,6 +440,7 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
     await sendOrderPaidEmail(updatedOrder);
     await whatsappService.sendCustomerOrderPaidNotification(updatedOrder);
     whatsappService.sendAdminOrderPaidNotification(updatedOrder);
+    await notifyStaffOrderPaid(updatedOrder);
   }
   res.status(200).json({ status: 'success', data: { order: updatedOrder } });
 });
@@ -498,6 +511,7 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
     await sendOrderPaidEmail(updatedOrder);
     await whatsappService.sendCustomerOrderPaidNotification(updatedOrder);
     whatsappService.sendAdminOrderPaidNotification(updatedOrder);
+    await notifyStaffOrderPaid(updatedOrder);
 
     res.status(200).json({ status: 'success', data: { order: updatedOrder } });
   } else {
@@ -717,6 +731,13 @@ const updateOrderStatusOperational = asyncHandler(async (req, res, next) => {
   } else if (nextStatus === 'CANCELLED') {
     await whatsappService.sendCustomerOrderStatusNotification(updatedOrder);
   }
+
+  await notifyStaffOrderStatusChanged(updatedOrder, {
+    previousStatus: order.status,
+    nextStatus,
+    notes: notes || STATUS_HISTORY_NOTES[nextStatus],
+    hasShippingUpdate,
+  });
 
   res.status(200).json({ status: 'success', data: { order: updatedOrder } });
 });

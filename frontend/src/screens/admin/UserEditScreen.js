@@ -16,6 +16,9 @@ const UserEditScreen = () => {
     roleId: '',
     permissionGrantIds: [],
     permissionDenyIds: [],
+    notificationEmailEnabled: true,
+    notificationWhatsappEnabled: false,
+    notificationWhatsapp: '',
   });
   const [userMeta, setUserMeta] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +45,9 @@ const UserEditScreen = () => {
           roleId: user.roleId || user.role?.id || '',
           permissionGrantIds: user.permissionGrantIds || [],
           permissionDenyIds: user.permissionDenyIds || [],
+          notificationEmailEnabled: user.notificationEmailEnabled !== false,
+          notificationWhatsappEnabled: Boolean(user.notificationWhatsappEnabled),
+          notificationWhatsapp: user.notificationWhatsapp || '',
         });
         setUserMeta(user);
         setRoles(rolesResponse.data.data.roles || []);
@@ -69,6 +75,9 @@ const UserEditScreen = () => {
           ...current,
           permissionGrantIds: data.data.user.permissionGrantIds || current.permissionGrantIds,
           permissionDenyIds: data.data.user.permissionDenyIds || current.permissionDenyIds,
+          notificationEmailEnabled: data.data.user.notificationEmailEnabled !== false,
+          notificationWhatsappEnabled: Boolean(data.data.user.notificationWhatsappEnabled),
+          notificationWhatsapp: data.data.user.notificationWhatsapp || '',
         }));
       }
       setSuccess('Usuario actualizado.');
@@ -304,6 +313,40 @@ const UserEditScreen = () => {
               <small className={styles.muted}>
                 El rol es la base. Abajo puedes permitir o bloquear permisos solo para este usuario.
               </small>
+            </div>
+            <div className={`${styles.field} ${styles.fieldFull}`}>
+              <div className={styles.notificationPanel}>
+                <strong>Notificaciones operativas</strong>
+                <p className={styles.placeholderText}>
+                  Define como avisarle a esta persona cuando entra una venta o cambia el estado de un pedido.
+                </p>
+                <div className={styles.notificationGrid}>
+                  <label className={styles.notificationOption}>
+                    <input
+                      type="checkbox"
+                      checked={form.notificationEmailEnabled}
+                      onChange={(event) => setForm({ ...form, notificationEmailEnabled: event.target.checked })}
+                    />
+                    Avisar por correo
+                  </label>
+                  <label className={styles.notificationOption}>
+                    <input
+                      type="checkbox"
+                      checked={form.notificationWhatsappEnabled}
+                      onChange={(event) => setForm({ ...form, notificationWhatsappEnabled: event.target.checked })}
+                    />
+                    Avisar por WhatsApp
+                  </label>
+                </div>
+                <label className={styles.label}>WhatsApp operativo</label>
+                <input
+                  className={styles.input}
+                  value={form.notificationWhatsapp}
+                  placeholder="+52 3481510949"
+                  onChange={(event) => setForm({ ...form, notificationWhatsapp: event.target.value })}
+                />
+                <small className={styles.muted}>Si queda vacio, se usa el telefono guardado del usuario cuando exista.</small>
+              </div>
             </div>
           </div>
 

@@ -986,6 +986,25 @@ Flujo recomendado:
 
 Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Evolution reporta la instancia como conectada. Si no esta conectada, el sistema registra el aviso omitido en logs y no bloquea la compra ni el correo transaccional.
 
+### Notificaciones internas de ventas y cambios de estado
+
+Desde 2026-07-14, Tecnotitlan separa las notificaciones del cliente y las notificaciones internas del equipo:
+
+- Cuando un pedido queda pagado, el cliente recibe su confirmacion y el equipo operativo recibe un aviso interno.
+- Cuando un pedido cambia de estado (`PENDING_PAYMENT`, `PROCESSING`, `PENDING_FULFILLMENT`, `SHIPPED`, `DELIVERED`, `CANCELLED`), el equipo operativo recibe aviso con pedido, canal, cliente, total y productos.
+- Los destinatarios internos son usuarios con rol `SUPER_ADMIN`, `ADMIN`, `SUPERVISOR` o `VENDEDOR`.
+- Cada usuario puede configurar si recibe avisos por correo, WhatsApp o ambos desde `Usuarios > Editar usuario > Notificaciones operativas`.
+- El numero de WhatsApp operativo puede ser especifico para ese usuario; si queda vacio, el sistema intenta usar su telefono registrado.
+- Los pedidos guardan `salesChannel` para distinguir ventas de `WEB`, `MERCADOLIBRE`, `TIKTOK_SHOP` y `AMAZON`. La pantalla de pedidos muestra un chip por canal para no mezclar visualmente ventas web con ventas de marketplace.
+
+Regla de seguridad: si WhatsApp no esta conectado, el pedido no se bloquea. El sistema registra el aviso omitido y conserva el flujo por correo/inventario. WhatsApp es un canal de notificacion, no una condicion para vender.
+
+### Respaldo de sesion Baileys en base de datos
+
+Para reducir reinicios de sesion y evitar ciclos de QR, Baileys mantiene el volumen persistente `/app/auth_info_baileys` y ademas sincroniza los archivos JSON de autenticacion en la tabla `whatsapp_auth_files`. Al arrancar, si el directorio local no tiene credenciales, el backend intenta restaurarlas desde la base de datos antes de inicializar Baileys.
+
+Esta estrategia no evita bloqueos impuestos por WhatsApp si la sesion fue cerrada o invalidada desde el telefono, pero ayuda a sobrevivir redeploys, reinicios del contenedor y perdida accidental de archivos locales.
+
 ---
 
 ## 15. Troubleshooting

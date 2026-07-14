@@ -44,7 +44,7 @@ const createTransporter = () => {
   });
 };
 
-const sendTransactionalMail = async (mailOptions) => {
+export const sendTransactionalMail = async (mailOptions) => {
   const runtimeConfig = getEmailConfig();
   const transporter = createTransporter();
 
