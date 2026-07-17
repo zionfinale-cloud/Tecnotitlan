@@ -575,7 +575,7 @@ const waitForReady = async (timeoutMs = 12000) => {
     return sock?.user && connectionStatus === 'READY';
 };
 
-const ensureReadyForNotification = async () => {
+export const ensureReadyForNotification = async () => {
     if (isWhatsAppDisabledProvider()) return false;
 
     if (sock?.user && connectionStatus === 'READY') return true;

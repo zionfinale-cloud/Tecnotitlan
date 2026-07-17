@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
 import { sendTransactionalMail } from './emailService.js';
 import * as whatsappService from './whatsappService.js';
+import { getConfig } from './configService.js';
 
 const OPERATIONAL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'VENDEDOR'];
 
@@ -113,6 +114,12 @@ const sendStaffEmail = async ({ subject, title, preview, order, rows }) => {
 };
 
 const sendStaffWhatsApp = async ({ order, message }) => {
+  const isReady = await whatsappService.ensureReadyForNotification();
+  if (!isReady) {
+    logger.warn(`[Staff Notifications] WhatsApp omitido para ${order.orderNumber}: WhatsApp no conectado.`);
+    return;
+  }
+
   const staff = await getStaffRecipients();
   const recipients = staff
     .filter((user) => user.notificationWhatsappEnabled === true)
@@ -123,17 +130,26 @@ const sendStaffWhatsApp = async ({ order, message }) => {
     .filter((recipient) => recipient.phone);
 
   if (recipients.length === 0) {
-    logger.info(`[Staff Notifications] Sin destinatarios WhatsApp para ${order.orderNumber}.`);
-    return;
+    const adminWhatsappNumber = normalizePhone(getConfig().ADMIN_WHATSAPP_NUMBER);
+    if (adminWhatsappNumber) {
+      recipients.push({ name: 'WhatsApp administrador', phone: adminWhatsappNumber });
+    } else {
+      logger.info(`[Staff Notifications] Sin destinatarios WhatsApp para ${order.orderNumber}.`);
+      return;
+    }
   }
 
+  const dedupedRecipients = recipients.filter((recipient, index, allRecipients) => (
+    allRecipients.findIndex((candidate) => candidate.phone === recipient.phone) === index
+  ));
+
   const results = await Promise.allSettled(
-    recipients.map((recipient) => whatsappService.sendMessage(recipient.phone, message, 'Sistema'))
+    dedupedRecipients.map((recipient) => whatsappService.sendMessage(recipient.phone, message, 'Sistema'))
   );
 
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
-      logger.warn(`[Staff Notifications] WhatsApp omitido para ${recipients[index].name}: ${result.reason?.message || result.reason}`);
+      logger.warn(`[Staff Notifications] WhatsApp omitido para ${dedupedRecipients[index].name}: ${result.reason?.message || result.reason}`);
     }
   });
 };

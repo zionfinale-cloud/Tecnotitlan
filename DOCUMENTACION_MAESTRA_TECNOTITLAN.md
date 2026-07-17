@@ -1012,6 +1012,8 @@ Desde 2026-07-14, Tecnotitlan separa las notificaciones del cliente y las notifi
 - Los destinatarios internos son usuarios con rol `SUPER_ADMIN`, `ADMIN`, `SUPERVISOR` o `VENDEDOR`.
 - Cada usuario puede configurar si recibe avisos por correo, WhatsApp o ambos desde `Usuarios > Editar usuario > Notificaciones operativas`.
 - El numero de WhatsApp operativo puede ser especifico para ese usuario; si queda vacio, el sistema intenta usar su telefono registrado.
+- La configuracion dinamica de la base de datos tiene prioridad sobre el `.env`. Si `WHATSAPP_AUTO_CONNECT` queda guardado como `false` en `Configuracion > Sistema`, las notificaciones no levantan la sesion aunque el `.env` diga `true`.
+- Antes de avisar al equipo por WhatsApp, el backend intenta conectar con la sesion persistente. Si no hay usuarios operativos con WhatsApp habilitado, usa `ADMIN_WHATSAPP_NUMBER` como respaldo cuando este configurado.
 - Los pedidos guardan `salesChannel` para distinguir ventas de `WEB`, `MERCADOLIBRE`, `TIKTOK_SHOP` y `AMAZON`. La pantalla de pedidos muestra un chip por canal para no mezclar visualmente ventas web con ventas de marketplace.
 
 Regla de seguridad: si WhatsApp no esta conectado, el pedido no se bloquea. El sistema registra el aviso omitido y conserva el flujo por correo/inventario. WhatsApp es un canal de notificacion, no una condicion para vender.
