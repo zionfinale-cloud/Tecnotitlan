@@ -44,6 +44,54 @@ const serializeAdminUser = (user) => ({
   permissionOverrides: getPermissionOverrideNames(user),
 });
 
+const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
+
+const serializeAddress = (address) => ({
+  id: address.id,
+  label: address.label,
+  recipient: address.recipient,
+  phone: address.phone,
+  street: address.street,
+  neighborhood: address.neighborhood,
+  city: address.city,
+  state: address.state,
+  postalCode: address.postalCode,
+  country: address.country,
+  references: address.references,
+  isDefault: address.isDefault,
+});
+
+const normalizeAddressPayload = (address, index = 0) => {
+  const label = String(address.label || (index === 0 ? 'Principal' : `Direccion ${index + 1}`)).trim();
+  const recipient = String(address.recipient || address.name || '').trim();
+  const phone = normalizePhone(address.phone);
+  const street = String(address.street || address.address || '').trim();
+  const neighborhood = String(address.neighborhood || '').trim();
+  const city = String(address.city || '').trim();
+  const state = String(address.state || '').trim();
+  const postalCode = String(address.postalCode || address.zipCode || '').trim();
+  const country = String(address.country || 'Mexico').trim();
+  const references = String(address.references || '').trim();
+
+  if (!recipient || !phone || !street || !city || !state || !postalCode) {
+    throw new BadRequestError('Cada domicilio debe incluir receptor, telefono, calle, ciudad, estado y codigo postal.');
+  }
+
+  return {
+    label,
+    recipient,
+    phone,
+    street,
+    neighborhood: neighborhood || null,
+    city,
+    state,
+    postalCode,
+    country,
+    references: references || null,
+    isDefault: index === 0 ? true : Boolean(address.isDefault),
+  };
+};
+
 const getNextCustomerNumber = async (tx) => {
   const counter = await tx.counter.upsert({
     where: { id: 'customerNumber' },
@@ -102,6 +150,11 @@ const registerUser = asyncHandler(async (req, res, next) => {
 
   if (!email) {
     return next(new BadRequestError('El email es obligatorio.'));
+  }
+
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone || normalizedPhone.length < 10) {
+    return next(new BadRequestError('El numero celular es obligatorio para poder dar seguimiento a tus pedidos.'));
   }
 
   if (process.env.NODE_ENV === 'production' && !process.env.RECAPTCHA_SECRET_KEY) {
@@ -176,7 +229,7 @@ const registerUser = asyncHandler(async (req, res, next) => {
         email: email.toLowerCase(),
         password: hashedPassword,
         countryCode,
-        phone,
+        phone: normalizedPhone,
         street,
         neighborhood,
         city,
@@ -306,7 +359,8 @@ const loginUser = asyncHandler(async (req, res, next) => {
 const getUserProfile = asyncHandler(async (req, res, next) => {
   // req.user es añadido por el middleware 'protect'
   const user = await prisma.user.findUnique({
-    where: { id: req.user.id }
+    where: { id: req.user.id },
+    include: { addresses: { orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] } },
     // No se necesita `select` o `include` si queremos todos los campos escalares.
     // La contraseña se excluye automáticamente si no se solicita explícitamente.
   });
@@ -329,6 +383,7 @@ const getUserProfile = asyncHandler(async (req, res, next) => {
         city: user.city,
         state: user.state,
         postalCode: user.postalCode,
+        addresses: user.addresses.map(serializeAddress),
       },
     });
   } else {
@@ -342,7 +397,7 @@ const getUserProfile = asyncHandler(async (req, res, next) => {
 const updateUserProfile = asyncHandler(async (req, res, next) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
-    include: { role: true },
+    include: { role: true, addresses: true },
   });
 
   if (!user) {
@@ -363,7 +418,11 @@ const updateUserProfile = asyncHandler(async (req, res, next) => {
   };
 
   if (req.body.phone !== undefined) {
-    dataToUpdate.phone = req.body.phone;
+    const normalizedPhone = normalizePhone(req.body.phone);
+    if (!normalizedPhone || normalizedPhone.length < 10) {
+      return next(new BadRequestError('El numero celular debe tener al menos 10 digitos.'));
+    }
+    dataToUpdate.phone = normalizedPhone;
   }
 
   if (req.body.password) {
@@ -371,11 +430,29 @@ const updateUserProfile = asyncHandler(async (req, res, next) => {
     dataToUpdate.password = await bcrypt.hash(req.body.password, salt);
   }
 
-  const updatedUser = await prisma.user.update({
-    where: { id: req.user.id },
-    data: dataToUpdate,
-    // Incluir el rol y los permisos para devolver un objeto userInfo completo
-    include: userPermissionInclude,
+  const normalizedAddresses = Array.isArray(req.body.addresses)
+    ? req.body.addresses
+      .filter((address) => address && Object.values(address).some((value) => String(value || '').trim()))
+      .map(normalizeAddressPayload)
+    : undefined;
+
+  const updatedUser = await prisma.$transaction(async (tx) => {
+    if (normalizedAddresses) {
+      await tx.customerAddress.deleteMany({ where: { userId: req.user.id } });
+    }
+
+    const savedUser = await tx.user.update({
+      where: { id: req.user.id },
+      data: {
+        ...dataToUpdate,
+        ...(normalizedAddresses
+          ? { addresses: { create: normalizedAddresses } }
+          : {}),
+      },
+      include: userPermissionInclude,
+    });
+
+    return savedUser;
   });
 
     res.status(200).json({

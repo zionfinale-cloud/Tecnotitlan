@@ -1,21 +1,326 @@
-.page { min-height: 75vh; padding-top: 3rem; padding-bottom: 4rem; color: #f5f7f6; }
-.profileCard { display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem; border: 1px solid #263034; border-radius: 16px; background: linear-gradient(145deg, #12181a, #090d0f); }
-.avatarLarge { width: 74px; height: 74px; flex: 0 0 74px; border-radius: 50%; display: grid; place-items: center; background: rgba(117,242,56,.1); border: 1px solid var(--cta-color); color: var(--cta-color); font-size: 2rem; font-weight: 900; }
-.profileCard h1, .sectionHeader h2 { margin: .15rem 0; color: #fff; }
-.profileCard p { margin: 0; color: #9ca6a1; }
-.profileCard button { margin-left: auto; }
-.eyebrow { color: var(--cta-color); font-size: .65rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-.orders { padding-top: 3rem; scroll-margin-top: 150px; }
-.sectionHeader { margin-bottom: 1.25rem; }
-.orderGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
-.orderCard { padding: 1.25rem; border: 1px solid #263034; border-radius: 14px; background: #0d1214; display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
-.orderCard div { display: flex; flex-direction: column; gap: .25rem; }
-.orderCard small { color: #7f8a85; text-transform: uppercase; font-size: .6rem; letter-spacing: .08em; }
-.orderCard a { grid-column: 1 / -1; color: var(--cta-color); text-decoration: none; font-weight: 800; font-size: .75rem; }
-.notice { padding: 2rem; border: 1px dashed #354044; border-radius: 12px; color: #9ca6a1; text-align: center; }
-@media (max-width: 767px) { .profileCard { align-items: flex-start; flex-wrap: wrap; } .profileCard button { margin-left: 0; width: 100%; } .orderGrid { grid-template-columns: 1fr; } }
-:global([data-theme="light"]) .page { color: var(--heading); }
-:global([data-theme="light"]) .profileCard, :global([data-theme="light"]) .orderCard { border-color: var(--line); background: #fff; box-shadow: var(--shadow); }
-:global([data-theme="light"]) .profileCard h1, :global([data-theme="light"]) .sectionHeader h2 { color: var(--heading); }
-:global([data-theme="light"]) .profileCard p, :global([data-theme="light"]) .orderCard small, :global([data-theme="light"]) .notice { color: var(--muted); }
-:global([data-theme="light"]) .notice { border-color: var(--line); background: #fff; }
+.page {
+  min-height: 75vh;
+  padding-top: 3rem;
+  padding-bottom: 4rem;
+  color: #f5f7f6;
+}
+
+.profileCard,
+.accountPanel,
+.orderCard {
+  border: 1px solid #263034;
+  background: linear-gradient(145deg, #12181a, #090d0f);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, .28);
+}
+
+.profileCard {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 16px;
+}
+
+.avatarLarge {
+  width: 74px;
+  height: 74px;
+  flex: 0 0 74px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(117, 242, 56, .1);
+  border: 1px solid var(--cta-color);
+  color: var(--cta-color);
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.profileCard h1,
+.sectionHeader h2,
+.addressHeader h3 {
+  margin: .15rem 0;
+  color: #fff;
+}
+
+.profileCard p,
+.sectionHeader p,
+.addressHeader p {
+  margin: 0;
+  color: #9ca6a1;
+}
+
+.profileCard button {
+  margin-left: auto;
+}
+
+.eyebrow {
+  color: var(--cta-color);
+  font-size: .65rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.accountPanel {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 18px;
+}
+
+.sectionHeader {
+  margin-bottom: 1.25rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  color: #e6f1ec;
+  font-size: .78rem;
+  font-weight: 900;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  border: 1px solid #303b40;
+  border-radius: 12px;
+  background: #080d0f;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  padding: .85rem .95rem;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.field textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
+  border-color: var(--cta-color);
+  box-shadow: 0 0 0 3px rgba(117, 242, 56, .13);
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.addressHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: .75rem;
+  border-top: 1px solid #263034;
+}
+
+.secondaryAction,
+.actions button {
+  border: 0;
+  border-radius: 999px;
+  font-weight: 900;
+  padding: .8rem 1.15rem;
+  cursor: pointer;
+}
+
+.secondaryAction {
+  color: #071012;
+  background: #e9f4ef;
+}
+
+.addressList {
+  display: grid;
+  gap: 1rem;
+}
+
+.addressCard {
+  padding: 1rem;
+  border: 1px solid #263034;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .025);
+}
+
+.addressCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.addressCardHeader button {
+  border: 1px solid #513137;
+  border-radius: 999px;
+  background: #251014;
+  color: #ffadb8;
+  font-weight: 900;
+  padding: .5rem .8rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.actions button {
+  color: #071012;
+  background: linear-gradient(135deg, #08d28f, #61ed32);
+}
+
+.actions button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.orders {
+  padding-top: 3rem;
+  scroll-margin-top: 150px;
+}
+
+.orderGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.orderCard {
+  padding: 1.25rem;
+  border-radius: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.orderCard div {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.orderCard small {
+  color: #7f8a85;
+  text-transform: uppercase;
+  font-size: .6rem;
+  letter-spacing: .08em;
+}
+
+.orderCard a {
+  grid-column: 1 / -1;
+  color: var(--cta-color);
+  text-decoration: none;
+  font-weight: 800;
+  font-size: .75rem;
+}
+
+.notice,
+.errorBox {
+  padding: 1rem;
+  border-radius: 12px;
+}
+
+.notice {
+  border: 1px dashed #354044;
+  color: #9ca6a1;
+  text-align: center;
+}
+
+.errorBox {
+  border: 1px solid #ffb8bf;
+  background: #3b151b;
+  color: #ffd7dc;
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 991px) {
+  .formGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .profileCard,
+  .addressHeader {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .profileCard button {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .formGrid,
+  .orderGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions,
+  .actions button,
+  .secondaryAction {
+    width: 100%;
+  }
+}
+
+:global([data-theme="light"]) .page {
+  color: var(--heading);
+}
+
+:global([data-theme="light"]) .profileCard,
+:global([data-theme="light"]) .accountPanel,
+:global([data-theme="light"]) .orderCard {
+  border-color: var(--line);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+:global([data-theme="light"]) .profileCard h1,
+:global([data-theme="light"]) .sectionHeader h2,
+:global([data-theme="light"]) .addressHeader h3,
+:global([data-theme="light"]) .field {
+  color: var(--heading);
+}
+
+:global([data-theme="light"]) .profileCard p,
+:global([data-theme="light"]) .sectionHeader p,
+:global([data-theme="light"]) .addressHeader p,
+:global([data-theme="light"]) .orderCard small,
+:global([data-theme="light"]) .notice {
+  color: var(--muted);
+}
+
+:global([data-theme="light"]) .field input,
+:global([data-theme="light"]) .field textarea,
+:global([data-theme="light"]) .notice {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--heading);
+}
+
+:global([data-theme="light"]) .addressHeader,
+:global([data-theme="light"]) .addressCard {
+  border-color: var(--line);
+}
+
+:global([data-theme="light"]) .addressCard {
+  background: #fbfdfc;
+}
+
+:global([data-theme="light"]) .secondaryAction {
+  background: #edf7f1;
+}

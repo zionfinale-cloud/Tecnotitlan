@@ -1024,6 +1024,14 @@ Para reducir reinicios de sesion y evitar ciclos de QR, Baileys mantiene el volu
 
 Esta estrategia no evita bloqueos impuestos por WhatsApp si la sesion fue cerrada o invalidada desde el telefono, pero ayuda a sobrevivir redeploys, reinicios del contenedor y perdida accidental de archivos locales.
 
+### Perfil de cliente, celular y domicilios de entrega
+
+Desde 2026-07-17, el registro de clientes exige numero celular/WhatsApp. Este dato es obligatorio porque Tecnotitlan lo usa para seguimiento de pedidos, aclaraciones de entrega, guias y atencion postventa.
+
+El cliente puede editar su informacion desde `Mi cuenta`: nombre, correo, celular y domicilios de entrega. Los domicilios viven en la tabla `customer_addresses` y se relacionan con `users`. Cada domicilio guarda etiqueta, receptor, telefono, calle/direccion, colonia/zona, ciudad, estado, codigo postal, pais y referencias.
+
+Regla operativa: el checkout debe reutilizar domicilios guardados cuando el cliente ya inicio sesion. Si el cliente no tiene domicilios guardados, puede capturar uno nuevo durante el envio. Esto reduce errores de captura y evita pedir la misma informacion en cada compra.
+
 ---
 
 ## 15. Troubleshooting

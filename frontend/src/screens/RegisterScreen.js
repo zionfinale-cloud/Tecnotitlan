@@ -10,6 +10,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 const RegisterFormContent = () => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -46,13 +47,14 @@ const RegisterFormContent = () => {
             }
 
             const token = await executeRecaptcha('register');
-            const result = await register(name, email, password, token);
+            const result = await register(name, email, phone, password, token);
 
             if (result?.requireActivation) {
                 showNotification(result.message || 'Registro exitoso. Revisa tu correo para activar tu cuenta.', 'success');
                 setPendingActivationEmail(email);
                 setName('');
                 setEmail('');
+                setPhone('');
                 setPassword('');
                 setConfirmPassword('');
             }
@@ -121,6 +123,21 @@ const RegisterFormContent = () => {
                                 inputMode="email"
                                 required
                             />
+                        </Form.Group>
+
+                        <Form.Group controlId="phone" className="mb-3">
+                            <Form.Label className={styles.label}>Celular / WhatsApp</Form.Label>
+                            <Form.Control
+                                type="tel"
+                                placeholder="Ej. 3481510949"
+                                value={phone}
+                                onChange={(event) => setPhone(event.target.value)}
+                                className={styles.input}
+                                autoComplete="tel"
+                                inputMode="tel"
+                                required
+                            />
+                            <p className={styles.helperText}>Lo usamos para seguimiento, guias y avisos de tu pedido.</p>
                         </Form.Group>
 
                         <Form.Group controlId="password" className="mb-3">

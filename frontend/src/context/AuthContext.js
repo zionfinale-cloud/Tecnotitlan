@@ -65,10 +65,10 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const register = async (name, email, password, captchaToken) => {
+    const register = async (name, email, phone, password, captchaToken) => {
         setLoading(true);
         try {
-            const { data } = await api.post('/users/register', { name, email, password, captchaToken });
+            const { data } = await api.post('/users/register', { name, email, phone, password, captchaToken });
             
             // Si requiere activación, el backend no devuelve el usuario logueado inmediatamente
             if (data.status === 'success' && !data.data?.user) {

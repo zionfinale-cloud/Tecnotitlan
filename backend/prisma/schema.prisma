@@ -51,8 +51,31 @@ model User {
   permissionGrants            UserPermissionGrant[]
   permissionDenies            UserPermissionDeny[]
   meliIntegrations            MeliIntegration[]
+  addresses                   CustomerAddress[]
 
   @@map("users")
+}
+
+model CustomerAddress {
+  id           String   @id @default(cuid())
+  label        String   @default("Principal")
+  recipient    String   @map("recipient")
+  phone        String
+  street       String
+  neighborhood String?
+  city         String
+  state        String
+  postalCode   String   @map("postal_code")
+  country      String   @default("Mexico")
+  references   String?  @db.Text
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String   @map("user_id")
+
+  @@index([userId])
+  @@map("customer_addresses")
 }
 
 model Role {
