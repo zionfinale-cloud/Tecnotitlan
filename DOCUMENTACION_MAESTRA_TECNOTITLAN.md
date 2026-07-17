@@ -949,9 +949,9 @@ Variables recomendadas para el modo estable:
 - `SESSION_SECRET=valor_largo_estable_no_rotar`
 - `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
 - `WHATSAPP_AUTO_CONNECT=true`
-- `WHATSAPP_MAX_RECONNECT_ATTEMPTS=2`
-- `WHATSAPP_RECONNECT_BASE_DELAY_MS=60000`
-- `WHATSAPP_RECONNECT_MAX_DELAY_MS=600000`
+- `WHATSAPP_MAX_RECONNECT_ATTEMPTS=1`
+- `WHATSAPP_RECONNECT_BASE_DELAY_MS=300000`
+- `WHATSAPP_RECONNECT_MAX_DELAY_MS=1800000`
 - `WHATSAPP_KEEP_ALIVE_INTERVAL_MS=300000`
 - `WHATSAPP_PAUSED_RETRY_AFTER_MS=600000`
 - `WHATSAPP_AUTO_RETRY_PAUSED=false`
@@ -960,6 +960,8 @@ Variables recomendadas para el modo estable:
 - `WHATSAPP_SESSION_LOCK_HEARTBEAT_MS=15000`
 
 Operativa inmediata si el numero sigue castigado: usar `WHATSAPP_PROVIDER=disabled` y `WHATSAPP_AUTO_CONNECT=false` como modo de emergencia. En este modo el backend no genera QR, no inicia Baileys y no manda mensajes por WhatsApp. Los correos transaccionales, cambios de estado, inventario y pedidos deben seguir funcionando.
+
+Proteccion anti-baneo: si `WHATSAPP_AUTO_CONNECT=false`, el backend tampoco intenta levantar WhatsApp desde notificaciones de pedido. Los reintentos automaticos quedan limitados por defecto a 1 intento, con espera inicial de 5 minutos y maxima de 30 minutos. Si WhatsApp entra en `PAUSED`, no se reintenta solo salvo que `WHATSAPP_AUTO_RETRY_PAUSED=true`, valor que no se recomienda durante restricciones.
 
 Regla de seguridad: un numero restringido no se vuelve a escanear, reiniciar ni "rescatar" con cambios de proveedor. Eso aumenta el riesgo de baneo permanente. Para volver a usar WhatsApp hay dos rutas aceptables:
 
@@ -984,6 +986,9 @@ Variables recomendadas:
 - `SESSION_SECRET` puede vivir como variable de entorno de la API o como configuracion sensible en `Configuracion -> Sistema`, visible solo para Super Admin. No debe guardarse en `frontend/env.js`, archivos publicos del navegador ni commits de Git, porque expondria la sesion cifrada de WhatsApp.
 - `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
 - `WHATSAPP_AUTO_CONNECT=true`
+- `WHATSAPP_MAX_RECONNECT_ATTEMPTS=1`
+- `WHATSAPP_RECONNECT_BASE_DELAY_MS=300000`
+- `WHATSAPP_RECONNECT_MAX_DELAY_MS=1800000`
 - `API_PUBLIC_URL`: URL pública del backend, normalmente `https://api.tecnotitlan.com.mx`.
 
 Flujo recomendado:

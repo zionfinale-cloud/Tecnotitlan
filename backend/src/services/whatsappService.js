@@ -30,9 +30,9 @@ let shutdownInProgress = false;
 
 const ignoredJids = new Set(['status@broadcast']);
 const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-const MAX_AUTO_RECONNECT_ATTEMPTS = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS || 2);
-const RECONNECT_BASE_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_BASE_DELAY_MS || 60000);
-const RECONNECT_MAX_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_MAX_DELAY_MS || 600000);
+const DEFAULT_MAX_AUTO_RECONNECT_ATTEMPTS = 1;
+const DEFAULT_RECONNECT_BASE_DELAY_MS = 5 * 60 * 1000;
+const DEFAULT_RECONNECT_MAX_DELAY_MS = 30 * 60 * 1000;
 const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_PAUSED_RETRY_AFTER_MS = 10 * 60 * 1000;
 const SESSION_LOCK_STALE_MS = Number(process.env.WHATSAPP_SESSION_LOCK_STALE_MS || 2 * 60 * 1000);
@@ -120,6 +120,40 @@ const shouldAutoRotateSessionOnLogout = () => String(
     ?? process.env.WHATSAPP_AUTO_ROTATE_SESSION_ON_LOGOUT
     ?? 'false',
 ).toLowerCase() === 'true';
+
+const getMaxAutoReconnectAttempts = () => {
+    const rawValue = Number(
+        getConfig().WHATSAPP_MAX_RECONNECT_ATTEMPTS
+        ?? process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS
+        ?? DEFAULT_MAX_AUTO_RECONNECT_ATTEMPTS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= 0
+        ? Math.min(rawValue, 3)
+        : DEFAULT_MAX_AUTO_RECONNECT_ATTEMPTS;
+};
+
+const getReconnectBaseDelayMs = () => {
+    const rawValue = Number(
+        getConfig().WHATSAPP_RECONNECT_BASE_DELAY_MS
+        ?? process.env.WHATSAPP_RECONNECT_BASE_DELAY_MS
+        ?? DEFAULT_RECONNECT_BASE_DELAY_MS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= 60000
+        ? rawValue
+        : DEFAULT_RECONNECT_BASE_DELAY_MS;
+};
+
+const getReconnectMaxDelayMs = () => {
+    const baseDelayMs = getReconnectBaseDelayMs();
+    const rawValue = Number(
+        getConfig().WHATSAPP_RECONNECT_MAX_DELAY_MS
+        ?? process.env.WHATSAPP_RECONNECT_MAX_DELAY_MS
+        ?? DEFAULT_RECONNECT_MAX_DELAY_MS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= baseDelayMs
+        ? rawValue
+        : DEFAULT_RECONNECT_MAX_DELAY_MS;
+};
 
 let activeAuthDir = null;
 const BAILEYS_AUTH_PROVIDER = 'baileys';
@@ -236,8 +270,8 @@ const clearReconnectTimer = () => {
 };
 
 const getReconnectDelayMs = () => Math.min(
-    RECONNECT_BASE_DELAY_MS * (2 ** reconnectAttempt),
-    RECONNECT_MAX_DELAY_MS,
+    getReconnectBaseDelayMs() * (2 ** reconnectAttempt),
+    getReconnectMaxDelayMs(),
 );
 
 const sanitizeSessionName = (value) => {
@@ -545,6 +579,7 @@ const ensureReadyForNotification = async () => {
     if (isWhatsAppDisabledProvider()) return false;
 
     if (sock?.user && connectionStatus === 'READY') return true;
+    if (!isAutoConnectEnabled()) return false;
     if (connectionStatus === 'PAUSED') return false;
 
     if (!isInitializing && !['INITIALIZING', 'RECONNECTING', 'QR_RECEIVED'].includes(connectionStatus)) {
@@ -613,10 +648,11 @@ const pauseBaileysForManualReview = (reason, statusCode = null) => {
 const scheduleBaileysReconnect = (reason) => {
     if (reconnectTimer || resetInProgress) return;
 
-    if (reconnectAttempt >= MAX_AUTO_RECONNECT_ATTEMPTS) {
+    const maxReconnectAttempts = getMaxAutoReconnectAttempts();
+    if (reconnectAttempt >= maxReconnectAttempts) {
         connectionStatus = 'PAUSED';
         pausedAt = Date.now();
-        lastError = `Reconexión pausada después de ${MAX_AUTO_RECONNECT_ATTEMPTS} intentos. Último motivo: ${reason || 'desconocido'}`;
+        lastError = `Reconexión pausada después de ${maxReconnectAttempts} intento(s). Último motivo: ${reason || 'desconocido'}`;
         logger.warn(`[WhatsApp] ${lastError}`);
         emitStatus();
         return;
@@ -627,7 +663,7 @@ const scheduleBaileysReconnect = (reason) => {
     connectionStatus = 'RECONNECTING';
     emitStatus();
 
-    logger.warn(`[WhatsApp] Reintento automatico ${reconnectAttempt}/${MAX_AUTO_RECONNECT_ATTEMPTS} en ${Math.round(delayMs / 1000)}s. Motivo: ${reason || 'desconocido'}`);
+    logger.warn(`[WhatsApp] Reintento automatico ${reconnectAttempt}/${maxReconnectAttempts} en ${Math.round(delayMs / 1000)}s. Motivo: ${reason || 'desconocido'}`);
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         initialize().catch((error) => {
@@ -740,7 +776,7 @@ const getBaileysStatus = () => ({
     authStorage: getBaileysAuthStorage(),
     authDir: activeAuthDir,
     reconnectAttempt,
-    maxReconnectAttempts: MAX_AUTO_RECONNECT_ATTEMPTS,
+    maxReconnectAttempts: getMaxAutoReconnectAttempts(),
 });
 
 const getDisabledStatus = () => ({
@@ -975,6 +1011,12 @@ export const startAutoConnectWatchdog = () => {
         connectionStatus = 'DISABLED';
         lastError = getDisabledStatus().lastError;
         logger.warn('[WhatsApp] Auto connect omitido: WHATSAPP_PROVIDER=disabled.');
+        emitStatus();
+        return;
+    }
+
+    if (!isAutoConnectEnabled()) {
+        logger.warn('[WhatsApp] Auto connect omitido: WHATSAPP_AUTO_CONNECT=false.');
         emitStatus();
         return;
     }
