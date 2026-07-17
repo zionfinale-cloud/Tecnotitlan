@@ -32,8 +32,13 @@ router.get('/qr', superAdminOnly, checkPermission('system:configure'), asyncHand
 }));
 
 router.post('/initialize', superAdminOnly, checkPermission('system:configure'), asyncHandler(async (req, res) => {
-  const status = await whatsappService.initialize();
-  res.status(202).json({ status: 'success', data: status });
+  const hasSavedSession = await whatsappService.hasSavedSession();
+  const status = await whatsappService.initialize({
+    allowQr: !hasSavedSession,
+    reason: hasSavedSession ? 'manual saved session' : 'manual first link',
+  });
+  const hasSavedSessionAfter = await whatsappService.hasSavedSession();
+  res.status(202).json({ status: 'success', data: { ...status, hasSavedSession: hasSavedSessionAfter } });
 }));
 
 router.post('/reset', superAdminOnly, checkPermission('system:configure'), asyncHandler(async (req, res) => {

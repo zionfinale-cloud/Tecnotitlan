@@ -84,6 +84,12 @@ const WhatsappSettingsScreen = () => {
   const isPaused = status?.status === 'PAUSED';
   const isWaitingLock = status?.status === 'WAITING_FOR_SESSION_LOCK';
   const isQrImage = typeof qr === 'string' && qr.startsWith('data:image/');
+  const hasSavedSession = Boolean(status?.hasSavedSession);
+  const startButtonLabel = starting
+    ? 'Iniciando...'
+    : hasSavedSession
+      ? 'Reintentar sesion guardada'
+      : 'Iniciar conexion';
 
   return (
     <div>
@@ -97,7 +103,7 @@ const WhatsappSettingsScreen = () => {
           </p>
         </div>
         <button className={styles.primaryButton} type="button" onClick={start} disabled={starting || isDisabled || isWaitingLock}>
-          {starting ? 'Iniciando...' : 'Iniciar conexion'}
+          {startButtonLabel}
         </button>
         <button className={styles.secondaryButton} type="button" onClick={reset} disabled={resetting || starting || isDisabled}>
           {resetting ? 'Reiniciando...' : 'Borrar sesion y pedir QR'}
@@ -107,7 +113,9 @@ const WhatsappSettingsScreen = () => {
       {message && <div className={`${styles.notice} ${message.type === 'success' ? styles.success : styles.error}`}>{message.text}</div>}
       {isPaused && (
         <div className={`${styles.notice} ${styles.error}`}>
-          WhatsApp esta pausado para proteger el numero. No borres la sesion ni pidas QR repetidamente; espera a que termine la restriccion o usa "Borrar sesion y pedir QR" solo si vas a vincular un numero sano.
+          {hasSavedSession
+            ? 'WhatsApp devolvio 401 y se pauso para proteger el numero. Puedes reintentar la sesion guardada una sola vez; si vuelve a pausar, esa sesion fue invalidada o el numero esta abierto en otro bot. No borres la sesion ni pidas QR repetidamente.'
+            : 'WhatsApp esta pausado para proteger el numero. No borres la sesion ni pidas QR repetidamente; espera a que termine la restriccion o usa "Borrar sesion y pedir QR" solo si vas a vincular un numero sano.'}
         </div>
       )}
       {isWaitingLock && (
@@ -153,8 +161,10 @@ const WhatsappSettingsScreen = () => {
                 ? 'WhatsApp esta desactivado. No se generara QR.'
                 : status?.connected
                   ? 'WhatsApp ya esta conectado.'
-                  : isPaused
-                    ? 'WhatsApp esta pausado. No solicites QR nuevo hasta que el numero este listo.'
+                  : isPaused && hasSavedSession
+                    ? 'Hay sesion guardada, pero WhatsApp devolvio 401. Reintenta una vez; si vuelve a fallar, confirma que el numero no este activo en VEVA u otro bot antes de pedir QR nuevo.'
+                    : isPaused
+                      ? 'WhatsApp esta pausado. No solicites QR nuevo hasta que el numero este listo.'
                     : isWaitingLock
                       ? 'Esperando que se libere la sesion activa.'
                       : status?.hasSavedSession

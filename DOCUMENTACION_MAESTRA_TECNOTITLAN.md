@@ -1005,6 +1005,8 @@ Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Bai
 
 Regla anti-baneo 2026-07-17: el auto-connect, watchdog, reconexiones y notificaciones nunca deben generar QR nuevo. Esos procesos solo intentan conectar cuando ya existe una sesion guardada (`hasSavedSession=true`). Si no hay sesion guardada, el backend queda en `DISCONNECTED` y pide iniciar manualmente desde `Configuracion -> WhatsApp QR`. El QR solo puede aparecer por accion humana: `Iniciar conexion` cuando no hay sesion o `Borrar sesion y pedir QR` cuando se va a vincular un numero sano.
 
+Regla anti-conflicto 2026-07-17: si `Sesion guardada = Si`, el boton `Iniciar conexion` debe reintentar esa sesion sin generar QR. Si WhatsApp responde `401`, la sesion fue invalidada o el mismo numero esta activo en otro bot/servidor. No se debe mantener el mismo numero corriendo en VEVA y Tecnotitlan al mismo tiempo; hay que apagar uno o usar un puente entre sistemas para evitar cierres de sesion y bloqueos.
+
 ### Notificaciones internas de ventas y cambios de estado
 
 Desde 2026-07-14, Tecnotitlan separa las notificaciones del cliente y las notificaciones internas del equipo:
