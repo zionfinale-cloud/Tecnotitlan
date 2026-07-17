@@ -44,6 +44,8 @@ let pausedAt = null;
 let sessionLockTimer = null;
 let hasSessionLock = false;
 
+const RELINK_STATUSES = new Set(['QR_REQUIRED', 'LOGGED_OUT']);
+
 const mediaTypeDefinitions = [
     { key: 'imageMessage', type: 'image' },
     { key: 'videoMessage', type: 'video' },
@@ -605,6 +607,7 @@ export const ensureReadyForNotification = async () => {
     if (sock?.user && connectionStatus === 'READY') return true;
     if (!isAutoConnectEnabled()) return false;
     if (connectionStatus === 'PAUSED') return false;
+    if (RELINK_STATUSES.has(connectionStatus)) return false;
 
     if (!isInitializing && !['INITIALIZING', 'RECONNECTING', 'QR_RECEIVED'].includes(connectionStatus)) {
         initialize({ allowQr: false, reason: 'notification' }).catch((error) => logger.warn(`[WhatsApp] Reconexion automatica fallida: ${error.message}`));
@@ -656,14 +659,14 @@ const pauseBaileysForManualReview = (reason, statusCode = null) => {
         logger.warn(`[WhatsApp] No se pudo liberar lock al pausar sesion: ${error.message}`);
     });
     reconnectAttempt = 0;
-    pausedAt = Date.now();
-    connectionStatus = 'PAUSED';
+    pausedAt = null;
+    connectionStatus = 'LOGGED_OUT';
     isInitializing = false;
     lastError = [
-        'WhatsApp pausado para proteger la cuenta.',
+        'WhatsApp cerro la sesion guardada.',
         reason || 'Sesion cerrada o invalida.',
         statusCode ? `Codigo: ${statusCode}.` : '',
-        'Revisa Configuracion > WhatsApp QR y vuelve a vincular manualmente cuando termine la restriccion.',
+        'Usa "Borrar sesion y pedir QR" solo cuando vayas a vincular un numero sano.',
     ].filter(Boolean).join(' ');
     logger.warn(`[WhatsApp] ${lastError}`);
     emitStatus();
@@ -674,9 +677,10 @@ const scheduleBaileysReconnect = (reason) => {
 
     const maxReconnectAttempts = getMaxAutoReconnectAttempts();
     if (reconnectAttempt >= maxReconnectAttempts) {
-        connectionStatus = 'PAUSED';
-        pausedAt = Date.now();
-        lastError = `Reconexión pausada después de ${maxReconnectAttempts} intento(s). Último motivo: ${reason || 'desconocido'}`;
+        connectionStatus = 'DISCONNECTED';
+        pausedAt = null;
+        reconnectAttempt = 0;
+        lastError = `Reconexión detenida después de ${maxReconnectAttempts} intento(s). Último motivo: ${reason || 'desconocido'}`;
         logger.warn(`[WhatsApp] ${lastError}`);
         emitStatus();
         return;
@@ -911,10 +915,10 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
                 if (!allowQr) {
                     latestQr = null;
                     reconnectAttempt = 0;
-                    pausedAt = Date.now();
-                    connectionStatus = 'PAUSED';
+                    pausedAt = null;
+                    connectionStatus = 'QR_REQUIRED';
                     isInitializing = false;
-                    lastError = `WhatsApp requiere QR nuevo, pero ${reason} no puede generar QR automatico. Vincula manualmente solo cuando el numero este listo.`;
+                    lastError = `WhatsApp requiere QR nuevo. No se generara automaticamente durante ${reason}; usa "Borrar sesion y pedir QR" solo cuando vayas a vincular un numero sano.`;
                     logger.warn(`[WhatsApp] ${lastError}`);
                     try {
                         sock?.end?.(new Error('QR required during protected auto connect'));
@@ -1038,7 +1042,8 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
 const shouldSkipAutoConnect = () => resetInProgress
     || isInitializing
     || Boolean(reconnectTimer)
-    || connectionStatus === 'QR_RECEIVED';
+    || connectionStatus === 'QR_RECEIVED'
+    || RELINK_STATUSES.has(connectionStatus);
 
 const attemptAutoConnect = async (reason = 'watchdog') => {
     if (!isAutoConnectEnabled()) return getStatus();

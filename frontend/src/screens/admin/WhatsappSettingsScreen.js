@@ -10,6 +10,8 @@ const statusLabels = {
   INITIALIZING: 'Inicializando',
   RECONNECTING: 'Reconectando',
   PAUSED: 'Pausado para proteger el numero',
+  QR_REQUIRED: 'Necesita QR nuevo',
+  LOGGED_OUT: 'Sesion cerrada',
   WAITING_FOR_SESSION_LOCK: 'Esperando sesion activa',
   DISCONNECTED: 'Desconectado',
   RESETTING: 'Reiniciando sesion',
@@ -82,6 +84,7 @@ const WhatsappSettingsScreen = () => {
 
   const isDisabled = status?.provider === 'disabled';
   const isPaused = status?.status === 'PAUSED';
+  const needsRelink = ['QR_REQUIRED', 'LOGGED_OUT'].includes(status?.status);
   const isWaitingLock = status?.status === 'WAITING_FOR_SESSION_LOCK';
   const isQrImage = typeof qr === 'string' && qr.startsWith('data:image/');
   const hasSavedSession = Boolean(status?.hasSavedSession);
@@ -111,6 +114,11 @@ const WhatsappSettingsScreen = () => {
       </div>
 
       {message && <div className={`${styles.notice} ${message.type === 'success' ? styles.success : styles.error}`}>{message.text}</div>}
+      {needsRelink && (
+        <div className={`${styles.notice} ${styles.error}`}>
+          WhatsApp cerro o invalido la sesion guardada. No se abrira otro QR automaticamente para evitar bloqueos; usa "Borrar sesion y pedir QR" solo cuando el numero este listo y no este activo en otro bot.
+        </div>
+      )}
       {isPaused && (
         <div className={`${styles.notice} ${styles.error}`}>
           {hasSavedSession
@@ -161,6 +169,8 @@ const WhatsappSettingsScreen = () => {
                 ? 'WhatsApp esta desactivado. No se generara QR.'
                 : status?.connected
                   ? 'WhatsApp ya esta conectado.'
+                  : needsRelink
+                    ? 'La sesion guardada necesita revinculacion. Si el numero esta sano, borra la sesion y pide un QR nuevo una sola vez.'
                   : isPaused && hasSavedSession
                     ? 'Hay sesion guardada, pero WhatsApp devolvio 401. Reintenta una vez; si vuelve a fallar, confirma que el numero no este activo en VEVA u otro bot antes de pedir QR nuevo.'
                     : isPaused
