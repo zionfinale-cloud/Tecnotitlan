@@ -996,18 +996,18 @@ Flujo recomendado:
 1. Configurar las variables anteriores en `Configuracion -> Sistema`.
 2. Guardar configuracion y redeplegar/reiniciar la API.
 3. Entrar a `Configuracion -> WhatsApp QR`.
-4. Presionar `Conectar / obtener QR`.
-5. Escanear el QR desde WhatsApp.
+4. Presionar `Iniciar conexion`.
+5. Si ya existe sesion guardada, debe reconectar sin QR. Si no existe sesion, escanear el QR desde WhatsApp una sola vez.
 6. Esperar a que el estado marque conectado y validar que la sesion se guarde en PostgreSQL.
 7. Probar desde el panel `WhatsApp`: enviar texto, enviar imagen y recibir un mensaje entrante.
 
-Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Baileys reporta la sesion conectada. Si no esta conectada, el sistema registra el aviso omitido en logs y no bloquea la compra ni el correo transaccional.
+Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Baileys reporta la sesion conectada. Si no esta conectada, el sistema registra el aviso omitido en logs y no bloquea la compra ni el correo transaccional. El QR no se debe regenerar como rutina diaria; `Borrar sesion y pedir QR` solo se usa cuando se cambia de numero o cuando la sesion ya fue invalidada manualmente.
 
 ### Notificaciones internas de ventas y cambios de estado
 
 Desde 2026-07-14, Tecnotitlan separa las notificaciones del cliente y las notificaciones internas del equipo:
 
-- Cuando un pedido queda pagado, el cliente recibe su confirmacion y el equipo operativo recibe un aviso interno.
+- Cuando un pedido queda pagado, el cliente recibe su confirmacion con estado `Pago confirmado` y el equipo operativo recibe un aviso interno.
 - Cuando un pedido cambia de estado (`PENDING_PAYMENT`, `PROCESSING`, `PENDING_FULFILLMENT`, `SHIPPED`, `DELIVERED`, `CANCELLED`), el equipo operativo recibe aviso con pedido, canal, cliente, total y productos.
 - Los destinatarios internos son usuarios con rol `SUPER_ADMIN`, `ADMIN`, `SUPERVISOR` o `VENDEDOR`.
 - Cada usuario puede configurar si recibe avisos por correo, WhatsApp o ambos desde `Usuarios > Editar usuario > Notificaciones operativas`.

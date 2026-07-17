@@ -1335,6 +1335,7 @@ export const sendCustomerOrderPaidNotification = async (order) => sendCustomerOr
         return [
             'Hola, tu pago en Tecnotitlan fue confirmado.',
             `Pedido: ${getOrderNumber(currentOrder)}`,
+            'Estado: Pago confirmado',
             `Total: ${currency.format(currentOrder?.totalPrice || 0)}`,
             itemsText ? `\nProductos:\n${itemsText}` : '',
             `\nPuedes revisar el seguimiento aqui: ${getOrderTrackingUrl(currentOrder)}`,
