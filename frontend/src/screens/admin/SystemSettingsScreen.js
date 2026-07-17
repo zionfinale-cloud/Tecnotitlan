@@ -14,6 +14,7 @@ const sections = [
     keys: [
       'API_PUBLIC_URL',
       'ADMIN_WHATSAPP_NUMBER',
+      'SESSION_SECRET',
       'WHATSAPP_PROVIDER',
       'WHATSAPP_AUTH_STORAGE',
       'WHATSAPP_AUTO_CONNECT',

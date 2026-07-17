@@ -981,6 +981,7 @@ Variables recomendadas:
 - `WHATSAPP_PROVIDER=baileys`
 - `WHATSAPP_AUTH_STORAGE=database`
 - `SESSION_SECRET`: secreto estable para cifrar la sesion. No rotarlo mientras exista una sesion vinculada.
+- `SESSION_SECRET` puede vivir como variable de entorno de la API o como configuracion sensible en `Configuracion -> Sistema`, visible solo para Super Admin. No debe guardarse en `frontend/env.js`, archivos publicos del navegador ni commits de Git, porque expondria la sesion cifrada de WhatsApp.
 - `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
 - `WHATSAPP_AUTO_CONNECT=true`
 - `API_PUBLIC_URL`: URL pública del backend, normalmente `https://api.tecnotitlan.com.mx`.

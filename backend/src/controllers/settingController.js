@@ -38,6 +38,7 @@ const SENSITIVE_SETTING_DEFINITIONS = [
     { key: 'SUPPORT_EMAIL', label: 'Correo de soporte', type: 'string' },
     { key: 'ADMIN_WHATSAPP_NUMBER', label: 'WhatsApp administrador', type: 'string' },
     { key: 'API_PUBLIC_URL', label: 'URL publica de la API', type: 'string' },
+    { key: 'SESSION_SECRET', label: 'Secreto estable para cifrar sesion WhatsApp', type: 'password' },
     { key: 'WHATSAPP_PROVIDER', label: 'Proveedor WhatsApp (disabled/baileys)', type: 'string' },
     { key: 'WHATSAPP_AUTH_STORAGE', label: 'Almacenamiento sesion WhatsApp (database/file)', type: 'string' },
     { key: 'WHATSAPP_AUTH_DIR', label: 'Carpeta persistente WhatsApp', type: 'string' },

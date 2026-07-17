@@ -1,9 +1,11 @@
 import crypto from 'crypto';
 import prisma from '../config/prisma.js';
 import config from '../config/env.js';
+import { getConfig } from './configService.js';
 
 const getSessionSecret = () => {
-    const secret = config.SESSION_SECRET || config.JWT_SECRET;
+    const runtimeConfig = getConfig();
+    const secret = runtimeConfig.SESSION_SECRET || config.SESSION_SECRET || runtimeConfig.JWT_SECRET || config.JWT_SECRET;
     if (!secret) {
         throw new Error('SESSION_SECRET o JWT_SECRET es requerido para cifrar la sesion de WhatsApp.');
     }
