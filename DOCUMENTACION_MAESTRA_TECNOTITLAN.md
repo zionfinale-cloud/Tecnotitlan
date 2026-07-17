@@ -1003,6 +1003,8 @@ Flujo recomendado:
 
 Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Baileys reporta la sesion conectada. Si no esta conectada, el sistema registra el aviso omitido en logs y no bloquea la compra ni el correo transaccional. El QR no se debe regenerar como rutina diaria; `Borrar sesion y pedir QR` solo se usa cuando se cambia de numero o cuando la sesion ya fue invalidada manualmente.
 
+Regla anti-baneo 2026-07-17: el auto-connect, watchdog, reconexiones y notificaciones nunca deben generar QR nuevo. Esos procesos solo intentan conectar cuando ya existe una sesion guardada (`hasSavedSession=true`). Si no hay sesion guardada, el backend queda en `DISCONNECTED` y pide iniciar manualmente desde `Configuracion -> WhatsApp QR`. El QR solo puede aparecer por accion humana: `Iniciar conexion` cuando no hay sesion o `Borrar sesion y pedir QR` cuando se va a vincular un numero sano.
+
 ### Notificaciones internas de ventas y cambios de estado
 
 Desde 2026-07-14, Tecnotitlan separa las notificaciones del cliente y las notificaciones internas del equipo:

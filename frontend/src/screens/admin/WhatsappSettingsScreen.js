@@ -123,6 +123,7 @@ const WhatsappSettingsScreen = () => {
             <p><strong>Proveedor:</strong> {isDisabled ? 'Desactivado' : 'Baileys local'}</p>
             <p><strong>Estado:</strong> {statusLabels[status?.status] || status?.status || 'Sin estado'}</p>
             <p><strong>Conectado:</strong> {status?.connected ? 'Si' : 'No'}</p>
+            <p><strong>Sesion guardada:</strong> {status?.hasSavedSession ? 'Si' : 'No'}</p>
             {status?.lastError && <p><strong>Ultimo error:</strong> {status.lastError}</p>}
             {status?.user?.id && <p><strong>Cuenta:</strong> {status.user.id}</p>}
             {status?.authStorage && <p><strong>Almacenamiento:</strong> {status.authStorage === 'database' ? 'Base de datos cifrada' : status.authStorage}</p>}
@@ -156,7 +157,9 @@ const WhatsappSettingsScreen = () => {
                     ? 'WhatsApp esta pausado. No solicites QR nuevo hasta que el numero este listo.'
                     : isWaitingLock
                       ? 'Esperando que se libere la sesion activa.'
-                      : 'Aun no hay QR. Presiona iniciar conexion y espera unos segundos.'}
+                      : status?.hasSavedSession
+                        ? 'Hay sesion guardada. Presiona iniciar conexion para reconectar sin escanear QR.'
+                        : 'No hay sesion guardada. Presiona iniciar conexion para generar QR solo una vez.'}
             </div>
           )}
         </section>

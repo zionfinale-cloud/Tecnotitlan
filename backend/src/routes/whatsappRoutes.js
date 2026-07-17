@@ -21,13 +21,15 @@ const canAttendWhatsApp = checkPermission('whatsapp:chat', 'support:update');
 
 router.use(protect);
 
-router.get('/status', checkPermission('integration:read', 'whatsapp:chat', 'support:update'), (req, res) => {
-  res.json({ status: 'success', data: whatsappService.getStatus() });
-});
+router.get('/status', checkPermission('integration:read', 'whatsapp:chat', 'support:update'), asyncHandler(async (req, res) => {
+  const hasSavedSession = await whatsappService.hasSavedSession();
+  res.json({ status: 'success', data: { ...whatsappService.getStatus(), hasSavedSession } });
+}));
 
-router.get('/qr', superAdminOnly, checkPermission('system:configure'), (req, res) => {
-  res.json({ status: 'success', data: { qr: whatsappService.getLatestQr(), ...whatsappService.getStatus() } });
-});
+router.get('/qr', superAdminOnly, checkPermission('system:configure'), asyncHandler(async (req, res) => {
+  const hasSavedSession = await whatsappService.hasSavedSession();
+  res.json({ status: 'success', data: { qr: whatsappService.getLatestQr(), ...whatsappService.getStatus(), hasSavedSession } });
+}));
 
 router.post('/initialize', superAdminOnly, checkPermission('system:configure'), asyncHandler(async (req, res) => {
   const status = await whatsappService.initialize();

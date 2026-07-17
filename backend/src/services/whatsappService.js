@@ -200,6 +200,30 @@ const countAuthJsonFiles = async (authDir) => {
     return files.length;
 };
 
+const hasPersistedBaileysSession = async () => {
+    if (isDatabaseAuthStorage()) {
+        const creds = await prisma.whatsAppAuthState.findUnique({
+            where: {
+                provider_key: {
+                    provider: BAILEYS_AUTH_PROVIDER,
+                    key: 'creds',
+                },
+            },
+            select: { id: true },
+        });
+        return Boolean(creds);
+    }
+
+    const authDir = await ensureActiveAuthDir();
+    const filesOnDisk = await countAuthJsonFiles(authDir).catch(() => 0);
+    if (filesOnDisk > 0) return true;
+
+    const filesInDb = await prisma.whatsAppAuthFile.count({
+        where: { provider: BAILEYS_AUTH_PROVIDER },
+    });
+    return filesInDb > 0;
+};
+
 const hydrateBaileysAuthFromDb = async (authDir) => {
     const filesOnDisk = await countAuthJsonFiles(authDir).catch(() => 0);
     if (filesOnDisk > 0) return;
@@ -583,7 +607,7 @@ export const ensureReadyForNotification = async () => {
     if (connectionStatus === 'PAUSED') return false;
 
     if (!isInitializing && !['INITIALIZING', 'RECONNECTING', 'QR_RECEIVED'].includes(connectionStatus)) {
-        initialize().catch((error) => logger.warn(`[WhatsApp] Reconexion automatica fallida: ${error.message}`));
+        initialize({ allowQr: false, reason: 'notification' }).catch((error) => logger.warn(`[WhatsApp] Reconexion automatica fallida: ${error.message}`));
     }
 
     return waitForReady();
@@ -615,7 +639,7 @@ const rotateSessionAndRequestQr = (reason) => {
                 const authDir = await rotateActiveAuthDir();
                 logger.warn(`[WhatsApp] Sesion invalida. Se activo una sesion nueva en ${authDir} para generar QR. Motivo: ${reason}`);
             }
-            await initialize();
+            await initialize({ allowQr: true, reason: 'rotar sesion manual' });
         } catch (error) {
             connectionStatus = 'ERROR';
             lastError = error.message;
@@ -666,7 +690,7 @@ const scheduleBaileysReconnect = (reason) => {
     logger.warn(`[WhatsApp] Reintento automatico ${reconnectAttempt}/${maxReconnectAttempts} en ${Math.round(delayMs / 1000)}s. Motivo: ${reason || 'desconocido'}`);
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
-        initialize().catch((error) => {
+        initialize({ allowQr: false, reason: 'reconnect' }).catch((error) => {
             lastError = error.message;
             logger.error(`[WhatsApp] Reconnect failed: ${error.message}`);
             scheduleBaileysReconnect(error.message);
@@ -779,6 +803,11 @@ const getBaileysStatus = () => ({
     maxReconnectAttempts: getMaxAutoReconnectAttempts(),
 });
 
+export const hasSavedSession = async () => {
+    if (isWhatsAppDisabledProvider()) return false;
+    return hasPersistedBaileysSession();
+};
+
 const getDisabledStatus = () => ({
     provider: 'disabled',
     status: 'DISABLED',
@@ -799,7 +828,7 @@ export const getLatestQr = () => {
     return latestQr;
 };
 
-export const initialize = async () => {
+export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => {
     if (isWhatsAppDisabledProvider()) {
         stopAutoConnectWatchdog();
         clearReconnectTimer();
@@ -815,6 +844,16 @@ export const initialize = async () => {
 
     if (sock?.user && connectionStatus === 'READY') return getStatus();
     if (isInitializing) return getStatus();
+
+    const hasSavedSession = await hasPersistedBaileysSession();
+    if (!allowQr && !hasSavedSession) {
+        connectionStatus = 'DISCONNECTED';
+        latestQr = null;
+        lastError = `Auto connect omitido (${reason}): no hay sesion de WhatsApp guardada. Inicia la conexion manualmente desde Configuracion > WhatsApp QR.`;
+        logger.warn(`[WhatsApp] ${lastError}`);
+        emitStatus();
+        return getStatus();
+    }
 
     clearReconnectTimer();
 
@@ -869,6 +908,26 @@ export const initialize = async () => {
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
+                if (!allowQr) {
+                    latestQr = null;
+                    reconnectAttempt = 0;
+                    pausedAt = Date.now();
+                    connectionStatus = 'PAUSED';
+                    isInitializing = false;
+                    lastError = `WhatsApp requiere QR nuevo, pero ${reason} no puede generar QR automatico. Vincula manualmente solo cuando el numero este listo.`;
+                    logger.warn(`[WhatsApp] ${lastError}`);
+                    try {
+                        sock?.end?.(new Error('QR required during protected auto connect'));
+                        sock?.ws?.close?.();
+                    } catch (error) {
+                        logger.warn(`[WhatsApp] No se pudo cerrar socket tras QR protegido: ${error.message}`);
+                    }
+                    releaseSessionLock().catch((error) => {
+                        logger.warn(`[WhatsApp] No se pudo liberar lock tras QR protegido: ${error.message}`);
+                    });
+                    emitStatus();
+                    return;
+                }
                 latestQr = qr;
                 connectionStatus = 'QR_RECEIVED';
                 logger.info('QR Code received');
@@ -1003,7 +1062,7 @@ const attemptAutoConnect = async (reason = 'watchdog') => {
     if (shouldSkipAutoConnect()) return getStatus();
 
     logger.info(`[WhatsApp] Auto connect (${reason}) iniciando proveedor ${getWhatsAppProvider()}.`);
-    return initialize();
+    return initialize({ allowQr: false, reason });
 };
 
 export const startAutoConnectWatchdog = () => {
@@ -1115,7 +1174,7 @@ export const resetSession = async () => {
     }
 
     resetInProgress = false;
-    return initialize();
+    return initialize({ allowQr: true, reason: 'reset manual' });
 };
 
 export const listChats = async () => {
