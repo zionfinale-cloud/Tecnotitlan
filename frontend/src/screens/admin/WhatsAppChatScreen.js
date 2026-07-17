@@ -157,8 +157,9 @@ const WhatsAppChatScreen = () => {
   };
 
   const isConnected = Boolean(status?.connected);
+  const isDisabled = status?.provider === 'disabled';
   const statusLabel = status
-    ? `${status.provider === 'evolution' ? 'Evolution' : 'Baileys'}: ${isConnected ? 'Conectado' : (status.status || 'Desconectado')}`
+    ? `${isDisabled ? 'Desactivado' : 'Baileys'}: ${isConnected ? 'Conectado' : (status.status || 'Desconectado')}`
     : 'Revisando WhatsApp...';
 
   return (
@@ -179,6 +180,11 @@ const WhatsAppChatScreen = () => {
         </div>
       </div>
 
+      {isDisabled && (
+        <div className={`${styles.notice} ${styles.error}`}>
+          WhatsApp esta desactivado para proteger el numero operativo. Puedes consultar historial, pero no enviar mensajes desde aqui.
+        </div>
+      )}
       {error && <div className={`${styles.notice} ${styles.error}`}>{error}</div>}
 
       <div className={styles.workspace}>
@@ -261,7 +267,8 @@ const WhatsAppChatScreen = () => {
                     className={styles.composerInput}
                     value={text}
                     onChange={(event) => setText(event.target.value)}
-                    placeholder="Escribe una respuesta..."
+                    placeholder={isDisabled ? 'WhatsApp desactivado temporalmente...' : 'Escribe una respuesta...'}
+                    disabled={isDisabled}
                   />
                   <div className={styles.composerTools}>
                     <label className={styles.fileButton}>
@@ -271,6 +278,7 @@ const WhatsAppChatScreen = () => {
                         type="file"
                         accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
                         onChange={(event) => setFile(event.target.files?.[0] || null)}
+                        disabled={isDisabled}
                       />
                     </label>
                     {file && (
@@ -283,7 +291,7 @@ const WhatsAppChatScreen = () => {
                     )}
                   </div>
                 </div>
-                <button className={styles.primaryButton} type="submit" disabled={sending || (status && !status.connected) || (!text.trim() && !file)}>
+                <button className={styles.primaryButton} type="submit" disabled={isDisabled || sending || (status && !status.connected) || (!text.trim() && !file)}>
                   {sending ? 'Enviando...' : 'Enviar'}
                 </button>
               </form>

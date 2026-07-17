@@ -13,9 +13,9 @@ Este documento es la guía técnica central y única fuente de verdad para el pr
 - **Omnicanal:** Sistema centralizado que se integra con múltiples canales de venta, incluyendo redes sociales (Facebook, Instagram, TikTok Shop) y marketplaces (Mercado Libre, Amazon).
 - **Comunicación Automatizada:**
 
-    - **Bot de WhatsApp:** Soporta proveedor local **Baileys** y proveedor externo **Evolution API**. Para producción se recomienda Evolution API por estabilidad operativa, menor dependencia de sesiones locales y mejor separación del VPS principal.
+    - **Bot de WhatsApp:** Ruta operativa unica con **Baileys v7** y sesion cifrada en Supabase/PostgreSQL. La sesion se conserva entre redeploys usando `WHATSAPP_AUTH_STORAGE=database` y un `SESSION_SECRET` estable.
     - **Chatbot Web:** Sincronizado con el sistema para ofrecer soporte en tiempo real.
-    - **Actualizacion WhatsApp 2026-07:** La ruta operativa actual es **Baileys v7** con volumen persistente en el VPS. **Evolution API queda como experimental** hasta resolver los errores de creacion de instancia y licenciamiento observados en v2.4.
+    - **Actualizacion WhatsApp 2026-07:** Se retira el proveedor externo de WhatsApp para evitar licenciamiento, dependencias extra y reconexiones confusas. Tecnotitlan usa el flujo estable tipo VEVA: una sola vinculacion, llaves cifradas en base de datos y reconexion controlada.
 - **UI/UX:** Interfaz limpia, moderna y premium.
 - **Canales oficiales Tecnotitlan:** Facebook `https://www.facebook.com/profile.php?id=61591872000643`, TikTok `https://www.tiktok.com/@tecnotitlan_mx` y WhatsApp operativo `+52 348 151 0949`.
 
@@ -477,6 +477,7 @@ Para la estrategia de **"Desarrollo en Vivo"**, estas variables deben configurar
     NODE_ENV=production
     PORT=5000
     JWT_SECRET=tu_secreto_super_secreto_aqui
+    SESSION_SECRET=secreto_estable_para_cifrar_whatsapp_no_rotar_sin_cerrar_sesion
     
     # =================================
     # BASE DE DATOS (PostgreSQL)
@@ -512,6 +513,9 @@ Para la estrategia de **"Desarrollo en Vivo"**, estas variables deben configurar
     MERCADOLIBRE_APP_ID=tu_app_id_de_meli
     MERCADOLIBRE_CLIENT_SECRET=tu_client_secret_de_meli
     MERCADOLIBRE_REDIRECT_URI=https://api.tecnotitlan.com.mx/api/mercadolibre/callback
+    WHATSAPP_PROVIDER=baileys
+    WHATSAPP_AUTH_STORAGE=database
+    WHATSAPP_AUTO_CONNECT=true
     CLIENT_URL_PRIMARY=https://www.tecnotitlan.com.mx # URL del Frontend (necesario para CORS)
     RECAPTCHA_SECRET_KEY=tu_clave_secreta_de_google_recaptcha
     ```
@@ -531,7 +535,7 @@ Para la estrategia de **"Desarrollo en Vivo"**, estas variables deben configurar
 
 -   **Base de Datos:** PostgreSQL (Supabase o Local en cPanel si está disponible).
 -   **Backend:** Ejecutándose como aplicación Node.js nativa en cPanel.
--   **WhatsApp:** Integrado mediante capa de proveedor. Baileys queda como respaldo local; Evolution API es la ruta recomendada para producción.
+-   **WhatsApp:** Integrado con Baileys y sesion cifrada en PostgreSQL. El backend mantiene reconexion controlada y no depende de un proveedor externo adicional.
 -   **Automatización (n8n):** Ejecutándose en el mismo servidor cPanel (vía Node.js).
 
 #### 8.3.1. Guía de Despliegue en Producción (Frontend en cPanel)
@@ -649,7 +653,7 @@ Antes del primer despliegue, es **crítico** añadir la dirección IP de tu serv
     cat stderr.log
     ```
 
-> **Nota sobre WhatsApp:** Baileys se conserva como fallback local. La ruta recomendada actual es **Evolution API**, configurada con `WHATSAPP_PROVIDER=evolution`, para evitar ciclos agresivos de reconexión y mantener la sesión fuera del contenedor principal.
+> **Nota sobre WhatsApp:** La ruta vigente es Baileys con `WHATSAPP_AUTH_STORAGE=database`. La sesion y llaves viven cifradas en PostgreSQL y el volumen `/app/auth_info_baileys` queda como apoyo local. No cambiar `SESSION_SECRET` mientras exista una sesion vinculada.
 
 ---
 
@@ -789,9 +793,9 @@ La gestión de la conexión de WhatsApp se realiza desde el panel de administrac
 - **Backend:** El servicio `whatsappService.js` y los endpoints de control en `index.js` gestionan la inicialización y el estado de la conexión mediante **Socket.IO**.
 - **Inicialización:** Al arrancar el servidor (`npm start`), `index.js` inicializa `whatsappService` y le pasa la instancia de `io` (Socket.IO) para permitir la comunicación en tiempo real con el frontend (QR, estados).
 - **Frontend:** La pantalla `WhatsappSettingsScreen.js` escucha estos eventos de WebSockets para mostrar el código QR y el estado de la conexión sin necesidad de recargar la página.
-- **Proveedor WhatsApp:** `WHATSAPP_PROVIDER=baileys` usa sesion local persistente; `WHATSAPP_PROVIDER=evolution` usa Evolution API para conectar, enviar, recibir y persistir mensajes en la base de datos de Tecnotitlan.
-- **Sesion Baileys persistente:** Si se usa Baileys, Supabase/PostgreSQL guarda configuracion operativa, chats y mensajes, pero no reemplaza los archivos de sesion. La autenticacion real vive en `WHATSAPP_AUTH_DIR` o `/app/auth_info_baileys`.
-- **Decision operativa actual:** usar `WHATSAPP_PROVIDER=baileys`. En EasyPanel la API debe tener un volumen persistente montado en `/app/auth_info_baileys`. Evolution API se deja apagado/experimental porque v2.4 presento errores al crear instancias (`integrationSession.update`, foreign keys en `Setting`, licenciamiento y Redis/Postgres).
+- **Proveedor WhatsApp:** `WHATSAPP_PROVIDER=baileys` es la ruta operativa recomendada. `WHATSAPP_PROVIDER=disabled` queda como freno de emergencia cuando el numero este restringido o se quiera pausar WhatsApp sin romper ventas/correos.
+- **Sesion Baileys persistente tipo VEVA:** con `WHATSAPP_AUTH_STORAGE=database`, la sesion y llaves de mensajes se guardan cifradas en Supabase/PostgreSQL (`whatsapp_auth_state`) usando `SESSION_SECRET`. Los archivos de `WHATSAPP_AUTH_DIR` quedan como compatibilidad, no como fuente principal.
+- **Decision operativa actual:** usar `WHATSAPP_PROVIDER=baileys`, `WHATSAPP_AUTH_STORAGE=database` y `WHATSAPP_AUTO_CONNECT=true`. No cambiar `SESSION_SECRET` sin cerrar primero la sesion de WhatsApp, porque las llaves cifradas no podran descifrarse.
 - **Reconexiones Baileys:** el backend usa backoff exponencial y pausa despues de `WHATSAPP_MAX_RECONNECT_ATTEMPTS` intentos para no provocar restricciones de WhatsApp. Si WhatsApp responde `loggedOut`, `bad session` o `multidevice mismatch`, el sistema queda en `PAUSED` y **no reintenta ni rota credenciales automaticamente**. La reconexion con QR debe ser manual desde `Configuracion > WhatsApp QR`.
 - **Panel de atencion WhatsApp:** la pantalla de chat muestra proveedor/estado de conexion antes de enviar. Si Baileys recibe conversaciones con identificadores internos de WhatsApp (`@lid`), el backend conserva la conversacion original y, al enviar, intenta usar el JID principal y despues el telefono asociado cuando exista. Si no hay sesion activa, el panel bloquea el envio y muestra un error claro.
 - **Notificaciones transaccionales:** Antes de omitir un aviso por WhatsApp, el backend puede intentar reconectar usando la sesion persistente y esperar unos segundos. Si la sesion esta invalida, fue cerrada desde el telefono o WhatsApp fuerza reautenticacion, se pausa la conexion y el QR se solicita manualmente desde Configuracion > WhatsApp. Los pedidos nunca deben fallar por WhatsApp desconectado; correo e inventario siguen su flujo y el evento queda en logs.
@@ -936,11 +940,13 @@ Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues 
 
 ### WhatsApp operativo - decision actual 2026-07
 
-La ruta operativa recomendada para Tecnotitlan es **Baileys v7** con `WHATSAPP_PROVIDER=baileys`, `WHATSAPP_AUTH_DIR=/app/auth_info_baileys` y volumen persistente en EasyPanel. Evolution API v2.4 queda como experimental porque en el VPS presento errores de instancia (`integrationSession.update`), foreign keys en `Setting`, licenciamiento y dependencia Redis/Postgres. No se considera estable para operar ventas ahora.
+El numero operativo de WhatsApp quedo restringido/baneado despues de multiples reconexiones. La regla de seguridad sigue siendo: **no insistir con un numero restringido**. Para volver a operar WhatsApp se debe usar un numero recuperado o sano y vincularlo una sola vez con el flujo estable tipo VEVA.
 
-Variables recomendadas:
+Variables recomendadas para el modo estable:
 
 - `WHATSAPP_PROVIDER=baileys`
+- `WHATSAPP_AUTH_STORAGE=database`
+- `SESSION_SECRET=valor_largo_estable_no_rotar`
 - `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
 - `WHATSAPP_AUTO_CONNECT=true`
 - `WHATSAPP_MAX_RECONNECT_ATTEMPTS=2`
@@ -953,28 +959,31 @@ Variables recomendadas:
 - `WHATSAPP_SESSION_LOCK_STALE_MS=120000`
 - `WHATSAPP_SESSION_LOCK_HEARTBEAT_MS=15000`
 
-Operativa: montar el volumen persistente en `/app/auth_info_baileys`, redeplegar API y dejar `WHATSAPP_AUTO_CONNECT=true` solo cuando la cuenta no este restringida. Al iniciar, el backend levanta el watchdog de WhatsApp y reusa la sesion persistente. Para evitar bloqueos durante updates, Baileys crea un lock persistente `baileys-session.lock.json`; si un contenedor anterior sigue apagandose, el nuevo espera y reintenta en modo seguro en lugar de abrir otra sesion con las mismas llaves. En `SIGTERM`/`SIGINT`, el backend sincroniza las credenciales a DB, cierra el socket y libera el lock antes de desconectar Prisma. Si WhatsApp invalida la sesion, el estado pasa a `PAUSED`; no se debe borrar ni rotar sesion automaticamente. Solo se entra a `Configuracion -> WhatsApp QR` cuando se necesite borrar/vincular una sesion nueva y siempre despues de esperar cualquier ventana de restriccion indicada por WhatsApp.
+Operativa inmediata si el numero sigue castigado: usar `WHATSAPP_PROVIDER=disabled` y `WHATSAPP_AUTO_CONNECT=false` como modo de emergencia. En este modo el backend no genera QR, no inicia Baileys y no manda mensajes por WhatsApp. Los correos transaccionales, cambios de estado, inventario y pedidos deben seguir funcionando.
 
-Regla de emergencia: si WhatsApp bloquea/restringe la cuenta por varias horas, poner temporalmente `WHATSAPP_AUTO_CONNECT=false`, redeplegar la API, esperar la ventana completa y despues volver a activar `WHATSAPP_AUTO_CONNECT=true` para vincular una sola vez.
+Regla de seguridad: un numero restringido no se vuelve a escanear, reiniciar ni "rescatar" con cambios de proveedor. Eso aumenta el riesgo de baneo permanente. Para volver a usar WhatsApp hay dos rutas aceptables:
 
-### WhatsApp con Evolution API
+1. Numero recuperado o nuevo de WhatsApp Business, calentado manualmente con uso humano real antes de conectarlo.
+2. Baileys con `WHATSAPP_AUTH_STORAGE=database`, igual que VEVA, para guardar sesion y llaves cifradas en PostgreSQL.
+3. WhatsApp Cloud API oficial de Meta, recomendada para produccion cuando Tecnotitlan ya tenga credenciales y plantillas aprobadas.
 
-Después de las restricciones temporales provocadas por reconexiones de Baileys, Tecnotitlan soporta dos proveedores de WhatsApp:
+### WhatsApp con Baileys y sesion cifrada
 
-- `WHATSAPP_PROVIDER=baileys`: modo local anterior. Requiere volumen persistente en `WHATSAPP_AUTH_DIR` o `/app/auth_info_baileys`.
-- `WHATSAPP_PROVIDER=evolution`: modo experimental. El backend puede usar Evolution API para conectar la instancia, obtener QR, enviar mensajes, adjuntos y recibir webhooks, pero no queda como ruta operativa actual hasta resolver estabilidad/licenciamiento.
+Despues de las restricciones provocadas por reconexiones repetidas, Tecnotitlan deja Baileys como ruta operativa oficial:
 
-Nota: los valores guardados en `Configuracion -> Sistema` se cargan desde base de datos y pueden ganar sobre el `.env`. Si se cambio temporalmente a Evolution, se debe volver a guardar `WHATSAPP_PROVIDER=baileys` en el panel o limpiar ese setting antes de esperar que Baileys arranque automaticamente.
+- `WHATSAPP_PROVIDER=disabled`: modo seguro de emergencia. No intenta conectar ni enviar por WhatsApp.
+- `WHATSAPP_PROVIDER=baileys`: modo recomendado. Con `WHATSAPP_AUTH_STORAGE=database`, guarda sesion cifrada en PostgreSQL; con `WHATSAPP_AUTH_STORAGE=file`, usa archivos persistentes en `WHATSAPP_AUTH_DIR`.
 
-Variables requeridas para Evolution:
+Nota: los valores guardados en `Configuracion -> Sistema` se cargan desde base de datos y pueden ganar sobre el `.env`. Para el modo estable, confirmar que no exista un setting viejo con `WHATSAPP_PROVIDER=disabled` o `WHATSAPP_AUTH_STORAGE=file` si se espera usar PostgreSQL cifrado.
 
-- `WHATSAPP_PROVIDER=evolution`
-- `EVOLUTION_API_URL`: URL base de Evolution API, sin slash final. Ejemplo: `https://evolution.tudominio.com`
-- `EVOLUTION_API_KEY`: API key global/instancia de Evolution.
-- `EVOLUTION_INSTANCE`: nombre de instancia, por ejemplo `tecnotitlan`.
+Variables recomendadas:
+
+- `WHATSAPP_PROVIDER=baileys`
+- `WHATSAPP_AUTH_STORAGE=database`
+- `SESSION_SECRET`: secreto estable para cifrar la sesion. No rotarlo mientras exista una sesion vinculada.
+- `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
+- `WHATSAPP_AUTO_CONNECT=true`
 - `API_PUBLIC_URL`: URL pública del backend, normalmente `https://api.tecnotitlan.com.mx`.
-- `EVOLUTION_WEBHOOK_URL`: opcional; si se deja vacío, Tecnotitlan usa `https://api.tecnotitlan.com.mx/api/integrations/whatsapp/evolution/webhook`.
-- `EVOLUTION_WEBHOOK_SECRET`: opcional; si se configura, la URL del webhook debe incluir `?secret=...` o Evolution debe enviar header `x-evolution-secret`.
 
 Flujo recomendado:
 
@@ -983,10 +992,10 @@ Flujo recomendado:
 3. Entrar a `Configuracion -> WhatsApp QR`.
 4. Presionar `Conectar / obtener QR`.
 5. Escanear el QR desde WhatsApp.
-6. En Evolution, configurar webhook hacia `/api/integrations/whatsapp/evolution/webhook`.
+6. Esperar a que el estado marque conectado y validar que la sesion se guarde en PostgreSQL.
 7. Probar desde el panel `WhatsApp`: enviar texto, enviar imagen y recibir un mensaje entrante.
 
-Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Evolution reporta la instancia como conectada. Si no esta conectada, el sistema registra el aviso omitido en logs y no bloquea la compra ni el correo transaccional.
+Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Baileys reporta la sesion conectada. Si no esta conectada, el sistema registra el aviso omitido en logs y no bloquea la compra ni el correo transaccional.
 
 ### Notificaciones internas de ventas y cambios de estado
 
@@ -1003,7 +1012,7 @@ Regla de seguridad: si WhatsApp no esta conectado, el pedido no se bloquea. El s
 
 ### Respaldo de sesion Baileys en base de datos
 
-Para reducir reinicios de sesion y evitar ciclos de QR, Baileys mantiene el volumen persistente `/app/auth_info_baileys` y ademas sincroniza los archivos JSON de autenticacion en la tabla `whatsapp_auth_files`. Al arrancar, si el directorio local no tiene credenciales, el backend intenta restaurarlas desde la base de datos antes de inicializar Baileys.
+Para reducir reinicios de sesion y evitar ciclos de QR, Baileys mantiene el volumen persistente `/app/auth_info_baileys` y ademas guarda la sesion y llaves de mensajes cifradas en la tabla `whatsapp_auth_state`. Al arrancar, si `WHATSAPP_AUTH_STORAGE=database`, el backend restaura el estado desde PostgreSQL antes de inicializar Baileys.
 
 Esta estrategia no evita bloqueos impuestos por WhatsApp si la sesion fue cerrada o invalidada desde el telefono, pero ayuda a sobrevivir redeploys, reinicios del contenedor y perdida accidental de archivos locales.
 

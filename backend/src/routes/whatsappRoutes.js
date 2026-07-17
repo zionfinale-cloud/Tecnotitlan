@@ -2,7 +2,6 @@ import express from 'express';
 import asyncHandler from 'express-async-handler';
 import multer from 'multer';
 import * as whatsappService from '../services/whatsappService.js';
-import { getConfig } from '../services/configService.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
 import { ForbiddenError } from '../utils/errorUtils.js';
@@ -19,18 +18,6 @@ const superAdminOnly = (req, res, next) => {
 };
 
 const canAttendWhatsApp = checkPermission('whatsapp:chat', 'support:update');
-
-router.post('/evolution/webhook', asyncHandler(async (req, res) => {
-  const expectedSecret = getConfig().EVOLUTION_WEBHOOK_SECRET;
-  const providedSecret = req.get('x-evolution-secret') || req.query.secret;
-
-  if (expectedSecret && providedSecret !== expectedSecret) {
-    throw new ForbiddenError('Webhook de Evolution no autorizado.');
-  }
-
-  const result = await whatsappService.handleEvolutionWebhook(req.body);
-  res.json({ status: 'success', data: result });
-}));
 
 router.use(protect);
 

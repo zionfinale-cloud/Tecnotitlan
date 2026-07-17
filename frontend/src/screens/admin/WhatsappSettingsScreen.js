@@ -4,6 +4,7 @@ import api from '../../services/apiService';
 import styles from './StorefrontSettingsScreen.module.css';
 
 const statusLabels = {
+  DISABLED: 'Desactivado',
   READY: 'Conectado',
   QR_RECEIVED: 'Escanea el QR',
   INITIALIZING: 'Inicializando',
@@ -77,9 +78,8 @@ const WhatsappSettingsScreen = () => {
 
   if (loading) return <div>Cargando WhatsApp...</div>;
 
-  const isEvolution = status?.provider === 'evolution';
+  const isDisabled = status?.provider === 'disabled';
   const isQrImage = typeof qr === 'string' && qr.startsWith('data:image/');
-  const webhookUrl = status?.webhookUrl || 'https://api.tecnotitlan.com.mx/api/integrations/whatsapp/evolution/webhook';
 
   return (
     <div>
@@ -87,16 +87,16 @@ const WhatsappSettingsScreen = () => {
         <div>
           <h2 className={styles.title}>WhatsApp Tecnotitlan</h2>
           <p className={styles.subtitle}>
-            {isEvolution
-              ? 'Conecta el numero operativo usando Evolution API. Esta seccion es solo para Super Admin.'
-              : 'Vincula el numero operativo escaneando el QR. Esta seccion es solo para Super Admin.'}
+            {isDisabled
+              ? 'WhatsApp esta desactivado para proteger el numero operativo. Reactivalo solo cuando tengas un canal estable.'
+              : 'Vincula el numero operativo escaneando el QR. Esta seccion es solo para Super Admin. La sesion queda cifrada en la base de datos para evitar reescaneos.'}
           </p>
         </div>
-        <button className={styles.primaryButton} type="button" onClick={start} disabled={starting}>
-          {starting ? 'Iniciando...' : (isEvolution ? 'Conectar / obtener QR' : 'Iniciar / regenerar QR')}
+        <button className={styles.primaryButton} type="button" onClick={start} disabled={starting || isDisabled}>
+          {starting ? 'Iniciando...' : 'Iniciar / regenerar QR'}
         </button>
-        <button className={styles.secondaryButton} type="button" onClick={reset} disabled={resetting || starting}>
-          {resetting ? 'Reiniciando...' : (isEvolution ? 'Reiniciar instancia' : 'Borrar sesion y pedir QR')}
+        <button className={styles.secondaryButton} type="button" onClick={reset} disabled={resetting || starting || isDisabled}>
+          {resetting ? 'Reiniciando...' : 'Borrar sesion y pedir QR'}
         </button>
       </div>
 
@@ -106,17 +106,17 @@ const WhatsappSettingsScreen = () => {
         <section className={styles.card}>
           <h3 className={styles.cardTitle}>Estado de conexion</h3>
           <div style={{ display: 'grid', gap: '.75rem' }}>
-            <p><strong>Proveedor:</strong> {isEvolution ? 'Evolution API' : 'Baileys local'}</p>
+            <p><strong>Proveedor:</strong> {isDisabled ? 'Desactivado' : 'Baileys local'}</p>
             <p><strong>Estado:</strong> {statusLabels[status?.status] || status?.status || 'Sin estado'}</p>
             <p><strong>Conectado:</strong> {status?.connected ? 'Si' : 'No'}</p>
             {status?.lastError && <p><strong>Ultimo error:</strong> {status.lastError}</p>}
             {status?.user?.id && <p><strong>Cuenta:</strong> {status.user.id}</p>}
-            {status?.instance && <p><strong>Instancia:</strong> {status.instance}</p>}
+            {status?.authStorage && <p><strong>Almacenamiento:</strong> {status.authStorage === 'database' ? 'Base de datos cifrada' : status.authStorage}</p>}
             {status?.authDir && <p><strong>Sesion activa:</strong> <code>{status.authDir}</code></p>}
             <p className={styles.subtitle}>
-              {isEvolution
-                ? <>Webhook para Evolution: <code>{webhookUrl}</code>. Configuralo en tu instancia para recibir mensajes entrantes.</>
-                : <>Para que no se pierda la sesion en redeploys, el VPS debe montar un volumen persistente en <code>/app/auth_info_baileys</code> o definir <code>WHATSAPP_AUTH_DIR</code>.</>}
+              {isDisabled
+                ? <>No se intentara conectar ni generar QR mientras <code>WHATSAPP_PROVIDER=disabled</code>. Las notificaciones seguiran saliendo por correo.</>
+                : <>La sesion y las llaves de mensajes se guardan cifradas en PostgreSQL cuando <code>WHATSAPP_AUTH_STORAGE=database</code>. No cambies <code>SESSION_SECRET</code> sin cerrar primero la sesion.</>}
             </p>
           </div>
         </section>
@@ -134,7 +134,7 @@ const WhatsappSettingsScreen = () => {
             </div>
           ) : (
             <div className={`${styles.notice} ${status?.connected ? styles.success : styles.error}`}>
-              {status?.connected ? 'WhatsApp ya esta conectado.' : 'Aun no hay QR. Presiona iniciar y espera unos segundos.'}
+              {isDisabled ? 'WhatsApp esta desactivado. No se generara QR.' : (status?.connected ? 'WhatsApp ya esta conectado.' : 'Aun no hay QR. Presiona iniciar y espera unos segundos.')}
             </div>
           )}
         </section>

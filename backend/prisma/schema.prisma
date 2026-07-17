@@ -612,6 +612,18 @@ model WhatsAppAuthFile {
   @@map("whatsapp_auth_files")
 }
 
+model WhatsAppAuthState {
+  id        String   @id @default(cuid())
+  provider  String   @default("baileys")
+  key       String
+  value     Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, key])
+  @@map("whatsapp_auth_state")
+}
+
 // --- ENUMS ---
 
 enum ProductType {
