@@ -1009,6 +1009,8 @@ Regla de estados WhatsApp 2026-07-17: `DISCONNECTED` significa corte recuperable
 
 Regla anti-conflicto 2026-07-17: si `Sesion guardada = Si`, el boton `Iniciar conexion` debe reintentar esa sesion sin generar QR. Si WhatsApp responde `401`, la sesion fue invalidada o el mismo numero esta activo en otro bot/servidor. No se debe mantener el mismo numero corriendo en VEVA y Tecnotitlan al mismo tiempo; hay que apagar uno o usar un puente entre sistemas para evitar cierres de sesion y bloqueos.
 
+Regla de enlace QR 2026-07-17: al escanear QR, Baileys puede cerrar la conexion con `restartRequired` / codigo `515`. Eso no debe tratarse como logout ni como restriccion del numero. El backend guarda `creds.update` inmediatamente, limpia el QR y reconecta en segundos usando la sesion recien guardada, igual que el flujo estable de VEVA. Los cierres de sockets anteriores se ignoran para que no pisen el estado de la conexion vigente.
+
 ### Notificaciones internas de ventas y cambios de estado
 
 Desde 2026-07-14, Tecnotitlan separa las notificaciones del cliente y las notificaciones internas del equipo:

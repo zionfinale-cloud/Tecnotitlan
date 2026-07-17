@@ -629,6 +629,13 @@ const isLoggedOutDisconnect = (lastDisconnect, statusCode, message = '') => {
         || lowerMessage.includes('bad session');
 };
 
+const isRestartRequiredDisconnect = (statusCode, message = '') => {
+    const lowerMessage = String(message || '').toLowerCase();
+    return statusCode === DisconnectReason.restartRequired
+        || statusCode === 515
+        || lowerMessage.includes('restart required');
+};
+
 const rotateSessionAndRequestQr = (reason) => {
     clearReconnectTimer();
 
@@ -670,6 +677,25 @@ const pauseBaileysForManualReview = (reason, statusCode = null) => {
     ].filter(Boolean).join(' ');
     logger.warn(`[WhatsApp] ${lastError}`);
     emitStatus();
+};
+
+const scheduleImmediateBaileysReconnect = (reason) => {
+    if (reconnectTimer || resetInProgress || shutdownInProgress) return;
+
+    connectionStatus = 'RECONNECTING';
+    isInitializing = false;
+    emitStatus();
+
+    logger.warn(`[WhatsApp] Baileys solicito reinicio inmediato. Reintentando en 2s. Motivo: ${reason || 'restart required'}`);
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        initialize({ allowQr: false, reason: 'baileys restart required' }).catch((error) => {
+            lastError = error.message;
+            logger.error(`[WhatsApp] Reconnect inmediato fallido: ${error.message}`);
+            scheduleBaileysReconnect(error.message);
+        });
+    }, 2000);
+    reconnectTimer.unref?.();
 };
 
 const scheduleBaileysReconnect = (reason) => {
@@ -898,17 +924,33 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
 
         const { version } = await fetchLatestBaileysVersion();
 
-        sock = makeWASocket({
+        const client = makeWASocket({
             version,
             auth: state,
-            printQRInTerminal: true,
+            printQRInTerminal: false,
             logger: pino({ level: 'silent' }),
             browser: ['Tecnotitlan', 'Chrome', '1.0.0'],
             connectTimeoutMs: 60000,
             markOnlineOnConnect: false,
+            syncFullHistory: false,
         });
 
-        sock.ev.on('connection.update', (update) => {
+        sock = client;
+
+        client.ev.on('creds.update', async () => {
+            try {
+                await saveCreds();
+                if (!isDatabaseAuthStorage() && activeAuthDirForSync) {
+                    scheduleBaileysAuthSync(activeAuthDirForSync);
+                }
+            } catch (error) {
+                logger.warn(`[WhatsApp] No se pudo guardar/sincronizar credenciales: ${error.message}`);
+            }
+        });
+
+        client.ev.on('connection.update', (update) => {
+            if (sock !== client) return;
+
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
@@ -921,8 +963,8 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
                     lastError = `WhatsApp requiere QR nuevo. No se generara automaticamente durante ${reason}; usa "Borrar sesion y pedir QR" solo cuando vayas a vincular un numero sano.`;
                     logger.warn(`[WhatsApp] ${lastError}`);
                     try {
-                        sock?.end?.(new Error('QR required during protected auto connect'));
-                        sock?.ws?.close?.();
+                        client?.end?.(new Error('QR required during protected auto connect'));
+                        client?.ws?.close?.();
                     } catch (error) {
                         logger.warn(`[WhatsApp] No se pudo cerrar socket tras QR protegido: ${error.message}`);
                     }
@@ -942,11 +984,19 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
             if (connection === 'close') {
                 const statusCode = getDisconnectStatusCode(lastDisconnect);
                 lastError = lastDisconnect?.error?.message || `Conexion cerrada${statusCode ? ` (${statusCode})` : ''}`;
+                const restartRequired = isRestartRequiredDisconnect(statusCode, lastError);
                 const loggedOut = isLoggedOutDisconnect(lastDisconnect, statusCode, lastError);
                 const shouldReconnect = !shutdownInProgress && !resetInProgress && !loggedOut;
                 const shouldRequestQr = !shutdownInProgress && !resetInProgress && loggedOut && shouldAutoRotateSessionOnLogout();
-                logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}. Request QR: ${shouldRequestQr}. StatusCode: ${statusCode || 'n/a'}. Reason: ${lastError}`);
+                logger.warn(`WhatsApp connection closed. Restart required: ${restartRequired}. Reconnecting: ${shouldReconnect}. Request QR: ${shouldRequestQr}. StatusCode: ${statusCode || 'n/a'}. Reason: ${lastError}`);
                 sock = undefined;
+
+                if (!shutdownInProgress && !resetInProgress && restartRequired) {
+                    latestQr = null;
+                    reconnectAttempt = 0;
+                    scheduleImmediateBaileysReconnect(lastError);
+                    return;
+                }
 
                 if (!shutdownInProgress && !resetInProgress && loggedOut && !shouldRequestQr) {
                     pauseBaileysForManualReview(lastError, statusCode);
@@ -980,7 +1030,7 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
             }
         });
 
-        sock.ev.on('messages.upsert', async ({ messages = [] }) => {
+        client.ev.on('messages.upsert', async ({ messages = [] }) => {
             for (const message of messages) {
                 const { jid, phone } = resolveChatIdentity(message);
                 if (!jid || ignoredJids.has(jid) || jid.endsWith('@g.us')) continue;
@@ -1004,7 +1054,7 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
             }
         });
 
-        sock.ev.on('chats.phoneNumberShare', async ({ lid, jid }) => {
+        client.ev.on('chats.phoneNumberShare', async ({ lid, jid }) => {
             const phone = getPhoneFromJid(jid);
             if (!lid || !phone) return;
 
@@ -1015,17 +1065,6 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
                 });
             } catch (error) {
                 logger.warn(`[WhatsApp] No se pudo asociar telefono ${phone} con ${lid}: ${error.message}`);
-            }
-        });
-
-        sock.ev.on('creds.update', async () => {
-            try {
-                await saveCreds();
-                if (!isDatabaseAuthStorage() && activeAuthDirForSync) {
-                    scheduleBaileysAuthSync(activeAuthDirForSync);
-                }
-            } catch (error) {
-                logger.warn(`[WhatsApp] No se pudo guardar/sincronizar credenciales: ${error.message}`);
             }
         });
         return getStatus();
