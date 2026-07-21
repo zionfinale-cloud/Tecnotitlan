@@ -831,6 +831,7 @@ Reglas importantes:
 
 - **Inversiones:** representan dinero disponible para operar. Una inversion puede iniciar con un monto, recibir entradas extra y registrar salidas de dinero como gastos operativos, imprevistos o retiros.
 - **Compras de inventario:** cuando se registra una entrada de mercancia ligada a una inversion, el monto de la compra reduce el disponible de esa inversion.
+- **Eliminacion segura de inversiones:** una inversion se puede eliminar desde el panel solo si no tiene movimientos de dinero ni entradas de inventario ligadas. Si ya pago mercancia, gastos o ajustes, el backend bloquea el borrado para proteger cortes, utilidad y trazabilidad.
 - **Gastos operativos:** gasolina, empaques, comisiones, material de envio, herramientas o imprevistos se registran como movimientos de dinero en `Inversiones`, no como inventario.
 - **Inventario:** representa piezas fisicas y ubicacion. Debe responder: que tengo, donde esta, que se envio a canal, que se vendio y que falta reponer.
 - **Movimientos de inventario:** entradas, salidas por venta, transferencias a marketplaces y ajustes viven en `InventoryMovement`.

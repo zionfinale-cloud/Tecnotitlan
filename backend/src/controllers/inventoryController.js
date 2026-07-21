@@ -118,6 +118,33 @@ const createInvestment = asyncHandler(async (req, res, next) => {
   res.status(201).json({ status: 'success', data: { investment } });
 });
 
+const deleteInvestment = asyncHandler(async (req, res, next) => {
+  const investment = await prisma.inventoryInvestment.findUnique({
+    where: { id: req.params.id },
+    include: {
+      movements: { select: { id: true }, take: 1 },
+      cashMovements: { select: { id: true }, take: 1 },
+    },
+  });
+
+  if (!investment) return next(new NotFoundError('Inversion no encontrada.'));
+
+  if (investment.movements.length || investment.cashMovements.length) {
+    return next(new BadRequestError(
+      'Esta inversion ya tiene entradas, compras o gastos ligados. Para cuidar el corte, no se puede eliminar; registra una salida/ajuste o crea la inversion correcta aparte.'
+    ));
+  }
+
+  await prisma.inventoryInvestment.delete({
+    where: { id: investment.id },
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Inversion eliminada.',
+  });
+});
+
 const createInvestmentCashMovement = asyncHandler(async (req, res, next) => {
   const { type, amount, notes } = req.body;
   const parsedAmount = Number(amount);
@@ -651,6 +678,7 @@ export {
   getInvestments,
   getInventoryOverview,
   createInvestment,
+  deleteInvestment,
   createInvestmentCashMovement,
   createStockEntry,
   createManualSale,

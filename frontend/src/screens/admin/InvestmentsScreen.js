@@ -49,6 +49,7 @@ const InvestmentsScreen = () => {
     endDate: '',
   });
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -161,6 +162,38 @@ const InvestmentsScreen = () => {
       await loadInvestments();
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo registrar el movimiento de dinero.');
+    }
+  };
+
+  const deleteInvestment = async (investment) => {
+    const hasLinkedActivity = Number(investment.inventorySpent || 0) > 0
+      || Number(investment.cashIn || 0) > 0
+      || Number(investment.cashOut || 0) > 0;
+
+    const warning = hasLinkedActivity
+      ? 'Esta inversion ya tiene movimientos ligados. El sistema intentara eliminarla, pero si ya afecta cortes la API la va a proteger.'
+      : 'Esta inversion no tiene movimientos ligados.';
+
+    if (!window.confirm(`${warning}\n\nEliminar "${investment.name}"?`)) return;
+
+    setError('');
+    setSuccess('');
+    setDeletingId(investment.id);
+
+    try {
+      await api.delete(`/inventory/investments/${investment.id}`);
+      setSuccess('Inversion eliminada.');
+      setCashForm((current) => (
+        current.investmentId === investment.id ? { ...current, investmentId: '' } : current
+      ));
+      setCashFilters((current) => (
+        current.investmentId === investment.id ? { ...current, investmentId: '' } : current
+      ));
+      await loadInvestments();
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo eliminar la inversion.');
+    } finally {
+      setDeletingId('');
     }
   };
 
@@ -308,6 +341,7 @@ const InvestmentsScreen = () => {
                 <th>Imprevistos</th>
                 <th>Disponible</th>
                 <th>Fecha</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -321,11 +355,21 @@ const InvestmentsScreen = () => {
                   <td>{currency.format(investment.unexpectedExpenses || 0)}</td>
                   <td>{currency.format(investment.remaining || 0)}</td>
                   <td>{new Date(investment.createdAt).toLocaleDateString('es-MX')}</td>
+                  <td>
+                    <button
+                      className={styles.dangerButton}
+                      type="button"
+                      onClick={() => deleteInvestment(investment)}
+                      disabled={deletingId === investment.id}
+                    >
+                      {deletingId === investment.id ? 'Eliminando...' : 'Eliminar'}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {!loading && investments.length === 0 && (
                 <tr>
-                  <td colSpan="8" className={styles.empty}>Registra tu primera inversion para empezar limpio.</td>
+                  <td colSpan="9" className={styles.empty}>Registra tu primera inversion para empezar limpio.</td>
                 </tr>
               )}
             </tbody>

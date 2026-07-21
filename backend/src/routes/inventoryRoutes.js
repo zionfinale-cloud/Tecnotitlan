@@ -4,6 +4,7 @@ import {
   createInvestmentCashMovement,
   createManualSale,
   createStockEntry,
+  deleteInvestment,
   getInventoryCut,
   getInventoryOverview,
   getInvestments,
@@ -21,6 +22,10 @@ router
   .route('/investments')
   .get(checkPermission('finance:read_costs'), getInvestments)
   .post(checkPermission('finance:read_costs'), createInvestment);
+
+router
+  .route('/investments/:id')
+  .delete(checkPermission('finance:read_costs'), deleteInvestment);
 
 router
   .route('/investments/:id/cash-movements')
