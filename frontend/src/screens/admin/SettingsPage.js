@@ -42,6 +42,9 @@ const SettingsPage = () => {
             <ListGroup.Item as={NavLink} to="/admin/settings/mercadolibre" className={itemClass}>
               <i className="fas fa-handshake me-2"></i> Mercado Libre
             </ListGroup.Item>
+            <ListGroup.Item as={NavLink} to="/admin/settings/notification-logs" className={itemClass}>
+              <i className="fas fa-clipboard-list me-2"></i> Logs notificaciones
+            </ListGroup.Item>
             <ListGroup.Item as={NavLink} to="/admin/settings/legal" className={itemClass}>
               <i className="fas fa-gavel me-2"></i> Paginas legales
             </ListGroup.Item>

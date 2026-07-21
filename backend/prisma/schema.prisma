@@ -306,6 +306,7 @@ model Order {
   paymentResult   Json?
   shippingInfo    Json?
   statusHistory   StatusHistory[]
+  notificationLogs NotificationLog[]
 
   @@map("orders")
 }
@@ -647,7 +648,50 @@ model WhatsAppAuthState {
   @@map("whatsapp_auth_state")
 }
 
+model NotificationLog {
+  id          String                     @id @default(cuid())
+  channel     NotificationChannel
+  audience    NotificationAudience       @default(SYSTEM)
+  event       String
+  status      NotificationDeliveryStatus
+  provider    String?
+  recipient   String?
+  orderId     String?                    @map("order_id")
+  orderNumber String?                    @map("order_number")
+  message     String?                    @db.Text
+  error       String?                    @db.Text
+  details     Json?
+  createdAt   DateTime                   @default(now()) @map("created_at")
+  updatedAt   DateTime                   @updatedAt @map("updated_at")
+  order       Order?                     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([channel, status, createdAt])
+  @@index([orderId, createdAt])
+  @@map("notification_logs")
+}
+
 // --- ENUMS ---
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  N8N
+  SYSTEM
+}
+
+enum NotificationAudience {
+  CUSTOMER
+  STAFF
+  ADMIN
+  SYSTEM
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  SKIPPED
+  FAILED
+}
 
 enum ProductType {
   IN_HOUSE

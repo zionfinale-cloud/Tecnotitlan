@@ -34,6 +34,7 @@ import stripeWebhookRoutes from './routes/stripeWebhookRoutes.js';
 import tiktokShopRoutes from './routes/tiktokShopRoutes.js';
 import tecatlPublicRoutes from './routes/tecatlPublicRoutes.js';
 import tecatlAdminRoutes from './routes/tecatlAdminRoutes.js';
+import notificationLogRoutes from './routes/notificationLogRoutes.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
@@ -166,6 +167,7 @@ app.use(express.json());
     app.use('/api/tiktok', tiktokShopRoutes);
     app.use('/api/chat/tecatl', tecatlPublicRoutes);
     app.use('/api/admin/tecatl', tecatlAdminRoutes);
+    app.use('/api/notification-logs', notificationLogRoutes);
 
     const __dirname = path.resolve();
     app.use('/uploads', express.static(path.join(__dirname, '/uploads')));

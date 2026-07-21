@@ -8,6 +8,7 @@ import logger from '../utils/logger.js';
 import { BadRequestError } from '../utils/errorUtils.js';
 import { getConfig } from './configService.js';
 import { clearDatabaseAuthState, useDatabaseAuthState } from './baileysDbAuthState.js';
+import { writeNotificationLog } from './notificationLogService.js';
 
 const {
     DisconnectReason,
@@ -610,10 +611,15 @@ export const ensureReadyForNotification = async () => {
     if (RELINK_STATUSES.has(connectionStatus)) return false;
 
     if (!isInitializing && !['INITIALIZING', 'RECONNECTING', 'QR_RECEIVED'].includes(connectionStatus)) {
-        initialize({ allowQr: false, reason: 'notification' }).catch((error) => logger.warn(`[WhatsApp] Reconexion automatica fallida: ${error.message}`));
+        try {
+            await initialize({ allowQr: false, reason: 'notification' });
+        } catch (error) {
+            logger.warn(`[WhatsApp] Reconexion automatica fallida: ${error.message}`);
+            return false;
+        }
     }
 
-    return waitForReady();
+    return waitForReady(15000);
 };
 
 const getDisconnectStatusCode = (lastDisconnect) => lastDisconnect?.error?.output?.statusCode
@@ -1410,24 +1416,76 @@ const buildItemsSummary = (order) => {
 
 const sendCustomerOrderMessage = async (order, messageBuilder, eventName) => {
     const orderNumber = getOrderNumber(order);
+    let phone = null;
 
     try {
-        const phone = getCustomerPhone(order);
+        phone = getCustomerPhone(order);
         if (!phone) {
             logger.warn(`[WhatsApp] ${eventName} omitido para ${orderNumber}: pedido sin telefono/WhatsApp de cliente.`);
+            await writeNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'CUSTOMER',
+                event: eventName,
+                status: 'SKIPPED',
+                provider: getWhatsAppProvider(),
+                order,
+                message: 'Pedido sin telefono/WhatsApp de cliente.',
+                details: { connectionStatus },
+            });
             return;
         }
 
         const isReady = await ensureReadyForNotification();
         if (!isReady) {
             logger.warn(`[WhatsApp] ${eventName} omitido para ${orderNumber}: WhatsApp no conectado.`);
+            await writeNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'CUSTOMER',
+                event: eventName,
+                status: 'SKIPPED',
+                provider: getWhatsAppProvider(),
+                recipient: phone,
+                order,
+                message: 'WhatsApp no conectado al momento de notificar.',
+                error: lastError,
+                details: {
+                    connectionStatus,
+                    hasSession: await hasSavedSession(),
+                },
+            });
             return;
         }
 
-        await sendMessage(phone, messageBuilder(order), 'Sistema');
+        const text = messageBuilder(order);
+        await sendMessage(phone, text, 'Sistema');
         logger.info(`[WhatsApp] ${eventName} enviado para ${orderNumber} a ${phone}`);
+        await writeNotificationLog({
+            channel: 'WHATSAPP',
+            audience: 'CUSTOMER',
+            event: eventName,
+            status: 'SENT',
+            provider: getWhatsAppProvider(),
+            recipient: phone,
+            order,
+            message: text,
+            details: { connectionStatus },
+        });
     } catch (error) {
         logger.error(`[WhatsApp] No se pudo enviar ${eventName} para ${orderNumber}: ${error.message}`);
+        await writeNotificationLog({
+            channel: 'WHATSAPP',
+            audience: 'CUSTOMER',
+            event: eventName,
+            status: 'FAILED',
+            provider: getWhatsAppProvider(),
+            recipient: phone,
+            order,
+            error: error.message,
+            details: {
+                connectionStatus,
+                stack: error.stack,
+            },
+        });
     }
 };
 
@@ -1508,8 +1566,34 @@ export const sendAdminOrderPaidNotification = async (order) => {
 
         if (adminWhatsappNumber && await ensureReadyForNotification()) {
             await sendMessage(adminWhatsappNumber, message, 'Sistema');
+            await writeNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'ADMIN',
+                event: 'aviso de pago admin',
+                status: 'SENT',
+                provider: getWhatsAppProvider(),
+                recipient: adminWhatsappNumber,
+                order,
+                message,
+                details: { connectionStatus },
+            });
         } else if (adminWhatsappNumber) {
             logger.warn(`[WhatsApp] No se envio aviso de pago ${orderNumber}: cliente no inicializado.`);
+            await writeNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'ADMIN',
+                event: 'aviso de pago admin',
+                status: 'SKIPPED',
+                provider: getWhatsAppProvider(),
+                recipient: adminWhatsappNumber,
+                order,
+                message: 'WhatsApp no conectado al momento de notificar al admin.',
+                error: lastError,
+                details: {
+                    connectionStatus,
+                    hasSession: await hasSavedSession(),
+                },
+            });
         }
 
         if (n8nWebhookUrl) {
@@ -1521,12 +1605,43 @@ export const sendAdminOrderPaidNotification = async (order) => {
                 paymentMethod: order?.paymentMethod,
                 paidAt: order?.paidAt,
             });
+            await writeNotificationLog({
+                channel: 'N8N',
+                audience: 'ADMIN',
+                event: 'order.paid',
+                status: 'SENT',
+                provider: 'n8n',
+                order,
+                message: 'Webhook de venta pagada enviado.',
+            });
         }
 
         if (!adminWhatsappNumber && !n8nWebhookUrl) {
             logger.info(`[WhatsApp] Aviso de pago ${orderNumber} omitido: sin ADMIN_WHATSAPP_NUMBER ni N8N_ORDER_WEBHOOK_URL.`);
+            await writeNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'ADMIN',
+                event: 'aviso de pago admin',
+                status: 'SKIPPED',
+                provider: getWhatsAppProvider(),
+                order,
+                message: 'Sin ADMIN_WHATSAPP_NUMBER ni N8N_ORDER_WEBHOOK_URL configurados.',
+            });
         }
     } catch (error) {
         logger.error(`[WhatsApp] No se pudo enviar aviso de pago: ${error.message}`);
+        await writeNotificationLog({
+            channel: 'WHATSAPP',
+            audience: 'ADMIN',
+            event: 'aviso de pago admin',
+            status: 'FAILED',
+            provider: getWhatsAppProvider(),
+            order,
+            error: error.message,
+            details: {
+                connectionStatus,
+                stack: error.stack,
+            },
+        });
     }
 };

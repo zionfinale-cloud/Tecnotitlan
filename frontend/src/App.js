@@ -51,6 +51,7 @@ import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-ru
 import SystemSettingsScreen from './screens/admin/SystemSettingsScreen';
 import StorefrontSettingsScreen from './screens/admin/StorefrontSettingsScreen';
 import LegalPagesScreen from './screens/admin/LegalPagesScreen';
+import NotificationLogsScreen from './screens/admin/NotificationLogsScreen';
 import PrivacyPolicy from './screens/PrivacyPolicy';
 import TermsOfService from './screens/TermsOfService';
 import ContactScreen from './screens/ContactScreen';
@@ -134,6 +135,7 @@ function App() {
                                                     <Route path="whatsapp" element={<WhatsappSettingsScreen />} />
                                                     <Route path="tiktok" element={<TikTokShopSettingsScreen />} />
                                                     <Route path="mercadolibre" element={<MercadoLibreSettingsScreen />} />
+                                                    <Route path="notification-logs" element={<NotificationLogsScreen />} />
                                                 </Route>
 
                                             </Route>

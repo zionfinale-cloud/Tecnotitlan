@@ -3,6 +3,7 @@ import logger from '../utils/logger.js';
 import { sendTransactionalMail } from './emailService.js';
 import * as whatsappService from './whatsappService.js';
 import { getConfig } from './configService.js';
+import { writeNotificationLog } from './notificationLogService.js';
 
 const OPERATIONAL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'VENDEDOR'];
 
@@ -102,6 +103,15 @@ const sendStaffEmail = async ({ subject, title, preview, order, rows }) => {
 
   if (recipients.length === 0) {
     logger.info(`[Staff Notifications] Sin destinatarios de correo para ${order.orderNumber}.`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'STAFF',
+      event: subject,
+      status: 'SKIPPED',
+      provider: 'smtp',
+      order,
+      message: 'Sin destinatarios de correo operativos habilitados.',
+    });
     return;
   }
 
@@ -111,12 +121,32 @@ const sendStaffEmail = async ({ subject, title, preview, order, rows }) => {
     text: `${title}\n${preview}\nPedido: ${order.orderNumber}\nCanal: ${getChannelLabel(order)}\nCliente: ${getCustomerName(order)}\nTotal: ${currency.format(order.totalPrice || 0)}\n${itemsText(order)}`,
     html: buildEmailHtml({ title, preview, order, rows }),
   });
+  await writeNotificationLog({
+    channel: 'EMAIL',
+    audience: 'STAFF',
+    event: subject,
+    status: 'SENT',
+    provider: 'smtp',
+    recipient: recipients.join(', '),
+    order,
+    message: preview,
+    details: { recipients: recipients.length },
+  });
 };
 
 const sendStaffWhatsApp = async ({ order, message }) => {
   const isReady = await whatsappService.ensureReadyForNotification();
   if (!isReady) {
     logger.warn(`[Staff Notifications] WhatsApp omitido para ${order.orderNumber}: WhatsApp no conectado.`);
+    await writeNotificationLog({
+      channel: 'WHATSAPP',
+      audience: 'STAFF',
+      event: 'staff_order_notification',
+      status: 'SKIPPED',
+      provider: 'baileys',
+      order,
+      message: 'WhatsApp no conectado al momento de notificar al equipo.',
+    });
     return;
   }
 
@@ -135,6 +165,15 @@ const sendStaffWhatsApp = async ({ order, message }) => {
       recipients.push({ name: 'WhatsApp administrador', phone: adminWhatsappNumber });
     } else {
       logger.info(`[Staff Notifications] Sin destinatarios WhatsApp para ${order.orderNumber}.`);
+      await writeNotificationLog({
+        channel: 'WHATSAPP',
+        audience: 'STAFF',
+        event: 'staff_order_notification',
+        status: 'SKIPPED',
+        provider: 'baileys',
+        order,
+        message: 'Sin destinatarios WhatsApp operativos habilitados.',
+      });
       return;
     }
   }
@@ -148,10 +187,28 @@ const sendStaffWhatsApp = async ({ order, message }) => {
   );
 
   results.forEach((result, index) => {
+    const recipient = dedupedRecipients[index];
     if (result.status === 'rejected') {
-      logger.warn(`[Staff Notifications] WhatsApp omitido para ${dedupedRecipients[index].name}: ${result.reason?.message || result.reason}`);
+      logger.warn(`[Staff Notifications] WhatsApp omitido para ${recipient.name}: ${result.reason?.message || result.reason}`);
     }
   });
+
+  await Promise.all(results.map((result, index) => {
+    const recipient = dedupedRecipients[index];
+    const failed = result.status === 'rejected';
+    return writeNotificationLog({
+      channel: 'WHATSAPP',
+      audience: 'STAFF',
+      event: 'staff_order_notification',
+      status: failed ? 'FAILED' : 'SENT',
+      provider: 'baileys',
+      recipient: recipient.phone,
+      order,
+      message: failed ? null : message,
+      error: failed ? (result.reason?.message || String(result.reason)) : null,
+      details: { recipientName: recipient.name },
+    });
+  }));
 };
 
 export const notifyStaffOrderPaid = async (order) => {
