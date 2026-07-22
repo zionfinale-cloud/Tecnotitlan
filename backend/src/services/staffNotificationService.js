@@ -143,21 +143,6 @@ const sendStaffEmail = async ({ subject, title, preview, order, rows }) => {
 };
 
 const sendStaffWhatsApp = async ({ order, message }) => {
-  const isReady = await whatsappService.ensureReadyForNotification();
-  if (!isReady) {
-    logger.warn(`[Staff Notifications] WhatsApp omitido para ${order.orderNumber}: WhatsApp no conectado.`);
-    await writeNotificationLog({
-      channel: 'WHATSAPP',
-      audience: 'STAFF',
-      event: 'staff_order_notification',
-      status: 'SKIPPED',
-      provider: 'baileys',
-      order,
-      message: 'WhatsApp no conectado al momento de notificar al equipo.',
-    });
-    return;
-  }
-
   const staff = await getStaffRecipients();
   const recipients = staff
     .filter((user) => user.notificationWhatsappEnabled === true)
@@ -214,7 +199,10 @@ const sendStaffWhatsApp = async ({ order, message }) => {
       order,
       message: failed ? null : message,
       error: failed ? (result.reason?.message || String(result.reason)) : null,
-      details: { recipientName: recipient.name },
+      details: {
+        recipientName: recipient.name,
+        ...(failed ? {} : { whatsapp: result.value }),
+      },
     });
   }));
 };

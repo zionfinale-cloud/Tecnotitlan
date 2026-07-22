@@ -471,9 +471,51 @@ const getJidForPhone = (value = '') => {
     return toJid(value);
 };
 
-const getOutgoingTargets = async (value = '') => {
+const uniqueValues = (values = []) => [...new Set(values.filter(Boolean))];
+
+const getMexicanMobileLegacyJid = (phone = '') => {
+    const normalizedPhone = normalizeMexicanPhone(phone);
+    if (!normalizedPhone || normalizedPhone.length !== 12 || !normalizedPhone.startsWith('52')) return null;
+    return `521${normalizedPhone.slice(-10)}@s.whatsapp.net`;
+};
+
+const getJidCandidates = (value = '') => {
     const requestedJid = toJid(String(value || ''));
-    const targets = [requestedJid];
+    const phone = normalizeMexicanPhone(getJidUser(requestedJid));
+    return {
+        requestedJid,
+        phone,
+        candidates: uniqueValues([
+            requestedJid,
+            getMexicanMobileLegacyJid(phone),
+        ]),
+    };
+};
+
+const resolveTargetsOnWhatsApp = async (targets = []) => {
+    const resolvedTargets = [];
+
+    for (const target of targets) {
+        try {
+            if (sock?.onWhatsApp) {
+                const availability = await sock.onWhatsApp(target);
+                const foundJids = (availability || [])
+                    .filter((item) => item?.exists && item?.jid)
+                    .map((item) => item.jid);
+                resolvedTargets.push(...foundJids);
+            }
+        } catch (error) {
+            logger.warn(`[WhatsApp] No se pudo validar destino ${target}: ${error.message}`);
+        }
+        resolvedTargets.push(target);
+    }
+
+    return uniqueValues(resolvedTargets);
+};
+
+const getOutgoingTargets = async (value = '') => {
+    const { requestedJid, phone, candidates } = getJidCandidates(value);
+    const targets = [...candidates];
 
     try {
         const chat = await prisma.whatsAppChat.findUnique({
@@ -481,14 +523,18 @@ const getOutgoingTargets = async (value = '') => {
             select: { phone: true },
         });
         if (chat?.phone) {
-            const phoneJid = toJid(chat.phone);
-            if (!targets.includes(phoneJid)) targets.push(phoneJid);
+            const alternate = getJidCandidates(chat.phone);
+            targets.push(...alternate.candidates);
         }
     } catch (error) {
         logger.warn(`[WhatsApp] No se pudo resolver telefono alterno para ${requestedJid}: ${error.message}`);
     }
 
-    return { requestedJid, targets };
+    return {
+        requestedJid,
+        phone,
+        targets: await resolveTargetsOnWhatsApp(uniqueValues(targets)),
+    };
 };
 
 const resolveChatIdentity = (message = {}) => {
@@ -613,14 +659,20 @@ const getMediaLabel = (media) => {
     return media.fileName ? `[Archivo: ${media.fileName}]` : '[Archivo]';
 };
 
+const isSocketReady = () => Boolean(
+    sock?.user
+    && connectionStatus === 'READY'
+    && sock?.ws?.readyState !== 3
+);
+
 const waitForReady = async (timeoutMs = 12000) => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-        if (sock?.user && connectionStatus === 'READY') return true;
+        if (isSocketReady()) return true;
         if (connectionStatus === 'QR_RECEIVED') return false;
         await delay(500);
     }
-    return sock?.user && connectionStatus === 'READY';
+    return isSocketReady();
 };
 
 const closeCurrentSocketForRetry = async (reason = 'retry') => {
@@ -637,18 +689,17 @@ const closeCurrentSocketForRetry = async (reason = 'retry') => {
 
 const canReconnectWithSavedSession = async () => {
     if (isWhatsAppDisabledProvider()) return false;
-    if (RELINK_STATUSES.has(connectionStatus) || connectionStatus === 'QR_RECEIVED') return false;
+    if (connectionStatus === 'QR_RECEIVED') return false;
     return hasSavedSession();
 };
 
 export const ensureReadyForNotification = async () => {
     if (isWhatsAppDisabledProvider()) return false;
 
-    if (sock?.user && connectionStatus === 'READY') return true;
+    if (isSocketReady()) return true;
     if (!isAutoConnectEnabled()) return false;
-    if (RELINK_STATUSES.has(connectionStatus)) return false;
 
-    if (connectionStatus === 'PAUSED') {
+    if (connectionStatus === 'PAUSED' || RELINK_STATUSES.has(connectionStatus)) {
         if (!await canReconnectWithSavedSession()) return false;
         reconnectAttempt = 0;
         pausedAt = null;
@@ -670,7 +721,7 @@ export const ensureReadyForNotification = async () => {
 };
 
 const ensureReadyForSend = async (reason = 'send') => {
-    if (sock?.user && connectionStatus === 'READY') return true;
+    if (isSocketReady()) return true;
     if (await ensureReadyForNotification()) return true;
     if (!await canReconnectWithSavedSession()) return false;
 
@@ -894,7 +945,7 @@ export const setSocketIO = (socketIoInstance) => {
 const getBaileysStatus = () => ({
     provider: 'baileys',
     status: connectionStatus,
-    connected: Boolean(sock?.user && connectionStatus === 'READY'),
+    connected: isSocketReady(),
     user: sock?.user || null,
     hasQr: Boolean(latestQr),
     isInitializing,
@@ -944,7 +995,7 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
 
     if (shutdownInProgress) return getStatus();
 
-    if (sock?.user && connectionStatus === 'READY') return getStatus();
+    if (isSocketReady()) return getStatus();
     if (isInitializing) return getStatus();
 
     const hasSavedSession = await hasPersistedBaileysSession();
@@ -1071,7 +1122,30 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
                 }
 
                 if (!shutdownInProgress && !resetInProgress && loggedOut && !shouldRequestQr) {
-                    pauseBaileysForManualReview(lastError, statusCode);
+                    hasPersistedBaileysSession()
+                        .then((hasSavedSession) => {
+                            if (!hasSavedSession) {
+                                pauseBaileysForManualReview(lastError, statusCode);
+                                return;
+                            }
+
+                            connectionStatus = 'DISCONNECTED';
+                            isInitializing = false;
+                            latestQr = null;
+                            lastError = [
+                                'WhatsApp cerro la conexion, pero existe sesion guardada.',
+                                'Se reintentara con las llaves cifradas antes de pedir QR nuevo.',
+                                statusCode ? `Codigo: ${statusCode}.` : '',
+                                lastError,
+                            ].filter(Boolean).join(' ');
+                            logger.warn(`[WhatsApp] ${lastError}`);
+                            emitStatus();
+                            scheduleBaileysReconnect(lastError);
+                        })
+                        .catch((error) => {
+                            logger.warn(`[WhatsApp] No se pudo revisar sesion guardada tras cierre: ${error.message}`);
+                            pauseBaileysForManualReview(lastError, statusCode);
+                        });
                     return;
                 }
 
@@ -1153,25 +1227,29 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
 const shouldSkipAutoConnect = () => resetInProgress
     || isInitializing
     || Boolean(reconnectTimer)
-    || connectionStatus === 'QR_RECEIVED'
-    || RELINK_STATUSES.has(connectionStatus);
+    || connectionStatus === 'QR_RECEIVED';
 
 const attemptAutoConnect = async (reason = 'watchdog') => {
     if (!isAutoConnectEnabled()) return getStatus();
     if (isWhatsAppDisabledProvider()) return getStatus();
 
-    if (sock?.user && connectionStatus === 'READY') return getStatus();
+    if (isSocketReady()) return getStatus();
 
-    if (connectionStatus === 'PAUSED') {
-        if (!shouldAutoRetryPaused()) return getStatus();
+    if (connectionStatus === 'PAUSED' || RELINK_STATUSES.has(connectionStatus)) {
+        const hasSavedSession = await hasPersistedBaileysSession();
+        if (!hasSavedSession) return getStatus();
 
-        const elapsedMs = pausedAt ? Date.now() - pausedAt : getPausedRetryAfterMs();
-        if (elapsedMs < getPausedRetryAfterMs()) return getStatus();
+        if (connectionStatus === 'PAUSED' && !shouldAutoRetryPaused()) return getStatus();
+
+        if (connectionStatus === 'PAUSED') {
+            const elapsedMs = pausedAt ? Date.now() - pausedAt : getPausedRetryAfterMs();
+            if (elapsedMs < getPausedRetryAfterMs()) return getStatus();
+        }
 
         reconnectAttempt = 0;
         pausedAt = null;
         connectionStatus = 'RECONNECTING';
-        lastError = `Reintentando reconexion automatica tras pausa (${reason}).`;
+        lastError = `Reintentando reconexion automatica con sesion guardada (${reason}).`;
         emitStatus();
     }
 
@@ -1332,14 +1410,16 @@ export const sendMessage = async (number, message, sentBy = null) => {
     const text = String(message || '').trim();
     if (!text) throw new BadRequestError('El mensaje no puede estar vacio.');
 
-    const { requestedJid, targets } = await getOutgoingTargets(number);
+    const { requestedJid, phone, targets } = await getOutgoingTargets(number);
     let result;
+    let sentTargetJid = null;
     let lastSendError;
 
     const attemptSend = async () => {
         for (const targetJid of targets) {
             try {
                 const sent = await sock.sendMessage(targetJid, { text });
+                sentTargetJid = sent?.key?.remoteJid || targetJid;
                 if (targetJid !== requestedJid) {
                     logger.info(`[WhatsApp] Mensaje enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
                 }
@@ -1366,16 +1446,31 @@ export const sendMessage = async (number, message, sentBy = null) => {
         throw new BadRequestError(`No se pudo enviar el mensaje por WhatsApp: ${lastSendError?.message || 'destino no disponible'}`);
     }
 
+    const providerMessageId = result?.key?.id || null;
+    const sentJid = result?.key?.remoteJid || sentTargetJid || requestedJid;
+    const accepted = Boolean(providerMessageId || sentJid);
+
     await persistMessage({
         jid: requestedJid,
-        messageId: result?.key?.id,
+        messageId: providerMessageId,
         text,
         fromMe: true,
         createdAt: new Date(),
         sentBy,
+        phone,
     });
 
-    return result;
+    logger.info(`[WhatsApp] Mensaje aceptado por Baileys. Solicitado: ${requestedJid}. Usado: ${sentJid}. ID: ${providerMessageId || 'sin-id'}`);
+
+    return {
+        accepted,
+        provider: 'baileys',
+        requestedJid,
+        sentJid,
+        recipientPhone: phone,
+        providerMessageId,
+        rawKey: result?.key || null,
+    };
 };
 
 const getOutgoingMediaPayload = (file, caption = '') => {
@@ -1416,7 +1511,7 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
 
     const cleanCaption = String(caption || '').trim();
     const { payload, type } = getOutgoingMediaPayload(file, cleanCaption);
-    const { requestedJid, targets } = await getOutgoingTargets(number);
+    const { requestedJid, phone, targets } = await getOutgoingTargets(number);
     const savedMedia = await saveMediaBuffer({
         buffer: file.buffer,
         jid: requestedJid,
@@ -1426,11 +1521,13 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
     });
 
     let result;
+    let sentTargetJid = null;
     let lastSendError;
     const attemptSend = async () => {
         for (const targetJid of targets) {
             try {
                 const sent = await sock.sendMessage(targetJid, payload);
+                sentTargetJid = sent?.key?.remoteJid || targetJid;
                 if (targetJid !== requestedJid) {
                     logger.info(`[WhatsApp] Adjunto enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
                 }
@@ -1457,17 +1554,32 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
         throw new BadRequestError(`No se pudo enviar el adjunto por WhatsApp: ${lastSendError?.message || 'destino no disponible'}`);
     }
 
+    const providerMessageId = result?.key?.id || null;
+    const sentJid = result?.key?.remoteJid || sentTargetJid || requestedJid;
+    const accepted = Boolean(providerMessageId || sentJid);
+
     await persistMessage({
         jid: requestedJid,
-        messageId: result?.key?.id,
+        messageId: providerMessageId,
         text: cleanCaption || getMediaLabel(savedMedia),
         fromMe: true,
         createdAt: new Date(),
         sentBy,
+        phone,
         ...savedMedia,
     });
 
-    return result;
+    logger.info(`[WhatsApp] Adjunto aceptado por Baileys. Solicitado: ${requestedJid}. Usado: ${sentJid}. ID: ${providerMessageId || 'sin-id'}`);
+
+    return {
+        accepted,
+        provider: 'baileys',
+        requestedJid,
+        sentJid,
+        recipientPhone: phone,
+        providerMessageId,
+        rawKey: result?.key || null,
+    };
 };
 
 const currency = new Intl.NumberFormat('es-MX', {
@@ -1526,29 +1638,8 @@ const sendCustomerOrderMessage = async (order, messageBuilder, eventName) => {
             return;
         }
 
-        const isReady = await ensureReadyForNotification();
-        if (!isReady) {
-            logger.warn(`[WhatsApp] ${eventName} omitido para ${orderNumber}: WhatsApp no conectado.`);
-            await writeNotificationLog({
-                channel: 'WHATSAPP',
-                audience: 'CUSTOMER',
-                event: eventName,
-                status: 'SKIPPED',
-                provider: getWhatsAppProvider(),
-                recipient: phone,
-                order,
-                message: 'WhatsApp no conectado al momento de notificar.',
-                error: lastError,
-                details: {
-                    connectionStatus,
-                    hasSession: await hasSavedSession(),
-                },
-            });
-            return;
-        }
-
         const text = messageBuilder(order);
-        await sendMessage(phone, text, 'Sistema');
+        const sendResult = await sendMessage(phone, text, 'Sistema');
         logger.info(`[WhatsApp] ${eventName} enviado para ${orderNumber} a ${phone}`);
         await writeNotificationLog({
             channel: 'WHATSAPP',
@@ -1559,7 +1650,10 @@ const sendCustomerOrderMessage = async (order, messageBuilder, eventName) => {
             recipient: phone,
             order,
             message: text,
-            details: { connectionStatus },
+            details: {
+                connectionStatus,
+                whatsapp: sendResult,
+            },
         });
     } catch (error) {
         logger.error(`[WhatsApp] No se pudo enviar ${eventName} para ${orderNumber}: ${error.message}`);
@@ -1655,8 +1749,8 @@ export const sendAdminOrderPaidNotification = async (order) => {
         const orderNumber = order?.orderNumber || order?.id || 'sin folio';
         const message = `Pago confirmado en Tecnotitlan\nPedido: ${orderNumber}\nTotal: ${total}`;
 
-        if (adminWhatsappNumber && await ensureReadyForNotification()) {
-            await sendMessage(adminWhatsappNumber, message, 'Sistema');
+        if (adminWhatsappNumber) {
+            const sendResult = await sendMessage(adminWhatsappNumber, message, 'Sistema');
             await writeNotificationLog({
                 channel: 'WHATSAPP',
                 audience: 'ADMIN',
@@ -1666,23 +1760,9 @@ export const sendAdminOrderPaidNotification = async (order) => {
                 recipient: adminWhatsappNumber,
                 order,
                 message,
-                details: { connectionStatus },
-            });
-        } else if (adminWhatsappNumber) {
-            logger.warn(`[WhatsApp] No se envio aviso de pago ${orderNumber}: cliente no inicializado.`);
-            await writeNotificationLog({
-                channel: 'WHATSAPP',
-                audience: 'ADMIN',
-                event: 'aviso de pago admin',
-                status: 'SKIPPED',
-                provider: getWhatsAppProvider(),
-                recipient: adminWhatsappNumber,
-                order,
-                message: 'WhatsApp no conectado al momento de notificar al admin.',
-                error: lastError,
                 details: {
                     connectionStatus,
-                    hasSession: await hasSavedSession(),
+                    whatsapp: sendResult,
                 },
             });
         }
