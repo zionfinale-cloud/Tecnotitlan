@@ -509,8 +509,8 @@ const getJidCandidates = (value = '') => {
         requestedJid,
         phone,
         candidates: uniqueValues([
-            requestedJid,
             getMexicanMobileLegacyJid(phone),
+            requestedJid,
         ]),
     };
 };
