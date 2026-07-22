@@ -1618,10 +1618,66 @@ const getOrderTrackingUrl = (order) => {
     return `${clientUrl}/order/${order?.id}`;
 };
 
+const toPlainObject = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return value;
+};
+
+const getCustomerName = (order) => {
+    const shippingAddress = toPlainObject(order?.shippingAddress);
+    const rawName = shippingAddress.fullName
+        || shippingAddress.name
+        || shippingAddress.recipientName
+        || shippingAddress.customerName
+        || [shippingAddress.firstName, shippingAddress.lastName].filter(Boolean).join(' ')
+        || order?.customerName
+        || [order?.user?.firstName, order?.user?.lastName].filter(Boolean).join(' ')
+        || order?.user?.email
+        || '';
+
+    const cleanName = String(rawName).trim();
+    if (!cleanName) return '';
+    return cleanName.split(/\s+/)[0];
+};
+
+const getCustomerGreeting = (order) => {
+    const firstName = getCustomerName(order);
+    return firstName ? `Hola ${firstName}.` : 'Hola.';
+};
+
+const getFriendlyOrderStatus = (status) => ({
+    PENDING_PAYMENT: 'Pendiente de pago',
+    PROCESSING: 'Preparando',
+    PENDING_FULFILLMENT: 'Por surtir',
+    SHIPPED: 'Enviado',
+    DELIVERED: 'Entregado',
+    CANCELLED: 'Cancelado',
+}[status] || status || 'Actualizado');
+
+const getShippingInfo = (order) => {
+    const shippingInfo = toPlainObject(order?.shippingInfo);
+    return {
+        trackingNumber: shippingInfo.trackingNumber
+            || shippingInfo.tracking
+            || shippingInfo.guideNumber
+            || shippingInfo.guia
+            || '',
+        carrier: shippingInfo.carrier
+            || shippingInfo.paqueteria
+            || shippingInfo.shippingCompany
+            || '',
+        trackingUrl: shippingInfo.trackingUrl
+            || shippingInfo.rastreo
+            || shippingInfo.trackingLink
+            || '',
+    };
+};
+
 const getCustomerPhone = (order) => {
-    const rawPhone = order?.shippingAddress?.whatsapp
-        || order?.shippingAddress?.phone
-        || order?.shippingAddress?.telefono
+    const shippingAddress = toPlainObject(order?.shippingAddress);
+    const rawPhone = shippingAddress.whatsapp
+        || shippingAddress.phone
+        || shippingAddress.telefono
         || order?.user?.phone
         || null;
 
@@ -1632,13 +1688,32 @@ const buildItemsSummary = (order) => {
     const items = order?.orderItems || [];
     if (!items.length) return '';
 
-    return items
-        .slice(0, 4)
+    const visibleItems = items.slice(0, 4);
+    const itemLines = visibleItems
         .map((item) => {
             const productName = item.name || item.product?.name || item.productName || 'Producto';
             return `- ${item.qty || 1} x ${productName}`;
-        })
-        .join('\n');
+        });
+
+    const hiddenItems = items.length - visibleItems.length;
+    if (hiddenItems > 0) {
+        itemLines.push(`- Y ${hiddenItems} producto(s) mas`);
+    }
+
+    return itemLines.join('\n');
+};
+
+const buildStatusMessage = (order, extraLines = []) => {
+    const itemsText = buildItemsSummary(order);
+    return [
+        getCustomerGreeting(order),
+        `Tu pedido ${getOrderNumber(order)} cambio a: ${getFriendlyOrderStatus(order?.status)}.`,
+        `Total: ${currency.format(order?.totalPrice || 0)}`,
+        itemsText ? `\nProductos:\n${itemsText}` : '',
+        ...extraLines,
+        `\nSeguimiento: ${getOrderTrackingUrl(order)}`,
+        '\nGracias por comprar en Tecnotitlan. Si necesitas ayuda, responde este mensaje o escribenos a hola@tecnotitlan.com.mx.',
+    ].filter(Boolean).join('\n');
 };
 
 const sendCustomerOrderMessage = async (order, messageBuilder, eventName) => {
@@ -1703,12 +1778,14 @@ export const sendCustomerOrderPaidNotification = async (order) => sendCustomerOr
     (currentOrder) => {
         const itemsText = buildItemsSummary(currentOrder);
         return [
-            'Hola, tu pago en Tecnotitlan fue confirmado.',
+            getCustomerGreeting(currentOrder),
+            `Tu pago fue confirmado en Tecnotitlan.`,
             `Pedido: ${getOrderNumber(currentOrder)}`,
-            'Estado: Pago confirmado',
+            'Estado: Pago confirmado. Ya lo pasamos a preparacion.',
             `Total: ${currency.format(currentOrder?.totalPrice || 0)}`,
             itemsText ? `\nProductos:\n${itemsText}` : '',
             `\nPuedes revisar el seguimiento aqui: ${getOrderTrackingUrl(currentOrder)}`,
+            '\nGracias por tu compra. Cualquier duda, responde este mensaje y te ayudamos.',
         ].filter(Boolean).join('\n');
     },
     'aviso de pago al cliente'
@@ -1717,16 +1794,17 @@ export const sendCustomerOrderPaidNotification = async (order) => sendCustomerOr
 export const sendCustomerOrderShippedNotification = async (order) => sendCustomerOrderMessage(
     order,
     (currentOrder) => {
-        const trackingNumber = currentOrder?.shippingInfo?.trackingNumber || currentOrder?.shippingInfo?.tracking;
-        const carrier = currentOrder?.shippingInfo?.carrier;
-        const trackingUrl = currentOrder?.shippingInfo?.trackingUrl;
+        const { trackingNumber, carrier, trackingUrl } = getShippingInfo(currentOrder);
 
         return [
-            'Tu pedido Tecnotitlan ya va en camino.',
-            `Pedido: ${getOrderNumber(currentOrder)}`,
+            getCustomerGreeting(currentOrder),
+            `Tu pedido ${getOrderNumber(currentOrder)} cambio a: Enviado.`,
+            'Ya va en camino.',
             trackingNumber ? `Guia: ${trackingNumber}` : '',
             carrier ? `Paqueteria: ${carrier}` : '',
-            trackingUrl ? `Rastreo: ${trackingUrl}` : `Seguimiento: ${getOrderTrackingUrl(currentOrder)}`,
+            trackingUrl ? `Rastreo: ${trackingUrl}` : '',
+            `Seguimiento: ${getOrderTrackingUrl(currentOrder)}`,
+            '\nGracias por comprar en Tecnotitlan. Estamos al pendiente hasta que llegue contigo.',
         ].filter(Boolean).join('\n');
     },
     'aviso de envio al cliente'
@@ -1735,9 +1813,9 @@ export const sendCustomerOrderShippedNotification = async (order) => sendCustome
 export const sendCustomerOrderDeliveredNotification = async (order) => sendCustomerOrderMessage(
     order,
     (currentOrder) => [
-        'Marcamos tu pedido Tecnotitlan como entregado.',
-        `Pedido: ${getOrderNumber(currentOrder)}`,
-        'Gracias por tu compra. Si necesitas soporte, escribenos por este medio o a hola@tecnotitlan.com.mx.',
+        getCustomerGreeting(currentOrder),
+        `Marcamos tu pedido ${getOrderNumber(currentOrder)} como entregado.`,
+        'Gracias por comprar en Tecnotitlan. Si necesitas soporte, responde este mensaje o escribenos a hola@tecnotitlan.com.mx.',
         `Detalle: ${getOrderTrackingUrl(currentOrder)}`,
     ].join('\n'),
     'aviso de entrega al cliente'
@@ -1751,15 +1829,18 @@ export const sendCustomerOrderStatusNotification = async (order) => {
         return sendCustomerOrderMessage(
             order,
             (currentOrder) => [
-                'Tu pedido Tecnotitlan fue actualizado.',
-                `Pedido: ${getOrderNumber(currentOrder)}`,
-                'Estado: Cancelado',
-                'Si tienes dudas, escribenos por este medio o a hola@tecnotitlan.com.mx.',
+                getCustomerGreeting(currentOrder),
+                `Tu pedido ${getOrderNumber(currentOrder)} cambio a: Cancelado.`,
+                'Si tienes dudas o necesitas ayuda, responde este mensaje o escribenos a hola@tecnotitlan.com.mx.',
             ].join('\n'),
             'aviso de cancelacion al cliente'
         );
     }
-    return null;
+    return sendCustomerOrderMessage(
+        order,
+        (currentOrder) => buildStatusMessage(currentOrder),
+        'aviso de estado al cliente'
+    );
 };
 export const sendAdminOrderPaidNotification = async (order) => {
     try {
