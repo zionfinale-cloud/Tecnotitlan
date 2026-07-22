@@ -71,6 +71,68 @@ const formatDate = (value) => (value ? dateFormat.format(new Date(value)) : 'Pen
 const INVENTORY_WARNING_TEXT = 'salida de inventario requiere revision manual';
 const INVENTORY_RECOVERY_TEXT = 'Salida de inventario aplicada/reintentada correctamente';
 
+const notificationChannelLabels = {
+  EMAIL: 'Correo',
+  WHATSAPP: 'WhatsApp',
+  N8N: 'n8n',
+  WEBHOOK: 'Webhook',
+  SMS: 'SMS',
+  SYSTEM: 'Sistema',
+};
+
+const notificationAudienceLabels = {
+  CUSTOMER: 'cliente',
+  STAFF: 'equipo',
+  ADMIN: 'admin',
+  SYSTEM: 'sistema',
+};
+
+const notificationStatusLabels = {
+  SENT: 'enviado',
+  FAILED: 'fallo',
+  SKIPPED: 'omitido',
+  PENDING: 'pendiente',
+};
+
+const notificationStatusTone = {
+  SENT: 'notificationOk',
+  FAILED: 'notificationError',
+  SKIPPED: 'notificationWarning',
+  PENDING: 'notificationInfo',
+};
+
+const notificationIcons = {
+  EMAIL: 'fas fa-envelope',
+  WHATSAPP: 'fab fa-whatsapp',
+  N8N: 'fas fa-robot',
+  WEBHOOK: 'fas fa-plug',
+  SYSTEM: 'fas fa-bell',
+};
+
+const buildNotificationBadges = (order, logs) => {
+  const grouped = new Map();
+  logs
+    .filter((log) => log.orderNumber === order.orderNumber)
+    .forEach((log) => {
+      const key = `${log.channel}:${log.audience}`;
+      if (!grouped.has(key)) grouped.set(key, log);
+    });
+
+  return Array.from(grouped.values()).map((log) => {
+    const channelLabel = notificationChannelLabels[log.channel] || log.channel || 'Notificacion';
+    const audienceLabel = notificationAudienceLabels[log.audience] || log.audience || 'sistema';
+    const statusLabel = notificationStatusLabels[log.status] || log.status || 'pendiente';
+    return {
+      key: log.id,
+      label: `${channelLabel} ${audienceLabel}`,
+      statusLabel,
+      tone: notificationStatusTone[log.status] || 'notificationInfo',
+      icon: notificationIcons[log.channel] || notificationIcons.SYSTEM,
+      title: [log.message, log.error].filter(Boolean).join(' | ') || `${channelLabel} ${statusLabel}`,
+    };
+  });
+};
+
 const getInventoryIssue = (order) => {
   let issue = null;
   let resolved = false;
@@ -98,6 +160,7 @@ const OrderListScreen = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [activeOrderTab, setActiveOrderTab] = useState('active');
   const [shippingByOrder, setShippingByOrder] = useState({});
+  const [notificationLogs, setNotificationLogs] = useState([]);
 
   const orderGroups = useMemo(() => {
     const completed = orders.filter((order) => COMPLETED_ORDER_STATUSES.has(order.status));
@@ -120,12 +183,23 @@ const OrderListScreen = () => {
     return { total, pending, preparing, shipped };
   }, [orders]);
 
+  const loadNotificationLogs = async () => {
+    try {
+      const { data } = await api.get('/notification-logs?limit=200');
+      setNotificationLogs(data.data || []);
+    } catch (err) {
+      // La bitacora es auxiliar; no bloquea operacion de pedidos.
+      console.warn('No se pudieron cargar las notificaciones de pedidos.', err);
+    }
+  };
+
   const loadOrders = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     setError('');
     try {
       const { data } = await api.get('/orders');
       setOrders(data.data.orders || []);
+      await loadNotificationLogs();
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudieron cargar los pedidos.');
     } finally {
@@ -146,6 +220,7 @@ const OrderListScreen = () => {
     try {
       const { data } = await api.put(`/orders/${orderId}/status`, payload);
       setOrders((current) => current.map((order) => (order.id === orderId ? data.data.order : order)));
+      await loadNotificationLogs();
       setSuccess(message);
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo actualizar el pedido.');
@@ -168,6 +243,7 @@ const OrderListScreen = () => {
         },
       });
       setOrders((current) => current.map((item) => (item.id === order.id ? data.data.order : item)));
+      await loadNotificationLogs();
       setSuccess(`Pago confirmado para ${order.orderNumber}.`);
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo confirmar el pago.');
@@ -183,6 +259,7 @@ const OrderListScreen = () => {
     try {
       const { data } = await api.put(`/orders/${order.id}/retry-inventory`);
       setOrders((current) => current.map((item) => (item.id === order.id ? data.data.order : item)));
+      await loadNotificationLogs();
       setSuccess(`Inventario revisado para ${order.orderNumber}.`);
     } catch (err) {
       setError(err.response?.data?.message || 'No se pudo reintentar la salida de inventario.');
@@ -282,6 +359,7 @@ const OrderListScreen = () => {
             const shipping = shippingByOrder[order.id] || {};
             const saving = savingId === order.id;
             const inventoryIssue = getInventoryIssue(order);
+            const notificationBadges = buildNotificationBadges(order, notificationLogs);
             return (
               <article key={order.id} className={styles.orderCard}>
                 <div className={styles.orderTop}>
@@ -312,6 +390,21 @@ const OrderListScreen = () => {
                     </span>
                   )}
                 </div>
+
+                {notificationBadges.length > 0 && (
+                  <div className={styles.notificationBadges} aria-label="Estado de notificaciones">
+                    {notificationBadges.map((notification) => (
+                      <span
+                        key={notification.key}
+                        className={`${styles.notificationBadge} ${styles[notification.tone]}`}
+                        title={notification.title}
+                      >
+                        <i className={notification.icon}></i>
+                        {notification.label}: {notification.statusLabel}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {inventoryIssue.isOpen && (
                   <div className={styles.inventoryAlert}>

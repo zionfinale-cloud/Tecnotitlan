@@ -424,23 +424,44 @@ const emitQr = (qr) => {
     io.emit('qr', qr);
 };
 
-const normalizePhone = (value = '') => String(value).replace(/\D/g, '');
+const onlyDigits = (value = '') => String(value || '').replace(/\D/g, '');
+
+const normalizeMexicanPhone = (value = '') => {
+    let digits = onlyDigits(value);
+    if (!digits) return null;
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (digits.length >= 10) return `52${digits.slice(-10)}`;
+    return digits;
+};
+
+const normalizePhone = (value = '') => normalizeMexicanPhone(value) || '';
 
 const toJid = (value = '') => {
-    if (!value) throw new BadRequestError('El numero de WhatsApp es requerido.');
-    if (value.includes('@')) return value;
-    return `${normalizePhone(value)}@s.whatsapp.net`;
+    const rawValue = String(value || '').trim();
+    if (!rawValue) throw new BadRequestError('El numero de WhatsApp es requerido.');
+
+    if (rawValue.includes('@')) {
+        if (rawValue.endsWith('@s.whatsapp.net') || rawValue.endsWith('@c.us')) {
+            const phone = normalizeMexicanPhone(getJidUser(rawValue));
+            if (phone) return `${phone}@s.whatsapp.net`;
+        }
+        return rawValue;
+    }
+
+    const phone = normalizeMexicanPhone(rawValue);
+    if (!phone) throw new BadRequestError('El numero de WhatsApp es requerido.');
+    return `${phone}@s.whatsapp.net`;
 };
 
 const getJidUser = (jid = '') => String(jid || '').split('@')[0] || '';
-const isPhoneJid = (jid = '') => String(jid || '').endsWith('@s.whatsapp.net') && /^\d{8,15}$/.test(getJidUser(jid));
+const isPhoneJid = (jid = '') => /@(s\.whatsapp\.net|c\.us)$/.test(String(jid || '')) && /^\d{8,15}$/.test(getJidUser(jid));
 const isLidJid = (jid = '') => String(jid || '').endsWith('@lid');
-const getPhoneFromJid = (jid = '') => (isPhoneJid(jid) ? getJidUser(jid) : null);
+const getPhoneFromJid = (jid = '') => (isPhoneJid(jid) ? normalizeMexicanPhone(getJidUser(jid)) : null);
 
 const getPhoneForProvider = (value = '') => {
     const rawValue = String(value || '');
     const phone = rawValue.includes('@') ? getJidUser(rawValue) : rawValue;
-    const digits = normalizePhone(phone);
+    const digits = normalizeMexicanPhone(phone);
     if (!digits) throw new BadRequestError('El numero de WhatsApp es requerido.');
     return digits;
 };
@@ -602,13 +623,39 @@ const waitForReady = async (timeoutMs = 12000) => {
     return sock?.user && connectionStatus === 'READY';
 };
 
+const closeCurrentSocketForRetry = async (reason = 'retry') => {
+    try {
+        sock?.ws?.close?.();
+        sock?.end?.();
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo cerrar socket para ${reason}: ${error.message}`);
+    }
+    sock = undefined;
+    isInitializing = false;
+    await releaseSessionLock();
+};
+
+const canReconnectWithSavedSession = async () => {
+    if (isWhatsAppDisabledProvider()) return false;
+    if (RELINK_STATUSES.has(connectionStatus) || connectionStatus === 'QR_RECEIVED') return false;
+    return hasSavedSession();
+};
+
 export const ensureReadyForNotification = async () => {
     if (isWhatsAppDisabledProvider()) return false;
 
     if (sock?.user && connectionStatus === 'READY') return true;
     if (!isAutoConnectEnabled()) return false;
-    if (connectionStatus === 'PAUSED') return false;
     if (RELINK_STATUSES.has(connectionStatus)) return false;
+
+    if (connectionStatus === 'PAUSED') {
+        if (!await canReconnectWithSavedSession()) return false;
+        reconnectAttempt = 0;
+        pausedAt = null;
+        connectionStatus = 'RECONNECTING';
+        lastError = 'Reintentando con sesion guardada para notificacion.';
+        emitStatus();
+    }
 
     if (!isInitializing && !['INITIALIZING', 'RECONNECTING', 'QR_RECEIVED'].includes(connectionStatus)) {
         try {
@@ -620,6 +667,25 @@ export const ensureReadyForNotification = async () => {
     }
 
     return waitForReady(15000);
+};
+
+const ensureReadyForSend = async (reason = 'send') => {
+    if (sock?.user && connectionStatus === 'READY') return true;
+    if (await ensureReadyForNotification()) return true;
+    if (!await canReconnectWithSavedSession()) return false;
+
+    try {
+        reconnectAttempt = 0;
+        pausedAt = null;
+        connectionStatus = 'RECONNECTING';
+        lastError = `Levantando sesion guardada para ${reason}.`;
+        emitStatus();
+        await initialize({ allowQr: false, reason });
+        return waitForReady(20000);
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo levantar sesion guardada para ${reason}: ${error.message}`);
+        return false;
+    }
 };
 
 const getDisconnectStatusCode = (lastDisconnect) => lastDisconnect?.error?.output?.statusCode
@@ -1258,8 +1324,9 @@ export const sendMessage = async (number, message, sentBy = null) => {
         throw new BadRequestError('WhatsApp esta desactivado temporalmente. Usa correo o el panel de pedidos.');
     }
 
-    if (!sock || connectionStatus !== 'READY') {
-        throw new BadRequestError('WhatsApp no esta conectado. Escanea el QR desde Configuracion.');
+    const isReady = await ensureReadyForSend('envio de mensaje');
+    if (!isReady || !sock) {
+        throw new BadRequestError('WhatsApp no esta conectado. Se intento levantar la sesion guardada, pero no quedo lista.');
     }
 
     const text = String(message || '').trim();
@@ -1269,16 +1336,29 @@ export const sendMessage = async (number, message, sentBy = null) => {
     let result;
     let lastSendError;
 
-    for (const targetJid of targets) {
-        try {
-            result = await sock.sendMessage(targetJid, { text });
-            if (targetJid !== requestedJid) {
-                logger.info(`[WhatsApp] Mensaje enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
+    const attemptSend = async () => {
+        for (const targetJid of targets) {
+            try {
+                const sent = await sock.sendMessage(targetJid, { text });
+                if (targetJid !== requestedJid) {
+                    logger.info(`[WhatsApp] Mensaje enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
+                }
+                return sent;
+            } catch (error) {
+                lastSendError = error;
+                logger.warn(`[WhatsApp] No se pudo enviar a ${targetJid}: ${error.message}`);
             }
-            break;
-        } catch (error) {
-            lastSendError = error;
-            logger.warn(`[WhatsApp] No se pudo enviar a ${targetJid}: ${error.message}`);
+        }
+        return null;
+    };
+
+    result = await attemptSend();
+
+    if (!result && await canReconnectWithSavedSession()) {
+        logger.warn(`[WhatsApp] Reintentando envio tras reconectar sesion guardada: ${lastSendError?.message || 'sin detalle'}`);
+        await closeCurrentSocketForRetry('reintento de envio');
+        if (await ensureReadyForSend('reintento de envio')) {
+            result = await attemptSend();
         }
     }
 
@@ -1328,8 +1408,9 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
         throw new BadRequestError('WhatsApp esta desactivado temporalmente. Usa correo o el panel de pedidos.');
     }
 
-    if (!sock || connectionStatus !== 'READY') {
-        throw new BadRequestError('WhatsApp no esta conectado. Escanea el QR desde Configuracion.');
+    const isReady = await ensureReadyForSend('envio de adjunto');
+    if (!isReady || !sock) {
+        throw new BadRequestError('WhatsApp no esta conectado. Se intento levantar la sesion guardada, pero no quedo lista.');
     }
     if (!file?.buffer?.length) throw new BadRequestError('Selecciona un archivo para enviar.');
 
@@ -1346,16 +1427,29 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
 
     let result;
     let lastSendError;
-    for (const targetJid of targets) {
-        try {
-            result = await sock.sendMessage(targetJid, payload);
-            if (targetJid !== requestedJid) {
-                logger.info(`[WhatsApp] Adjunto enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
+    const attemptSend = async () => {
+        for (const targetJid of targets) {
+            try {
+                const sent = await sock.sendMessage(targetJid, payload);
+                if (targetJid !== requestedJid) {
+                    logger.info(`[WhatsApp] Adjunto enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
+                }
+                return sent;
+            } catch (error) {
+                lastSendError = error;
+                logger.warn(`[WhatsApp] No se pudo enviar adjunto a ${targetJid}: ${error.message}`);
             }
-            break;
-        } catch (error) {
-            lastSendError = error;
-            logger.warn(`[WhatsApp] No se pudo enviar adjunto a ${targetJid}: ${error.message}`);
+        }
+        return null;
+    };
+
+    result = await attemptSend();
+
+    if (!result && await canReconnectWithSavedSession()) {
+        logger.warn(`[WhatsApp] Reintentando adjunto tras reconectar sesion guardada: ${lastSendError?.message || 'sin detalle'}`);
+        await closeCurrentSocketForRetry('reintento de adjunto');
+        if (await ensureReadyForSend('reintento de adjunto')) {
+            result = await attemptSend();
         }
     }
 
@@ -1395,10 +1489,7 @@ const getCustomerPhone = (order) => {
         || order?.user?.phone
         || null;
 
-    const digits = String(rawPhone || '').replace(/\D/g, '');
-    if (!digits) return null;
-    if (digits.length === 10) return `52${digits}`;
-    return digits;
+    return normalizeMexicanPhone(rawPhone);
 };
 
 const buildItemsSummary = (order) => {

@@ -35,7 +35,15 @@ const escapeHtml = (value = '') => String(value)
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#039;');
 
-const normalizePhone = (value = '') => String(value).replace(/\D/g, '');
+const onlyDigits = (value = '') => String(value || '').replace(/\D/g, '');
+
+const normalizePhone = (value = '') => {
+  let digits = onlyDigits(value);
+  if (!digits) return null;
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.length >= 10) return `52${digits.slice(-10)}`;
+  return digits;
+};
 
 const getCustomerName = (order) => {
   const fullName = [order.user?.firstName, order.user?.lastName].filter(Boolean).join(' ');

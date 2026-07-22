@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { getConfig } from './configService.js';
+import { writeNotificationLog } from './notificationLogService.js';
 import logger from '../utils/logger.js';
 
 const DEFAULT_EMAIL_FROM = 'Tecnotitlan NoReply <noreply@tecnotitlan.com.mx>';
@@ -179,6 +180,15 @@ export const sendOrderPaidEmail = async (order) => {
 
   if (!to) {
     logger.warn(`[Email] Pedido ${order?.orderNumber || order?.id} sin correo de cliente. No se envio confirmacion.`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_paid',
+      status: 'SKIPPED',
+      provider: 'smtp',
+      order,
+      message: 'Pedido sin correo de cliente. No se envio confirmacion.',
+    });
     return;
   }
 
@@ -211,8 +221,29 @@ export const sendOrderPaidEmail = async (order) => {
       }),
     });
     logger.info(`[Email] Confirmacion de pago enviada para ${order.orderNumber} a ${to}`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_paid',
+      status: 'SENT',
+      provider: 'smtp',
+      recipient: to,
+      order,
+      message: 'Confirmacion de pago enviada al cliente.',
+    });
   } catch (error) {
     logger.error(`[Email] No se pudo enviar confirmacion de pago ${order.orderNumber}: ${error.message}`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_paid',
+      status: 'FAILED',
+      provider: 'smtp',
+      recipient: to,
+      order,
+      message: 'No se pudo enviar confirmacion de pago al cliente.',
+      error: error.message,
+    });
   }
 };
 
@@ -226,7 +257,19 @@ export const sendOrderShippedEmail = async (order) => {
     ? `<a href="${escapeHtml(order.shippingInfo.trackingUrl)}" style="display:inline-block;margin-top:12px;color:#00a56d;font-weight:800;">Abrir rastreo de paqueteria</a>`
     : '';
 
-  if (!to || !trackingNumber) return;
+  if (!to || !trackingNumber) {
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_shipped',
+      status: 'SKIPPED',
+      provider: 'smtp',
+      recipient: to,
+      order,
+      message: !to ? 'Pedido sin correo de cliente. No se envio aviso de guia.' : 'Pedido sin numero de guia. No se envio aviso de guia.',
+    });
+    return;
+  }
 
   const trackingUrl = `${runtimeConfig.CLIENT_URL_PRIMARY}/order/${order.id}`;
   const body = `
@@ -255,8 +298,29 @@ export const sendOrderShippedEmail = async (order) => {
       }),
     });
     logger.info(`[Email] Aviso de envio enviado para ${order.orderNumber} a ${to}`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_shipped',
+      status: 'SENT',
+      provider: 'smtp',
+      recipient: to,
+      order,
+      message: `Aviso de envio enviado al cliente. Guia: ${trackingNumber}`,
+    });
   } catch (error) {
     logger.error(`[Email] No se pudo enviar aviso de envio ${order.orderNumber}: ${error.message}`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_shipped',
+      status: 'FAILED',
+      provider: 'smtp',
+      recipient: to,
+      order,
+      message: 'No se pudo enviar aviso de envio al cliente.',
+      error: error.message,
+    });
   }
 };
 
@@ -264,7 +328,18 @@ export const sendOrderDeliveredEmail = async (order) => {
   const runtimeConfig = getConfig();
   const to = getCustomerEmail(order);
 
-  if (!to) return;
+  if (!to) {
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_delivered',
+      status: 'SKIPPED',
+      provider: 'smtp',
+      order,
+      message: 'Pedido sin correo de cliente. No se envio aviso de entrega.',
+    });
+    return;
+  }
 
   const trackingUrl = `${runtimeConfig.CLIENT_URL_PRIMARY}/order/${order.id}`;
   const body = `
@@ -290,7 +365,28 @@ export const sendOrderDeliveredEmail = async (order) => {
       }),
     });
     logger.info(`[Email] Aviso de entrega enviado para ${order.orderNumber} a ${to}`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_delivered',
+      status: 'SENT',
+      provider: 'smtp',
+      recipient: to,
+      order,
+      message: 'Aviso de entrega enviado al cliente.',
+    });
   } catch (error) {
     logger.error(`[Email] No se pudo enviar aviso de entrega ${order.orderNumber}: ${error.message}`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_delivered',
+      status: 'FAILED',
+      provider: 'smtp',
+      recipient: to,
+      order,
+      message: 'No se pudo enviar aviso de entrega al cliente.',
+      error: error.message,
+    });
   }
 };
