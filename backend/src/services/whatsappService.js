@@ -36,7 +36,7 @@ const DEFAULT_RECONNECT_BASE_DELAY_MS = 5 * 60 * 1000;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 30 * 60 * 1000;
 const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_PAUSED_RETRY_AFTER_MS = 10 * 60 * 1000;
-const SESSION_LOCK_STALE_MS = Number(process.env.WHATSAPP_SESSION_LOCK_STALE_MS || 2 * 60 * 1000);
+const SESSION_LOCK_STALE_MS = Number(process.env.WHATSAPP_SESSION_LOCK_STALE_MS || 30 * 1000);
 const SESSION_LOCK_HEARTBEAT_MS = Number(process.env.WHATSAPP_SESSION_LOCK_HEARTBEAT_MS || 15000);
 const INSTANCE_ID = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 let autoConnectTimer = null;
@@ -378,6 +378,29 @@ const releaseSessionLock = async () => {
     } finally {
         hasSessionLock = false;
     }
+};
+
+const scheduleSessionLockRetry = (ageMs = 0) => {
+    if (reconnectTimer || resetInProgress || shutdownInProgress) return;
+
+    const safeAgeMs = Number.isFinite(ageMs) ? Math.max(0, ageMs) : 0;
+    const remainingMs = Math.max(0, SESSION_LOCK_STALE_MS - safeAgeMs);
+    const delayMs = Math.max(3000, Math.min(remainingMs + 1000, 30000));
+
+    connectionStatus = 'RECONNECTING';
+    isInitializing = false;
+    emitStatus();
+
+    logger.warn(`[WhatsApp] Lock de sesion activo. Reintentando en ${Math.round(delayMs / 1000)}s sin pedir QR.`);
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        initialize({ allowQr: false, reason: 'session lock retry' }).catch((error) => {
+            lastError = error.message;
+            logger.error(`[WhatsApp] Reintento por lock fallido: ${error.message}`);
+            scheduleBaileysReconnect(error.message);
+        });
+    }, delayMs);
+    reconnectTimer.unref?.();
 };
 
 const ensureActiveAuthDir = async () => {
@@ -1022,10 +1045,11 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
         if (!lock.acquired) {
             connectionStatus = 'WAITING_FOR_SESSION_LOCK';
             isInitializing = false;
-            lastError = `Otra instancia mantiene la sesion de WhatsApp activa. Reintentando en modo seguro.`;
+            const retrySeconds = Math.max(3, Math.ceil((SESSION_LOCK_STALE_MS - (lock.ageMs || 0)) / 1000) + 1);
+            lastError = `Otra instancia mantiene la sesion de WhatsApp activa. Reintentando en modo seguro en ${retrySeconds}s.`;
             logger.warn(`[WhatsApp] Inicializacion omitida: lock activo por ${lock.owner} (${Math.round((lock.ageMs || 0) / 1000)}s).`);
             emitStatus();
-            scheduleBaileysReconnect('Sesion protegida por lock de despliegue');
+            scheduleSessionLockRetry(lock.ageMs);
             return getStatus();
         }
 
