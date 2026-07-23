@@ -1703,15 +1703,39 @@ const buildItemsSummary = (order) => {
     return itemLines.join('\n');
 };
 
+const getRefundMessageLine = (order) => {
+    const paymentResult = order?.paymentResult && typeof order.paymentResult === 'object'
+        ? order.paymentResult
+        : {};
+
+    if (paymentResult.refund?.id) {
+        return '💳 Ya solicitamos el reembolso a la tarjeta. El banco puede tardar algunos dias habiles en reflejarlo.';
+    }
+
+    if (paymentResult.refundStatus) {
+        return `💳 Reembolso en estado: ${paymentResult.refundStatus}.`;
+    }
+
+    if (order?.isPaid && order?.paymentMethod === 'Stripe') {
+        return '💳 Revisaremos el reembolso de tu pago con tarjeta y te mantendremos informado.';
+    }
+
+    if (order?.isPaid) {
+        return '💳 Nuestro equipo revisara la devolucion del pago segun el metodo usado.';
+    }
+
+    return '';
+};
+
 const buildStatusMessage = (order, extraLines = []) => {
     const itemsText = buildItemsSummary(order);
     return [
-        getCustomerGreeting(order),
-        `Tu pedido ${getOrderNumber(order)} cambio a: ${getFriendlyOrderStatus(order?.status)}.`,
-        `Total: ${currency.format(order?.totalPrice || 0)}`,
-        itemsText ? `\nProductos:\n${itemsText}` : '',
+        `📦 ${getCustomerGreeting(order)}`,
+        `Tu pedido ${getOrderNumber(order)} cambio a: *${getFriendlyOrderStatus(order?.status)}*.`,
+        `💰 Total: ${currency.format(order?.totalPrice || 0)}`,
+        itemsText ? `\n🛍️ Productos:\n${itemsText}` : '',
         ...extraLines,
-        `\nSeguimiento: ${getOrderTrackingUrl(order)}`,
+        `\n🔎 Seguimiento: ${getOrderTrackingUrl(order)}`,
         '\nGracias por comprar en Tecnotitlan. Si necesitas ayuda, responde este mensaje o escribenos a hola@tecnotitlan.com.mx.',
     ].filter(Boolean).join('\n');
 };
@@ -1778,13 +1802,13 @@ export const sendCustomerOrderPaidNotification = async (order) => sendCustomerOr
     (currentOrder) => {
         const itemsText = buildItemsSummary(currentOrder);
         return [
-            getCustomerGreeting(currentOrder),
-            `Tu pago fue confirmado en Tecnotitlan.`,
-            `Pedido: ${getOrderNumber(currentOrder)}`,
-            'Estado: Pago confirmado. Ya lo pasamos a preparacion.',
-            `Total: ${currency.format(currentOrder?.totalPrice || 0)}`,
-            itemsText ? `\nProductos:\n${itemsText}` : '',
-            `\nPuedes revisar el seguimiento aqui: ${getOrderTrackingUrl(currentOrder)}`,
+            `✅ ${getCustomerGreeting(currentOrder)}`,
+            'Tu pago fue confirmado en Tecnotitlan.',
+            `🧾 Pedido: ${getOrderNumber(currentOrder)}`,
+            '📦 Estado: ya lo pasamos a preparacion.',
+            `💰 Total: ${currency.format(currentOrder?.totalPrice || 0)}`,
+            itemsText ? `\n🛍️ Productos:\n${itemsText}` : '',
+            `\n🔎 Puedes revisar el seguimiento aqui: ${getOrderTrackingUrl(currentOrder)}`,
             '\nGracias por tu compra. Cualquier duda, responde este mensaje y te ayudamos.',
         ].filter(Boolean).join('\n');
     },
@@ -1797,13 +1821,13 @@ export const sendCustomerOrderShippedNotification = async (order) => sendCustome
         const { trackingNumber, carrier, trackingUrl } = getShippingInfo(currentOrder);
 
         return [
-            getCustomerGreeting(currentOrder),
-            `Tu pedido ${getOrderNumber(currentOrder)} cambio a: Enviado.`,
+            `🚚 ${getCustomerGreeting(currentOrder)}`,
+            `Tu pedido ${getOrderNumber(currentOrder)} ya fue enviado.`,
             'Ya va en camino.',
-            trackingNumber ? `Guia: ${trackingNumber}` : '',
-            carrier ? `Paqueteria: ${carrier}` : '',
-            trackingUrl ? `Rastreo: ${trackingUrl}` : '',
-            `Seguimiento: ${getOrderTrackingUrl(currentOrder)}`,
+            trackingNumber ? `📌 Guia: ${trackingNumber}` : '',
+            carrier ? `📦 Paqueteria: ${carrier}` : '',
+            trackingUrl ? `🔗 Rastreo: ${trackingUrl}` : '',
+            `🔎 Seguimiento Tecnotitlan: ${getOrderTrackingUrl(currentOrder)}`,
             '\nGracias por comprar en Tecnotitlan. Estamos al pendiente hasta que llegue contigo.',
         ].filter(Boolean).join('\n');
     },
@@ -1813,10 +1837,10 @@ export const sendCustomerOrderShippedNotification = async (order) => sendCustome
 export const sendCustomerOrderDeliveredNotification = async (order) => sendCustomerOrderMessage(
     order,
     (currentOrder) => [
-        getCustomerGreeting(currentOrder),
+        `✅ ${getCustomerGreeting(currentOrder)}`,
         `Marcamos tu pedido ${getOrderNumber(currentOrder)} como entregado.`,
         'Gracias por comprar en Tecnotitlan. Si necesitas soporte, responde este mensaje o escribenos a hola@tecnotitlan.com.mx.',
-        `Detalle: ${getOrderTrackingUrl(currentOrder)}`,
+        `🔎 Detalle: ${getOrderTrackingUrl(currentOrder)}`,
     ].join('\n'),
     'aviso de entrega al cliente'
 );
@@ -1829,10 +1853,12 @@ export const sendCustomerOrderStatusNotification = async (order) => {
         return sendCustomerOrderMessage(
             order,
             (currentOrder) => [
-                getCustomerGreeting(currentOrder),
-                `Tu pedido ${getOrderNumber(currentOrder)} cambio a: Cancelado.`,
+                `⚠️ ${getCustomerGreeting(currentOrder)}`,
+                `Tu pedido ${getOrderNumber(currentOrder)} cambio a: *Cancelado*.`,
+                getRefundMessageLine(currentOrder),
+                `🔎 Seguimiento: ${getOrderTrackingUrl(currentOrder)}`,
                 'Si tienes dudas o necesitas ayuda, responde este mensaje o escribenos a hola@tecnotitlan.com.mx.',
-            ].join('\n'),
+            ].filter(Boolean).join('\n'),
             'aviso de cancelacion al cliente'
         );
     }

@@ -819,13 +819,18 @@ El flujo base para operar ventas reales queda definido asi:
 6. El reintento usa `PUT /api/orders/:id/retry-inventory`, respeta idempotencia por pedido/producto y no duplica salidas ya registradas.
 7. Al registrar guia, el pedido pasa a `SHIPPED` y se envia correo y WhatsApp al cliente.
 8. Al marcar como entregado, el pedido pasa a `DELIVERED` y se envia correo final y WhatsApp de cierre.
+9. Si el pago entra por Stripe webhook, el historial del pedido debe registrar tambien `Pago confirmado con tarjeta` para que el cliente nunca vea un pedido pagado como si siguiera pendiente.
+10. Si el cliente o un administrador cancela antes de envio real, el sistema restaura inventario y solicita reembolso automatico en Stripe cuando el pago fue con tarjeta.
+11. Si el pedido ya tiene guia, paqueteria, link de rastreo, `SHIPPED` o `DELIVERED`, la cancelacion queda en revision: no se regresa inventario ni se reembolsa automaticamente hasta confirmar recepcion/devolucion.
 
 Reglas importantes:
 
 - Nunca se debe descontar inventario si el pedido no esta pagado.
 - Las salidas de inventario por pedido usan `referenceType = ORDER` y `referenceId = order.id`.
 - Si Stripe webhook y frontend confirman el mismo pago, `orderInventoryService.js` evita duplicar movimientos `SALE`.
+- Las cancelaciones pagadas con tarjeta usan `stripeRefundService.js`: busca el Payment Intent del pedido, solicita refund en Stripe, guarda el resultado en `paymentResult.refund` y deja nota visible en la linea de tiempo.
 - Al confirmarse pago, envio, entrega o cancelacion, el backend intenta notificar por correo y WhatsApp. Si WhatsApp esta desconectado o el pedido no tiene telefono, el pedido no se bloquea: se registra el aviso en logs para revision operativa.
+- Los correos y WhatsApp al cliente deben incluir enlace directo a `/order/:id` para que pueda revisar estado, productos, guia y notas de reembolso.
 - La pantalla de `Pedidos` es el centro operativo para confirmar pago, registrar guia, marcar entregado y corregir salidas pendientes.
 
 ### Separacion de Inversion e Inventario

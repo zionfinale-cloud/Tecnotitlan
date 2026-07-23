@@ -219,6 +219,7 @@ export const sendOrderPaidEmail = async (order) => {
     </table>
 
     <a href="${trackingUrl}" style="display:inline-block;background:#10d99a;color:#03100c;text-decoration:none;font-weight:800;padding:14px 22px;border-radius:999px;">Ver seguimiento</a>
+    <p style="margin:16px 0 0;color:#6a7a82;font-size:13px;">Tambien puedes revisar tus pedidos desde este enlace: <a href="${trackingUrl}" style="color:#00b879;">${trackingUrl}</a></p>
   `;
 
   try {
@@ -295,6 +296,7 @@ export const sendOrderStatusUpdatedEmail = async (order, options = {}) => {
     </table>
 
     <a href="${trackingUrl}" style="display:inline-block;background:#10d99a;color:#03100c;text-decoration:none;font-weight:800;padding:14px 22px;border-radius:999px;">Ver seguimiento</a>
+    <p style="margin:16px 0 0;color:#6a7a82;font-size:13px;">Consulta el detalle, guia y productos de tu pedido aqui: <a href="${trackingUrl}" style="color:#00b879;">${trackingUrl}</a></p>
   `;
 
   try {

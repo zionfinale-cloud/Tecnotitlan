@@ -47,15 +47,56 @@ const statusLabels = {
   CANCELLED: 'Cancelado',
 };
 
+const paidProgressStatuses = new Set(['PROCESSING', 'PENDING_FULFILLMENT', 'SHIPPED', 'DELIVERED', 'CANCELLED']);
+const cancellableStatuses = new Set(['PENDING_PAYMENT', 'PROCESSING', 'PENDING_FULFILLMENT']);
+
 const dateFormat = new Intl.DateTimeFormat('es-MX', {
   dateStyle: 'medium',
   timeStyle: 'short',
 });
 
+const toPlainObject = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
+};
+
+const buildTimelineEntries = (order) => {
+  const entries = [...(order.statusHistory || [])];
+  const hasPaidEvent = entries.some((entry) => {
+    const notes = String(entry.notes || '').toLowerCase();
+    return notes.includes('pago confirmado') || (order.isPaid && paidProgressStatuses.has(entry.status));
+  });
+
+  if (order.isPaid && order.paidAt && !hasPaidEvent) {
+    entries.push({
+      id: `paid-${order.id}`,
+      status: order.status === 'PENDING_PAYMENT' ? 'PROCESSING' : order.status,
+      notes: 'Pago confirmado. Pedido en preparacion.',
+      date: order.paidAt,
+    });
+  }
+
+  return entries.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+};
+
+const getRefundNotice = (order) => {
+  const paymentResult = toPlainObject(order.paymentResult);
+  if (paymentResult.refund?.id) {
+    return 'Reembolso solicitado en Stripe. El banco puede tardar algunos dias habiles en reflejarlo.';
+  }
+  if (paymentResult.refundStatus) {
+    return `Reembolso en estado: ${paymentResult.refundStatus}.`;
+  }
+  return '';
+};
+
 const OrderScreen = () => {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   const loadOrder = async ({ silent = false } = {}) => {
     try {
@@ -77,6 +118,27 @@ const OrderScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const requestCancellation = async () => {
+    const confirmMessage = order.isPaid
+      ? 'Vamos a cancelar el pedido y solicitar el reembolso si aun no tiene envio registrado. ¿Continuamos?'
+      : 'Vamos a cancelar este pedido. ¿Continuamos?';
+
+    if (!window.confirm(confirmMessage)) return;
+
+    setCancelling(true);
+    setActionError('');
+    setActionMessage('');
+    try {
+      const { data } = await api.put(`/orders/${order.id}/cancel`);
+      setOrder(data.data.order);
+      setActionMessage(data.data.refund?.customerNote || 'Pedido cancelado correctamente.');
+    } catch (err) {
+      setActionError(err.response?.data?.message || 'No pudimos cancelar este pedido automaticamente.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (error) return <Container className={styles.page}><div className={styles.notice}>{error}</div></Container>;
   if (!order) return <Container className={styles.page}><div className={styles.notice}>Consultando seguimiento...</div></Container>;
 
@@ -84,6 +146,9 @@ const OrderScreen = () => {
   const carrier = order.shippingInfo?.carrier;
   const trackingUrl = order.shippingInfo?.trackingUrl;
   const instructions = paymentInstructions[order.paymentMethod] || ['El pago esta pendiente de confirmacion.'];
+  const timelineEntries = buildTimelineEntries(order);
+  const refundNotice = getRefundNotice(order);
+  const canCancel = cancellableStatuses.has(order.status);
 
   return (
     <Container className={styles.page}>
@@ -111,6 +176,19 @@ const OrderScreen = () => {
           <p>Metodo de pago: {paymentLabels[order.paymentMethod] || order.paymentMethod}</p>
           <p>Total: <strong>{currency.format(order.totalPrice || 0)}</strong></p>
           <p>{order.isPaid ? 'Pago confirmado.' : 'Pago pendiente de confirmacion.'}</p>
+          {refundNotice && <p className={styles.refundNote}>{refundNotice}</p>}
+          {actionMessage && <p className={styles.actionNotice}>{actionMessage}</p>}
+          {actionError && <p className={styles.actionError}>{actionError}</p>}
+          {canCancel && (
+            <button
+              type="button"
+              className={styles.cancelButton}
+              onClick={requestCancellation}
+              disabled={cancelling}
+            >
+              {cancelling ? 'Cancelando...' : order.isPaid ? 'Cancelar y solicitar reembolso' : 'Cancelar pedido'}
+            </button>
+          )}
         </section>
       </div>
 
@@ -127,8 +205,8 @@ const OrderScreen = () => {
       <section className={styles.timelineBox}>
         <h2>Linea de tiempo</h2>
         <ol>
-          {(order.statusHistory || []).length > 0 ? (
-            order.statusHistory.map((entry) => (
+          {timelineEntries.length > 0 ? (
+            timelineEntries.map((entry) => (
               <li key={entry.id}>
                 <strong>{statusLabels[entry.status] || entry.status}</strong>
                 <span>{entry.notes || 'Estado actualizado.'}</span>

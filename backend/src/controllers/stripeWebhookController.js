@@ -26,6 +26,14 @@ const appendInventoryWarning = (tx, order, error) => tx.statusHistory.create({
   },
 });
 
+const appendStatusHistory = (tx, orderId, status, notes) => tx.statusHistory.create({
+  data: {
+    orderId,
+    status,
+    notes,
+  },
+});
+
 const markStripeOrderPaid = async (paymentIntent) => {
   const orderUuid = paymentIntent.metadata?.order_uuid;
   const orderNumber = paymentIntent.metadata?.order_id;
@@ -113,6 +121,13 @@ const markStripeOrderPaid = async (paymentIntent) => {
       if (markPaidResult.count === 0) {
         return { updatedOrder: paidOrder, shouldNotify: false };
       }
+
+      await appendStatusHistory(
+        tx,
+        paidOrder.id,
+        paidOrder.status,
+        'Pago confirmado con tarjeta.'
+      );
     }
 
     try {

@@ -1,6 +1,11 @@
 .page { min-height: 75vh; padding-top: 3rem; padding-bottom: 4rem; color: #eef2f0; }
 .back { color: var(--cta-color); text-decoration: none; font-size: .75rem; font-weight: 800; }
 .payButton { display: inline-flex; align-items: center; justify-content: center; margin-top: .75rem; border-radius: 999px; padding: .8rem 1.15rem; background: var(--cta-color); color: #06111f; font-weight: 900; text-decoration: none; }
+.cancelButton { display: inline-flex; align-items: center; justify-content: center; margin-top: .75rem; border: 1px solid rgba(255, 136, 91, .45); border-radius: 999px; padding: .75rem 1.1rem; background: rgba(255, 136, 91, .1); color: #ffb199; font-weight: 900; }
+.cancelButton:disabled { opacity: .55; cursor: not-allowed; }
+.actionNotice, .actionError, .refundNote { margin-top: .75rem; border-radius: 12px; padding: .8rem .95rem; font-weight: 800; }
+.actionNotice, .refundNote { border: 1px solid rgba(0, 216, 166, .28); background: rgba(0, 216, 166, .1); color: #7cffd8; }
+.actionError { border: 1px solid rgba(255, 112, 112, .35); background: rgba(255, 112, 112, .12); color: #ffb3b3; }
 .page header { margin: 1.5rem 0; padding: 1.6rem; border: 1px solid #283236; border-radius: 16px; background: linear-gradient(145deg, #12181a, #090d0f); }
 .page header span { color: var(--cta-color); text-transform: uppercase; font-size: .65rem; font-weight: 900; letter-spacing: .12em; }
 .page h1 { margin: .35rem 0; color: #fff; }
@@ -30,3 +35,6 @@
 :global([data-theme="light"]) .items article { border-top-color: var(--line); }
 :global([data-theme="light"]) .items img { background: var(--surface-soft); }
 :global([data-theme="light"]) .items small, :global([data-theme="light"]) .page p, :global([data-theme="light"]) .notice { color: var(--muted); }
+:global([data-theme="light"]) .actionNotice, :global([data-theme="light"]) .refundNote { color: #057a5f; background: #e9fff7; border-color: #b8f2df; }
+:global([data-theme="light"]) .actionError { color: #9f1d1d; background: #fff0f0; border-color: #ffcaca; }
+:global([data-theme="light"]) .cancelButton { color: #9a3f1f; background: #fff4ed; border-color: #ffd0b8; }

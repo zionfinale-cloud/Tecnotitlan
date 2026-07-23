@@ -8,6 +8,7 @@ import {
   applyPaidOrderInventoryMovements,
   restoreCancelledOrderInventoryMovements,
 } from '../services/orderInventoryService.js';
+import { refundStripeOrderIfEligible } from '../services/stripeRefundService.js';
 import {
   sendOrderDeliveredEmail,
   sendOrderPaidEmail,
@@ -35,6 +36,7 @@ export {
   getOrderByIdOperational,
   getAllOrdersOperational,
   retryOrderInventoryOperational,
+  requestOrderCancellation,
   updateOrderStatusOperational,
   updateOrderToDeliveredOperational,
 };
@@ -666,6 +668,84 @@ const retryOrderInventoryOperational = asyncHandler(async (req, res, next) => {
   });
 });
 
+const requestOrderCancellation = asyncHandler(async (req, res, next) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: ORDER_INCLUDE,
+  });
+
+  if (!order) return next(new NotFoundError('Pedido no encontrado'));
+
+  if (!userCanAccessOrder(req.user, order)) {
+    return next(new BadRequestError('No puedes cancelar este pedido.'));
+  }
+
+  if (order.status === 'CANCELLED') {
+    return res.status(200).json({ status: 'success', data: { order } });
+  }
+
+  if (['SHIPPED', 'DELIVERED'].includes(order.status)) {
+    return next(new BadRequestError('Este pedido ya tiene envio registrado. Solicita soporte para revisar devolucion y reembolso.'));
+  }
+
+  if (!['PENDING_PAYMENT', 'PROCESSING', 'PENDING_FULFILLMENT'].includes(order.status)) {
+    return next(new BadRequestError('Este pedido ya no puede cancelarse automaticamente.'));
+  }
+
+  let cancellationInventoryResult = null;
+  const cancelledOrder = await prisma.$transaction(async (tx) => {
+    const currentOrder = await tx.order.findUnique({
+      where: { id: req.params.id },
+      include: ORDER_INCLUDE,
+    });
+
+    cancellationInventoryResult = await restoreCancelledOrderInventoryMovements(tx, currentOrder, req.user.id);
+
+    const savedOrder = await tx.order.update({
+      where: { id: req.params.id },
+      data: { status: 'CANCELLED' },
+      include: ORDER_INCLUDE,
+    });
+
+    const cancellationNote = cancellationInventoryResult?.requiresReturnConfirmation
+      ? 'Pedido cancelado. Esperando confirmacion de recepcion de producto antes de regresar inventario.'
+      : cancellationInventoryResult?.restoredItems > 0
+        ? `Pedido cancelado. Se regresaron ${cancellationInventoryResult.restoredItems} pieza(s) al inventario.`
+        : 'Pedido cancelado por solicitud del cliente.';
+
+    await appendStatusHistory(tx, savedOrder.id, 'CANCELLED', cancellationNote);
+    return savedOrder;
+  });
+
+  const refundResult = await refundStripeOrderIfEligible(cancelledOrder);
+  const orderForNotification = await prisma.order.findUnique({
+    where: { id: cancelledOrder.id },
+    include: ORDER_INCLUDE,
+  });
+
+  const notificationNote = refundResult?.customerNote || STATUS_HISTORY_NOTES.CANCELLED;
+
+  await sendOrderStatusUpdatedEmail(orderForNotification, {
+    previousStatus: order.status,
+    nextStatus: 'CANCELLED',
+    notes: notificationNote,
+  });
+  await whatsappService.sendCustomerOrderStatusNotification(orderForNotification);
+  await notifyStaffOrderStatusChanged(orderForNotification, {
+    previousStatus: order.status,
+    nextStatus: 'CANCELLED',
+    notes: notificationNote,
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      order: orderForNotification,
+      refund: refundResult,
+    },
+  });
+});
+
 const updateOrderStatusOperational = asyncHandler(async (req, res, next) => {
   const {
     status,
@@ -746,29 +826,41 @@ const updateOrderStatusOperational = asyncHandler(async (req, res, next) => {
     return savedOrder;
   });
 
-  if (hasShippingUpdate) {
-    await sendOrderShippedEmail(updatedOrder);
-    await whatsappService.sendCustomerOrderShippedNotification(updatedOrder);
-  } else if (nextStatus === 'DELIVERED') {
-    await sendOrderDeliveredEmail(updatedOrder);
-    await whatsappService.sendCustomerOrderDeliveredNotification(updatedOrder);
-  } else {
-    await sendOrderStatusUpdatedEmail(updatedOrder, {
-      previousStatus: order.status,
-      nextStatus,
-      notes: notes || STATUS_HISTORY_NOTES[nextStatus],
+  let orderForNotification = updatedOrder;
+  let notificationNotes = notes || STATUS_HISTORY_NOTES[nextStatus];
+
+  if (nextStatus === 'CANCELLED' && order.status !== 'CANCELLED') {
+    const refundResult = await refundStripeOrderIfEligible(updatedOrder);
+    notificationNotes = refundResult?.customerNote || notificationNotes;
+    orderForNotification = await prisma.order.findUnique({
+      where: { id: updatedOrder.id },
+      include: ORDER_INCLUDE,
     });
-    await whatsappService.sendCustomerOrderStatusNotification(updatedOrder);
   }
 
-  await notifyStaffOrderStatusChanged(updatedOrder, {
+  if (hasShippingUpdate) {
+    await sendOrderShippedEmail(orderForNotification);
+    await whatsappService.sendCustomerOrderShippedNotification(orderForNotification);
+  } else if (nextStatus === 'DELIVERED') {
+    await sendOrderDeliveredEmail(orderForNotification);
+    await whatsappService.sendCustomerOrderDeliveredNotification(orderForNotification);
+  } else {
+    await sendOrderStatusUpdatedEmail(orderForNotification, {
+      previousStatus: order.status,
+      nextStatus,
+      notes: notificationNotes,
+    });
+    await whatsappService.sendCustomerOrderStatusNotification(orderForNotification);
+  }
+
+  await notifyStaffOrderStatusChanged(orderForNotification, {
     previousStatus: order.status,
     nextStatus,
-    notes: notes || STATUS_HISTORY_NOTES[nextStatus],
+    notes: notificationNotes,
     hasShippingUpdate,
   });
 
-  res.status(200).json({ status: 'success', data: { order: updatedOrder } });
+  res.status(200).json({ status: 'success', data: { order: orderForNotification } });
 });
 
 const updateOrderToDeliveredOperational = asyncHandler(async (req, res, next) => {

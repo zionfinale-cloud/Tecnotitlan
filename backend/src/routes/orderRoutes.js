@@ -5,6 +5,7 @@ import {
   createStripePaymentIntent,
   confirmStripePayment,
   getOrderByIdOperational,
+  requestOrderCancellation,
   retryOrderInventoryOperational,
   updateOrderToPaid,
   updateOrderToDeliveredOperational,
@@ -27,6 +28,7 @@ router.route('/:id').get(protect, asyncHandler(getOrderByIdOperational));
 router.route('/:id/create-payment-intent').post(protect, asyncHandler(createStripePaymentIntent));
 router.route('/:id/confirm-stripe-payment').post(protect, asyncHandler(confirmStripePayment));
 router.route('/:id/pay').put(protect, asyncHandler(updateOrderToPaid));
+router.route('/:id/cancel').put(protect, asyncHandler(requestOrderCancellation));
 router.route('/:id/retry-inventory').put(protect, checkPermission('order:update'), asyncHandler(retryOrderInventoryOperational));
 router.route('/:id/status').put(protect, checkPermission('order:update'), asyncHandler(updateOrderStatusOperational));
 router.route('/:id/deliver').put(protect, checkPermission('order:update'), asyncHandler(updateOrderToDeliveredOperational));
