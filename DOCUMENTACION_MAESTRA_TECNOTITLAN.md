@@ -1018,6 +1018,7 @@ Desde 2026-07-14, Tecnotitlan separa las notificaciones del cliente y las notifi
 
 - Cuando un pedido queda pagado, el cliente recibe su confirmacion con estado `Pago confirmado` y el equipo operativo recibe un aviso interno.
 - Cuando un pedido cambia de estado (`PENDING_PAYMENT`, `PROCESSING`, `PENDING_FULFILLMENT`, `SHIPPED`, `DELIVERED`, `CANCELLED`), el equipo operativo recibe aviso con pedido, canal, cliente, total y productos.
+- Desde 2026-07-23, el cliente tambien recibe notificacion por correo y WhatsApp en cambios generales de estado como `Preparando`, `Por surtir` y `Cancelado`. Los estados `Enviado` y `Entregado` conservan plantillas especiales porque pueden incluir guia, paqueteria y enlace de rastreo.
 - Los destinatarios internos son usuarios con rol `SUPER_ADMIN`, `ADMIN`, `SUPERVISOR` o `VENDEDOR`.
 - Cada usuario puede configurar si recibe avisos por correo, WhatsApp o ambos desde `Usuarios > Editar usuario > Notificaciones operativas`.
 - El numero de WhatsApp operativo puede ser especifico para ese usuario; si queda vacio, el sistema intenta usar su telefono registrado.

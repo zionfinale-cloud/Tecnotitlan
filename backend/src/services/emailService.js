@@ -76,6 +76,17 @@ const getCustomerName = (order) => {
 
 const getCustomerEmail = (order) => order?.user?.email || order?.shippingAddress?.email || null;
 
+const ORDER_STATUS_LABELS = {
+  PENDING_PAYMENT: 'Pendiente de pago',
+  PROCESSING: 'Preparando',
+  PENDING_FULFILLMENT: 'Por surtir',
+  SHIPPED: 'Enviado',
+  DELIVERED: 'Entregado',
+  CANCELLED: 'Cancelado',
+};
+
+const getOrderStatusLabel = (status) => ORDER_STATUS_LABELS[status] || status || 'Actualizado';
+
 const buildEmailShell = ({ title, preview, body }) => `
 <!doctype html>
 <html>
@@ -242,6 +253,82 @@ export const sendOrderPaidEmail = async (order) => {
       recipient: to,
       order,
       message: 'No se pudo enviar confirmacion de pago al cliente.',
+      error: error.message,
+    });
+  }
+};
+
+export const sendOrderStatusUpdatedEmail = async (order, options = {}) => {
+  const runtimeConfig = getConfig();
+  const to = getCustomerEmail(order);
+  const nextStatus = options.nextStatus || order?.status;
+  const statusLabel = getOrderStatusLabel(nextStatus);
+  const trackingUrl = `${runtimeConfig.CLIENT_URL_PRIMARY}/order/${order.id}`;
+  const note = options.notes || '';
+
+  if (!to) {
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_status_updated',
+      status: 'SKIPPED',
+      provider: 'smtp',
+      order,
+      message: 'Pedido sin correo de cliente. No se envio actualizacion de estado.',
+    });
+    return;
+  }
+
+  const body = `
+    <p style="margin:0 0 10px;color:#00b879;font-weight:800;letter-spacing:.08em;text-transform:uppercase;font-size:12px;">Actualizacion de pedido</p>
+    <h1 style="margin:0 0 12px;font-size:32px;line-height:1.1;">Hola, ${escapeHtml(getCustomerName(order))}.</h1>
+    <p style="margin:0 0 22px;color:#4d5f67;font-size:16px;">Tu pedido ${escapeHtml(order.orderNumber)} cambio a <strong>${escapeHtml(statusLabel)}</strong>.</p>
+
+    <div style="background:#effcf7;border:1px solid #b8f3dd;border-radius:16px;padding:18px;margin-bottom:22px;">
+      <strong style="display:block;font-size:18px;">Estado actual: ${escapeHtml(statusLabel)}</strong>
+      ${note ? `<span style="display:block;margin-top:8px;color:#4d5f67;">${escapeHtml(note)}</span>` : ''}
+      <span style="display:block;margin-top:8px;color:#4d5f67;">Total del pedido: ${currency.format(order.totalPrice || 0)}</span>
+    </div>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-bottom:24px;">
+      ${buildOrderItemsRows(order)}
+    </table>
+
+    <a href="${trackingUrl}" style="display:inline-block;background:#10d99a;color:#03100c;text-decoration:none;font-weight:800;padding:14px 22px;border-radius:999px;">Ver seguimiento</a>
+  `;
+
+  try {
+    await sendTransactionalMail({
+      to,
+      subject: `Actualizacion de tu pedido ${order.orderNumber}: ${statusLabel}`,
+      html: buildEmailShell({
+        title: `Actualizacion ${order.orderNumber}`,
+        preview: `Tu pedido ${order.orderNumber} cambio a ${statusLabel}.`,
+        body,
+      }),
+    });
+    logger.info(`[Email] Actualizacion de estado enviada para ${order.orderNumber} a ${to}`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_status_updated',
+      status: 'SENT',
+      provider: 'smtp',
+      recipient: to,
+      order,
+      message: `Actualizacion de estado enviada al cliente: ${statusLabel}`,
+    });
+  } catch (error) {
+    logger.error(`[Email] No se pudo enviar actualizacion de estado ${order.orderNumber}: ${error.message}`);
+    await writeNotificationLog({
+      channel: 'EMAIL',
+      audience: 'CUSTOMER',
+      event: 'order_status_updated',
+      status: 'FAILED',
+      provider: 'smtp',
+      recipient: to,
+      order,
+      message: 'No se pudo enviar actualizacion de estado al cliente.',
       error: error.message,
     });
   }

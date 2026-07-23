@@ -5,7 +5,12 @@ import logger from '../utils/logger.js';
 import * as whatsappService from '../services/whatsappService.js';
 import { getConfig } from '../services/configService.js';
 import { applyPaidOrderInventoryMovements } from '../services/orderInventoryService.js';
-import { sendOrderDeliveredEmail, sendOrderPaidEmail, sendOrderShippedEmail } from '../services/emailService.js';
+import {
+  sendOrderDeliveredEmail,
+  sendOrderPaidEmail,
+  sendOrderShippedEmail,
+  sendOrderStatusUpdatedEmail,
+} from '../services/emailService.js';
 import { notifyStaffOrderPaid, notifyStaffOrderStatusChanged } from '../services/staffNotificationService.js';
 import Stripe from 'stripe';
 import axios from 'axios'; // <-- REQUERIDO
@@ -728,7 +733,12 @@ const updateOrderStatusOperational = asyncHandler(async (req, res, next) => {
   } else if (nextStatus === 'DELIVERED') {
     await sendOrderDeliveredEmail(updatedOrder);
     await whatsappService.sendCustomerOrderDeliveredNotification(updatedOrder);
-  } else if (nextStatus === 'CANCELLED') {
+  } else {
+    await sendOrderStatusUpdatedEmail(updatedOrder, {
+      previousStatus: order.status,
+      nextStatus,
+      notes: notes || STATUS_HISTORY_NOTES[nextStatus],
+    });
     await whatsappService.sendCustomerOrderStatusNotification(updatedOrder);
   }
 
