@@ -18,6 +18,7 @@ Este documento es la guía técnica central y única fuente de verdad para el pr
     - **Actualizacion WhatsApp 2026-07:** Se retira el proveedor externo de WhatsApp para evitar licenciamiento, dependencias extra y reconexiones confusas. Tecnotitlan usa el flujo estable tipo VEVA: una sola vinculacion, llaves cifradas en base de datos y reconexion controlada.
 - **UI/UX:** Interfaz limpia, moderna y premium.
 - **Canales oficiales Tecnotitlan:** Facebook `https://www.facebook.com/profile.php?id=61591872000643`, TikTok `https://www.tiktok.com/@tecnotitlan_mx` y WhatsApp operativo `+52 348 151 0949`.
+- **Inventario operativo (2026-07-23):** La tienda debe mostrar piezas disponibles en tarjetas, detalle y carrito. Si `countInStock` es `0`, el producto se marca como agotado temporalmente y no puede avanzar al checkout. Las cancelaciones de pedidos que ya generaron salida de inventario regresan stock automaticamente solo si el pedido no fue enviado ni entregado. Si el pedido ya tuvo estado `SHIPPED` o `DELIVERED`, la cancelacion queda pendiente de confirmacion de recepcion del producto antes de regresar inventario. Los cortes descuentan las reversas `RETURN_IN` con `referenceType=ORDER_CANCEL` para no inflar ventas ni utilidad.
 
 ---
 

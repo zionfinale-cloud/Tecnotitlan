@@ -260,6 +260,15 @@
   color: #ff6b6b;
 }
 
+.stockHint {
+  display: block;
+  margin-top: 0.2rem;
+  color: #f6b73c;
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: right;
+}
+
 .select {
   width: 92px;
   border: 1px solid var(--line);

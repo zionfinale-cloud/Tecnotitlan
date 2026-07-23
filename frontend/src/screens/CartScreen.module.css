@@ -35,6 +35,10 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.18);
 }
 
+.cartItemWarning {
+    border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
 .productImage {
     object-fit: contain;
     max-height: 60px;
@@ -55,6 +59,23 @@
 
 .productLink:hover {
     color: var(--cta-color);
+}
+
+.stockNote,
+.stockIssue {
+    display: block;
+    margin-left: 1rem;
+    margin-top: 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.stockNote {
+    color: var(--text-muted, #64748b);
+}
+
+.stockIssue {
+    color: #ef4444;
 }
 
 .priceText {

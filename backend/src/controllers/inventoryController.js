@@ -642,23 +642,24 @@ const getInventoryCut = asyncHandler(async (req, res) => {
       row.unitsPurchased += movement.quantity;
     }
 
-    if (movement.type === 'SALE') {
+    if (movement.type === 'SALE' || (movement.type === 'RETURN_IN' && movement.referenceType === 'ORDER_CANCEL')) {
+      const direction = movement.type === 'SALE' ? 1 : -1;
       const revenue = movement.totalRevenue || 0;
       const channel = movement.channel || 'WEB';
-      summary.salesRevenue += revenue;
-      summary.costOfGoodsSold += movement.totalCost;
-      summary.unitsSold += movement.quantity;
+      summary.salesRevenue += revenue * direction;
+      summary.costOfGoodsSold += movement.totalCost * direction;
+      summary.unitsSold += movement.quantity * direction;
       if (!summary.salesByChannel[channel]) {
         summary.salesByChannel[channel] = { channel, unitsSold: 0, revenue: 0, cost: 0, profit: 0 };
       }
-      summary.salesByChannel[channel].unitsSold += movement.quantity;
-      summary.salesByChannel[channel].revenue += revenue;
-      summary.salesByChannel[channel].cost += movement.totalCost;
-      summary.salesByChannel[channel].profit += revenue - movement.totalCost;
-      row.unitsSold += movement.quantity;
-      row.revenue += revenue;
-      row.cost += movement.totalCost;
-      row.profit += revenue - movement.totalCost;
+      summary.salesByChannel[channel].unitsSold += movement.quantity * direction;
+      summary.salesByChannel[channel].revenue += revenue * direction;
+      summary.salesByChannel[channel].cost += movement.totalCost * direction;
+      summary.salesByChannel[channel].profit += (revenue - movement.totalCost) * direction;
+      row.unitsSold += movement.quantity * direction;
+      row.revenue += revenue * direction;
+      row.cost += movement.totalCost * direction;
+      row.profit += (revenue - movement.totalCost) * direction;
     }
   }
 

@@ -48,9 +48,11 @@ const ProductScreen = () => {
   const image = activeImage || resolveAssetUrl(product?.image || product?.media?.[0]?.url);
   const isFallbackImage = image === fallbackImage;
   const characteristics = product?.characteristics || [];
+  const stockCount = Number(product?.countInStock || 0);
+  const hasStock = stockCount > 0;
 
   const addToCartHandler = () => {
-    if (!product) return;
+    if (!product || !hasStock) return;
 
     const itemToAdd = {
       product: product.id,
@@ -59,6 +61,7 @@ const ProductScreen = () => {
       price: product.price,
       image,
       qty,
+      countInStock: stockCount,
     };
 
     addToCart(itemToAdd);
@@ -112,7 +115,7 @@ const ProductScreen = () => {
               <h1 className={styles.title}>{product.name}</h1>
 
               <div className={styles.ratingRow}>
-                <Rating value={product.rating || 0} text={`${product.numReviews || 0} reseñas`} color="var(--cta-color)" />
+                <Rating value={product.rating || 0} text={`${product.numReviews || 0} resenas`} color="var(--cta-color)" />
               </div>
 
               <div className={styles.priceLine}>
@@ -153,18 +156,23 @@ const ProductScreen = () => {
               </div>
               <div className={styles.buyRow}>
                 <span>Estado</span>
-                {product.countInStock > 0 ? (
-                  <strong className={styles.stockOk}>En stock</strong>
+                {hasStock ? (
+                  <strong className={styles.stockOk}>
+                    {stockCount} disponible{stockCount === 1 ? '' : 's'}
+                    {stockCount <= 3 && (
+                      <small className={styles.stockHint}>Quedan pocas piezas</small>
+                    )}
+                  </strong>
                 ) : (
-                  <strong className={styles.stockOut}>Sin stock</strong>
+                  <strong className={styles.stockOut}>Agotado temporalmente</strong>
                 )}
               </div>
 
-              {product.countInStock > 0 && (
+              {hasStock && (
                 <div className={styles.buyRow}>
                   <span>Cantidad</span>
                   <select className={styles.select} value={qty} onChange={(event) => setQty(Number(event.target.value))}>
-                    {[...Array(product.countInStock).keys()].slice(0, 10).map((x) => (
+                    {[...Array(stockCount).keys()].slice(0, 10).map((x) => (
                       <option key={x + 1} value={x + 1}>
                         {x + 1}
                       </option>
@@ -173,16 +181,16 @@ const ProductScreen = () => {
                 </div>
               )}
 
-              <button className={styles.cartButton} onClick={addToCartHandler} type="button" disabled={product.countInStock === 0}>
-                <i className="fas fa-cart-plus me-2"></i> Añadir al carrito
+              <button className={styles.cartButton} onClick={addToCartHandler} type="button" disabled={!hasStock}>
+                <i className="fas fa-cart-plus me-2"></i> {hasStock ? 'Anadir al carrito' : 'Sin stock por el momento'}
               </button>
             </aside>
 
             <div className={styles.benefitBox}>
-              <div className={styles.benefit}><i className="fas fa-truck"></i> Envíos a todo México</div>
+              <div className={styles.benefit}><i className="fas fa-truck"></i> Envios a todo Mexico</div>
               <div className={styles.benefit}><i className="fas fa-shield-alt"></i> Compra segura</div>
-              <div className={styles.benefit}><i className="fas fa-medal"></i> Garantía y respaldo</div>
-              <div className={styles.benefit}><i className="fas fa-headset"></i> Atención personalizada</div>
+              <div className={styles.benefit}><i className="fas fa-medal"></i> Garantia y respaldo</div>
+              <div className={styles.benefit}><i className="fas fa-headset"></i> Atencion personalizada</div>
             </div>
           </section>
         </div>

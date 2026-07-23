@@ -4,7 +4,10 @@ import { NotFoundError, BadRequestError } from '../utils/errorUtils.js';
 import logger from '../utils/logger.js';
 import * as whatsappService from '../services/whatsappService.js';
 import { getConfig } from '../services/configService.js';
-import { applyPaidOrderInventoryMovements } from '../services/orderInventoryService.js';
+import {
+  applyPaidOrderInventoryMovements,
+  restoreCancelledOrderInventoryMovements,
+} from '../services/orderInventoryService.js';
 import {
   sendOrderDeliveredEmail,
   sendOrderPaidEmail,
@@ -65,7 +68,7 @@ const STATUS_HISTORY_NOTES = {
   PENDING_FULFILLMENT: 'Pedido pendiente de surtido o fulfillment.',
   SHIPPED: 'Pedido enviado.',
   DELIVERED: 'Pedido entregado.',
-  CANCELLED: 'Pedido cancelado.',
+  CANCELLED: 'Pedido cancelado. Inventario revisado para devolucion.',
 };
 
 const ORDER_INCLUDE = {
@@ -716,14 +719,30 @@ const updateOrderStatusOperational = asyncHandler(async (req, res, next) => {
     return res.status(200).json({ status: 'success', data: { order } });
   }
 
+  let cancellationInventoryResult = null;
+
   const updatedOrder = await prisma.$transaction(async (tx) => {
+    if (nextStatus === 'CANCELLED' && order.status !== 'CANCELLED') {
+      const currentOrder = await tx.order.findUnique({
+        where: { id: req.params.id },
+        include: ORDER_INCLUDE,
+      });
+      cancellationInventoryResult = await restoreCancelledOrderInventoryMovements(tx, currentOrder, req.user.id);
+    }
+
     const savedOrder = await tx.order.update({
       where: { id: req.params.id },
       data: dataToUpdate,
       include: ORDER_INCLUDE,
     });
 
-    await appendStatusHistory(tx, savedOrder.id, nextStatus, notes || STATUS_HISTORY_NOTES[nextStatus]);
+    const cancellationNote = cancellationInventoryResult?.requiresReturnConfirmation
+      ? 'Pedido cancelado. Esperando confirmacion de recepcion de producto antes de regresar inventario.'
+      : cancellationInventoryResult?.restoredItems > 0
+        ? `Pedido cancelado. Se regresaron ${cancellationInventoryResult.restoredItems} pieza(s) al inventario.`
+        : null;
+
+    await appendStatusHistory(tx, savedOrder.id, nextStatus, notes || cancellationNote || STATUS_HISTORY_NOTES[nextStatus]);
     return savedOrder;
   });
 
