@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../../utils/assetUrl';
 import styles from './OrderListScreen.module.css';
@@ -183,7 +183,7 @@ const OrderListScreen = () => {
     return { total, pending, preparing, shipped };
   }, [orders]);
 
-  const loadNotificationLogs = async () => {
+  const loadNotificationLogs = useCallback(async () => {
     try {
       const { data } = await api.get('/notification-logs?limit=200');
       setNotificationLogs(data.data || []);
@@ -191,9 +191,9 @@ const OrderListScreen = () => {
       // La bitacora es auxiliar; no bloquea operacion de pedidos.
       console.warn('No se pudieron cargar las notificaciones de pedidos.', err);
     }
-  };
+  }, []);
 
-  const loadOrders = async ({ silent = false } = {}) => {
+  const loadOrders = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     setError('');
     try {
@@ -205,13 +205,13 @@ const OrderListScreen = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, [loadNotificationLogs]);
 
   useEffect(() => {
     loadOrders();
     const interval = setInterval(() => loadOrders({ silent: true }), 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadOrders]);
 
   const updateOrder = async (orderId, payload, message) => {
     setSavingId(orderId);

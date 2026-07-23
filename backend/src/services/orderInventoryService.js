@@ -3,6 +3,33 @@ import { BadRequestError } from '../utils/errorUtils.js';
 const RESTOCK_REFERENCE_TYPE = 'ORDER_CANCEL';
 const RETURN_CONFIRMATION_STATUSES = new Set(['SHIPPED', 'DELIVERED']);
 
+const hasText = (value) => String(value || '').trim().length > 0;
+
+const getShippingInfo = (order) => (
+  order?.shippingInfo && typeof order.shippingInfo === 'object' && !Array.isArray(order.shippingInfo)
+    ? order.shippingInfo
+    : {}
+);
+
+const hasRealShipmentEvidence = (order, status) => {
+  const shippingInfo = getShippingInfo(order);
+  const hasGuideData = [
+    shippingInfo.trackingNumber,
+    shippingInfo.guideNumber,
+    shippingInfo.guia,
+    shippingInfo.trackingUrl,
+    shippingInfo.trackingLink,
+    shippingInfo.rastreo,
+    shippingInfo.carrier,
+    shippingInfo.paqueteria,
+    shippingInfo.shippingCompany,
+  ].some(hasText);
+
+  if (hasGuideData) return true;
+  if (status === 'DELIVERED' && order?.deliveredAt) return true;
+  return false;
+};
+
 const getReturnGateStatus = (order) => {
   if (!order?.status) return null;
   if (order.status !== 'CANCELLED') return order.status;
@@ -89,7 +116,10 @@ export const restoreCancelledOrderInventoryMovements = async (tx, order, created
 
   const returnGateStatus = getReturnGateStatus(order);
 
-  if (RETURN_CONFIRMATION_STATUSES.has(returnGateStatus)) {
+  if (
+    RETURN_CONFIRMATION_STATUSES.has(returnGateStatus)
+    && hasRealShipmentEvidence(order, returnGateStatus)
+  ) {
     return { restoredItems: 0, skippedItems: 0, requiresReturnConfirmation: true };
   }
 

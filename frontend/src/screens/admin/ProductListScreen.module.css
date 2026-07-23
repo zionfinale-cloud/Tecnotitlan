@@ -356,6 +356,10 @@
     white-space: nowrap;
 }
 
+.stockCell .stockWarning {
+    color: #be123c;
+}
+
 .empty {
     padding: 2rem;
     text-align: center;

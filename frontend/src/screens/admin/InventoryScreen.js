@@ -179,12 +179,18 @@ const InventoryScreen = () => {
     const assignedStock = Number(item.channelStock?.[channel] || 0);
     const publishedStock = item.channelPublishedStock?.[channel];
     const hasPublishedStock = publishedStock !== undefined && publishedStock !== null;
-    const showPublishedNote = hasPublishedStock && Number(publishedStock) !== assignedStock;
+    const numericPublishedStock = Number(publishedStock || 0);
+    const showPublishedNote = hasPublishedStock && numericPublishedStock !== assignedStock;
+    const isOutOfSync = showPublishedNote && assignedStock === 0 && numericPublishedStock > 0;
 
     return (
       <span className={styles.stockCell}>
         <strong>{assignedStock}</strong>
-        {showPublishedNote && <small>Publicado: {publishedStock}</small>}
+        {showPublishedNote && (
+          <small className={isOutOfSync ? styles.stockWarning : undefined}>
+            {isOutOfSync ? 'Publicado desfasado' : 'Publicado'}: {publishedStock}
+          </small>
+        )}
       </span>
     );
   };
@@ -760,7 +766,7 @@ const InventoryScreen = () => {
           <div>
             <h2 className={styles.title} style={{ fontSize: '1.25rem', marginBottom: 0 }}>Inventario por producto y canal</h2>
             <p className={styles.subtitle} style={{ marginBottom: 0 }}>
-              Stock real por ubicacion. Si un canal muestra "Publicado", es solo el stock configurado en su publicacion, no mercancia apartada.
+              Stock real por ubicacion. "Publicado desfasado" significa que la publicacion del marketplace aun muestra piezas que no estan asignadas fisicamente.
             </p>
           </div>
         </div>

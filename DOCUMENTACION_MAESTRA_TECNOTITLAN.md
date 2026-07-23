@@ -18,7 +18,7 @@ Este documento es la guía técnica central y única fuente de verdad para el pr
     - **Actualizacion WhatsApp 2026-07:** Se retira el proveedor externo de WhatsApp para evitar licenciamiento, dependencias extra y reconexiones confusas. Tecnotitlan usa el flujo estable tipo VEVA: una sola vinculacion, llaves cifradas en base de datos y reconexion controlada.
 - **UI/UX:** Interfaz limpia, moderna y premium.
 - **Canales oficiales Tecnotitlan:** Facebook `https://www.facebook.com/profile.php?id=61591872000643`, TikTok `https://www.tiktok.com/@tecnotitlan_mx` y WhatsApp operativo `+52 348 151 0949`.
-- **Inventario operativo (2026-07-23):** La tienda debe mostrar piezas disponibles en tarjetas, detalle y carrito. Si `countInStock` es `0`, el producto se marca como agotado temporalmente y no puede avanzar al checkout. Las cancelaciones de pedidos que ya generaron salida de inventario regresan stock automaticamente solo si el pedido no fue enviado ni entregado. Si el pedido ya tuvo estado `SHIPPED` o `DELIVERED`, la cancelacion queda pendiente de confirmacion de recepcion del producto antes de regresar inventario. Los cortes descuentan las reversas `RETURN_IN` con `referenceType=ORDER_CANCEL` para no inflar ventas ni utilidad.
+- **Inventario operativo (2026-07-23):** La tienda debe mostrar piezas disponibles en tarjetas, detalle y carrito. Si `countInStock` es `0`, el producto se marca como agotado temporalmente y no puede avanzar al checkout. Las cancelaciones de pedidos que ya generaron salida de inventario regresan stock automaticamente si no existe evidencia real de envio (guia, paqueteria, link de rastreo o entrega registrada). Si el pedido ya tiene guia/rastreo o entrega, la cancelacion queda pendiente de confirmacion de recepcion del producto antes de regresar inventario. Los cortes descuentan las reversas `RETURN_IN` con `referenceType=ORDER_CANCEL` para no inflar ventas ni utilidad.
 
 ---
 
@@ -845,7 +845,7 @@ Reglas importantes:
 
 ### Regla de inventario real vs publicado
 
-El resumen de inventario toma como fuente de verdad los movimientos reales (`InventoryMovement`). `Bodega/Web` viene de `Product.countInStock`; Mercado Libre, TikTok Shop y Amazon solo cuentan como stock asignado si existe un `CHANNEL_TRANSFER`, venta, devolucion o ajuste de ese canal. El `publishedStock` de una publicacion marketplace es informativo y no debe contarse como mercancia fisica si no hubo traspaso registrado.
+El resumen de inventario toma como fuente de verdad los movimientos reales (`InventoryMovement`). `Bodega/Web` viene de `Product.countInStock`; Mercado Libre, TikTok Shop y Amazon solo cuentan como stock asignado si existe un `CHANNEL_TRANSFER`, venta, devolucion o ajuste de ese canal. El `publishedStock` de una publicacion marketplace es informativo y no debe contarse como mercancia fisica si no hubo traspaso registrado. Si el dashboard muestra `Publicado desfasado`, significa que el marketplace aun tiene un stock configurado diferente al stock asignado real y debe sincronizarse o corregirse antes de vender en ese canal.
 
 ### Flujo financiero simple
 
