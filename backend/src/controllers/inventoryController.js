@@ -572,6 +572,10 @@ const getInventoryOverview = asyncHandler(async (req, res) => {
 
     const totalPhysicalStock = Object.values(channelStock).reduce((sum, stock) => sum + (stock || 0), 0);
 
+    const reorderPoint = 3;
+    const reorderTarget = 10;
+    const reorderSuggested = totalPhysicalStock <= reorderPoint;
+
     return {
       productId: product.id,
       sku: product.sku,
@@ -585,7 +589,9 @@ const getInventoryOverview = asyncHandler(async (req, res) => {
       channelPublishedStock,
       channelPrices,
       channelStatuses,
-      reorderSuggested: totalPhysicalStock <= 3,
+      reorderSuggested,
+      reorderPoint,
+      reorderQuantity: reorderSuggested ? Math.max(reorderTarget - totalPhysicalStock, 1) : 0,
     };
   });
 

@@ -164,6 +164,18 @@ const InventoryScreen = () => {
     }
   ), [inventoryOverview]);
 
+  const reorderAlerts = useMemo(() => inventoryOverview
+    .filter((item) => item.reorderSuggested)
+    .map((item) => ({
+      productId: item.productId,
+      sku: item.sku,
+      name: item.name,
+      currentStock: Number(item.totalPhysicalStock || 0),
+      reorderPoint: Number(item.reorderPoint || 3),
+      reorderQuantity: Number(item.reorderQuantity || Math.max(10 - Number(item.totalPhysicalStock || 0), 1)),
+    }))
+    .sort((a, b) => a.currentStock - b.currentStock || a.sku.localeCompare(b.sku)), [inventoryOverview]);
+
   const setQuickMovementType = (type) => {
     setMovementFilters((current) => ({ ...current, type }));
   };
@@ -445,7 +457,7 @@ const InventoryScreen = () => {
             <div className={styles.flowMetric}>
               <span>Recompra</span>
               <strong>{inventoryTotals.reorderCount}</strong>
-              <small>productos por revisar</small>
+              <small>{inventoryTotals.reorderCount ? 'productos bajo minimo' : 'sin alertas'}</small>
             </div>
             {showCosts && (
               <div className={styles.flowMetric}>
@@ -486,6 +498,22 @@ const InventoryScreen = () => {
             <small>Ventas, utilidad y productos que necesitan recompra.</small>
           </button>
         </div>
+
+        {reorderAlerts.length > 0 && (
+          <div className={styles.reorderPanel}>
+            <div>
+              <strong>Productos pendientes de recompra</strong>
+              <span>Prioridad por menor stock fisico total.</span>
+            </div>
+            <div className={styles.reorderList}>
+              {reorderAlerts.slice(0, 5).map((item) => (
+                <span key={item.productId} className={styles.reorderChip}>
+                  {item.sku} - {item.name}: stock {item.currentStock}, comprar {item.reorderQuantity}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {activeInventoryTab === 'entries' && showCosts && (
@@ -798,7 +826,15 @@ const InventoryScreen = () => {
                   <td>{renderChannelStock(item, 'TIKTOK_SHOP')}</td>
                   <td>{renderChannelStock(item, 'AMAZON')}</td>
                   {showCosts && <td>{currency.format(item.costPrice || 0)}</td>}
-                  <td>{item.reorderSuggested ? 'Revisar' : 'OK'}</td>
+                  <td>
+                    {item.reorderSuggested ? (
+                      <span className={styles.reorderBadge}>
+                        Comprar {item.reorderQuantity || Math.max(10 - Number(item.totalPhysicalStock || 0), 1)}
+                      </span>
+                    ) : (
+                      <span className={styles.okBadge}>OK</span>
+                    )}
+                  </td>
                 </tr>
               ))}
               {!loading && inventoryOverview.length === 0 && (

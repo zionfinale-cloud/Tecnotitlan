@@ -931,6 +931,12 @@ Flujo operativo actual:
 
 Regla de seguridad: los webhooks de Mercado Libre no deben descontar inventario directo hasta que el flujo de conciliacion por canal este terminado. Por ahora se registran como eventos/orden externa para revision. Una venta importada debera generar una salida `SALE` en `InventoryMovement` con canal `MERCADOLIBRE`, referencia externa y validacion contra stock asignado al canal. Si no existe stock traspasado/asignado a Mercado Libre, la venta debe quedar marcada para revision en vez de inventar existencia.
 
+### Alerta de recompra operativa
+
+El campo `Recompra` del inventario no representa una compra ya realizada; es una alerta de reposicion. Se activa cuando el stock fisico total del producto queda igual o debajo del minimo operativo (`reorderPoint`, actualmente 3 piezas). El dashboard debe mostrar el SKU, nombre, stock actual y cantidad sugerida a comprar para que el equipo sepa exactamente que producto reponer.
+
+Ejemplo: si `AUR-001 - Auriculares Inalabrico` queda con 1 pieza total, el sistema muestra `Comprar 9` para regresar al objetivo operativo de 10 piezas. Si ademas existe stock publicado desfasado en Mercado Libre, TikTok Shop o Amazon, se muestra como informacion separada; stock publicado no equivale a mercancia fisica disponible.
+
 ### Mercado Libre - traspaso y sincronizacion de stock
 
 El traspaso desde `Inventario > Traspasos` es el acto operativo de mover piezas desde `Bodega/Web` hacia un canal externo. Para Mercado Libre la regla queda asi:
@@ -962,6 +968,7 @@ Reglas:
 - Cada escalacion y fallo de procesamiento queda registrado en `NotificationLog` para auditoria operativa.
 - El panel de Tecatl separa conversaciones activas, WhatsApp, cerradas y las que requieren humano para que ventas no tenga que revisar todo mezclado.
 - Tecatl solo procesa chats directos de cliente; grupos, estados, broadcasts y newsletters se ignoran para evitar respuestas automaticas fuera de contexto.
+- Tecatl no responde mensajes `fromMe` enviados desde el mismo WhatsApp vinculado a Tecnotitlan. Esto es intencional para evitar bucles y autorespuestas. Para probar Técatl por WhatsApp, se debe escribir desde otro numero de cliente hacia el numero conectado; los mensajes verdes enviados desde el numero operativo no disparan respuesta automatica.
 
 Objetivo de servicio: Tecnotitlan no solo vende producto; vende seguimiento. Si el bot no resuelve, el cliente debe sentir que alguien real ya tomo el caso.
 

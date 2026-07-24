@@ -1471,6 +1471,10 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
                         ...media,
                     });
 
+                    if (fromMe && text) {
+                        logger.debug(`[Tecatl WhatsApp] Mensaje propio ignorado para evitar autorespuesta: ${jid}`);
+                    }
+
                     if (!fromMe && text) {
                         await handleIncomingTecatlMessage({
                             jid,
