@@ -16,6 +16,32 @@ const defaultProfile = {
   isActive: true,
 };
 
+const BUSINESS_TIMEZONE = 'America/Mexico_City';
+const BUSINESS_START_HOUR = 9;
+const BUSINESS_END_HOUR = 19;
+
+const getMexicoHour = () => {
+  const hourText = new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TIMEZONE,
+    hour: '2-digit',
+    hour12: false,
+  }).format(new Date());
+  return Number(hourText);
+};
+
+const isWithinBusinessHours = () => {
+  const hour = getMexicoHour();
+  return hour >= BUSINESS_START_HOUR && hour < BUSINESS_END_HOUR;
+};
+
+const buildHandoffReply = (message) => {
+  if (isWithinBusinessHours()) {
+    return `${message} Un asesor de Tecnotitlan lo revisa en breve para darte seguimiento humano.`;
+  }
+
+  return `${message} Nuestro equipo atiende hasta las 7:00 p.m.; ya quedo registrado para que un vendedor lo revise a primera hora. En Tecnotitlan no dejamos al cliente solo.`;
+};
+
 const getOrCreateProfile = async () => prisma.assistantProfile.upsert({
   where: { storeId: 'default' },
   update: {},
@@ -105,14 +131,44 @@ const createHandoff = async (conversationId, reason) => {
     data: { status: 'HUMAN_REQUIRED' },
   });
 
-  await prisma.conversationHandoff.create({
+  const existingHandoff = await prisma.conversationHandoff.findFirst({
+    where: {
+      conversationId,
+      status: { in: ['OPEN', 'ASSIGNED'] },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (existingHandoff) {
+    return {
+      handoff: existingHandoff,
+      created: false,
+      reason: existingHandoff.reason,
+    };
+  }
+
+  const handoff = await prisma.conversationHandoff.create({
     data: {
       conversationId,
       reason,
       status: 'OPEN',
     },
   });
+
+  return {
+    handoff,
+    created: true,
+    reason,
+  };
 };
+
+const getActiveHandoff = async (conversationId) => prisma.conversationHandoff.findFirst({
+  where: {
+    conversationId,
+    status: { in: ['OPEN', 'ASSIGNED'] },
+  },
+  orderBy: { createdAt: 'desc' },
+});
 
 const extractSkusFromText = (text = '') => [...text.matchAll(/\b[A-Z]{2,5}-\d{3,}\b/gi)]
   .map((match) => match[0].toUpperCase());
@@ -141,12 +197,18 @@ const answerProductFollowUp = async ({ message, conversationId }) => {
   return null;
 };
 
-const buildTemplateReply = async ({ intent, message, profile, conversationId }) => {
+const buildTemplateReply = async ({ intent, message, profile, conversationId, handoffRef }) => {
+  const requestHandoff = async (reason) => {
+    const handoffInfo = await createHandoff(conversationId, reason);
+    handoffRef.current = handoffInfo;
+    return handoffInfo;
+  };
+
   if (intent === 'saludo') return profile.welcomeMessage;
 
   if (intent === 'mayoreo') {
-    await createHandoff(conversationId, 'Cliente pregunto por mayoreo');
-    return 'Si buscas precio por mayoreo, dime producto, cantidad aproximada y ciudad de envio. Lo paso al equipo para cotizarte con margen real y disponibilidad.';
+    await requestHandoff('Cliente pregunto por mayoreo');
+    return buildHandoffReply('Si buscas precio por mayoreo, dime producto, cantidad aproximada y ciudad de envio.');
   }
 
   if (['buscar_producto', 'recomendar_producto', 'comparar_productos'].includes(intent)) {
@@ -157,8 +219,8 @@ const buildTemplateReply = async ({ intent, message, profile, conversationId }) 
   }
 
   if (intent === 'recomendar_kit') {
-    await createHandoff(conversationId, 'Solicitud de recomendacion de kit');
-    return 'Me gusta esa idea. Para armarte un kit correcto prefiero que un asesor lo revise contigo segun uso y presupuesto. Ya deje registrada la solicitud.';
+    await requestHandoff('Solicitud de recomendacion de kit');
+    return buildHandoffReply('Me gusta esa idea. Para armarte un kit correcto prefiero que un asesor lo revise contigo segun uso y presupuesto.');
   }
 
   if (intent === 'consultar_pedido') return findOrderAnswer(message);
@@ -180,15 +242,15 @@ const buildTemplateReply = async ({ intent, message, profile, conversationId }) 
   }
 
   if (intent === 'hablar_humano') {
-    await createHandoff(conversationId, 'Cliente solicito asesor humano');
-    return 'Claro, te paso con un asesor humano. Mientras tanto dejo registrada tu solicitud para que el equipo le de seguimiento.';
+    await requestHandoff('Cliente solicito asesor humano');
+    return buildHandoffReply('Claro, te paso con un asesor humano.');
   }
 
   const productFollowUp = await answerProductFollowUp({ message, conversationId });
   if (productFollowUp) return productFollowUp;
 
-  await createHandoff(conversationId, 'Tecatl no encontro respuesta confiable');
-  return profile.fallbackMessage;
+  await requestHandoff('Tecatl no encontro respuesta confiable');
+  return buildHandoffReply(profile.fallbackMessage);
 };
 
 const handleIncomingMessage = async ({
@@ -206,6 +268,7 @@ const handleIncomingMessage = async ({
   const profile = await getOrCreateProfile();
   const conversation = await getConversation({ conversationId, channel, customerId, externalUserId, customerName, customerEmail });
   const intent = classifyIntent(content);
+  const handoffRef = { current: null };
 
   const userMessage = await prisma.chatMessage.create({
     data: {
@@ -216,8 +279,55 @@ const handleIncomingMessage = async ({
     },
   });
 
+  const activeHandoff = conversation.status === 'HUMAN_REQUIRED'
+    ? await getActiveHandoff(conversation.id)
+    : null;
+
+  if (activeHandoff) {
+    const reply = buildHandoffReply('Ya tengo esta conversacion marcada para seguimiento humano.');
+    const assistantMessage = await prisma.chatMessage.create({
+      data: {
+        conversationId: conversation.id,
+        role: 'ASSISTANT',
+        content: reply,
+        metadata: { intent: 'seguimiento_humano', provider: 'template' },
+      },
+    });
+
+    const updatedConversation = await prisma.chatConversation.update({
+      where: { id: conversation.id },
+      data: {
+        intent: 'seguimiento_humano',
+        lastMessageAt: new Date(),
+      },
+      include: {
+        messages: { orderBy: { createdAt: 'asc' } },
+        handoffs: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    });
+
+    return {
+      conversation: updatedConversation,
+      userMessage,
+      assistantMessage,
+      reply,
+      intent: 'seguimiento_humano',
+      handoff: {
+        handoff: activeHandoff,
+        created: false,
+        reason: activeHandoff.reason,
+      },
+    };
+  }
+
   const reply = profile.isActive
-    ? await buildTemplateReply({ intent, message: content, profile, conversationId: conversation.id })
+    ? await buildTemplateReply({
+      intent,
+      message: content,
+      profile,
+      conversationId: conversation.id,
+      handoffRef,
+    })
     : profile.fallbackMessage;
 
   const assistantMessage = await prisma.chatMessage.create({
@@ -247,6 +357,7 @@ const handleIncomingMessage = async ({
     assistantMessage,
     reply,
     intent,
+    handoff: handoffRef.current,
   };
 };
 
@@ -254,6 +365,7 @@ const listConversations = async () => prisma.chatConversation.findMany({
   orderBy: [{ lastMessageAt: 'desc' }, { createdAt: 'desc' }],
   include: {
     messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+    handoffs: { orderBy: { createdAt: 'desc' }, take: 1 },
     _count: { select: { messages: true, handoffs: true } },
   },
   take: 100,

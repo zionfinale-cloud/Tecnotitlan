@@ -7,6 +7,7 @@ import {
   handleIncomingMessage,
   listConversations,
 } from '../modules/tecatl/tecatlConversationService.js';
+import { sendMessage as sendWhatsAppMessage } from '../services/whatsappService.js';
 
 const normalizeTags = (tags) => (Array.isArray(tags) ? tags : String(tags || '').split(','))
   .map((tag) => String(tag).trim().toLowerCase())
@@ -80,16 +81,40 @@ const replyConversation = asyncHandler(async (req, res, next) => {
   const conversation = await prisma.chatConversation.findUnique({ where: { id: req.params.id } });
   if (!conversation) return next(new NotFoundError('Conversacion no encontrada.'));
 
+  const cleanContent = content.trim();
+  const senderName = [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ')
+    || req.user?.email
+    || 'Equipo Tecnotitlan';
+  let delivery = null;
+
+  if (conversation.channel === 'WHATSAPP') {
+    if (!conversation.externalUserId) {
+      return next(new BadRequestError('Esta conversacion no tiene destino de WhatsApp.'));
+    }
+
+    try {
+      delivery = await sendWhatsAppMessage(conversation.externalUserId, cleanContent, senderName);
+    } catch (error) {
+      return next(new BadRequestError(`No se pudo enviar por WhatsApp: ${error.message}`));
+    }
+  }
+
   await prisma.chatMessage.create({
     data: {
       conversationId: conversation.id,
       role: 'HUMAN',
-      content: content.trim(),
+      content: cleanContent,
       metadata: {
         sentBy: req.user?.email,
-        sentByName: req.user?.name,
+        sentByName: senderName,
+        delivery,
       },
     },
+  });
+
+  await prisma.conversationHandoff.updateMany({
+    where: { conversationId: conversation.id, status: 'OPEN' },
+    data: { status: 'ASSIGNED', assignedTo: req.user?.id || null },
   });
 
   const updatedConversation = await prisma.chatConversation.update({

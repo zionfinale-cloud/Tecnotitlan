@@ -16,8 +16,34 @@ const formatDate = (value) => {
   return new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 };
 
+const getActiveHandoff = (conversation) => (
+  conversation?.handoffs?.find((handoff) => ['OPEN', 'ASSIGNED'].includes(handoff.status))
+  || conversation?.handoffs?.[0]
+  || null
+);
+
+const getStatusLabel = (status) => ({
+  OPEN: 'Abierta',
+  HUMAN_REQUIRED: 'Requiere humano',
+  CLOSED: 'Cerrada',
+}[status] || status || 'Sin estado');
+
+const getHandoffLabel = (handoff) => ({
+  OPEN: 'Pendiente',
+  ASSIGNED: 'Asignada',
+  RESOLVED: 'Resuelta',
+}[handoff?.status] || handoff?.status || null);
+
+const getConversationPriority = (conversation) => {
+  if (conversation.status === 'HUMAN_REQUIRED') return 0;
+  if (getActiveHandoff(conversation)?.status === 'OPEN') return 1;
+  if (conversation.status === 'OPEN') return 2;
+  return 3;
+};
+
 const TecatlAdminScreen = () => {
   const [activeTab, setActiveTab] = useState('conversations');
+  const [conversationFilter, setConversationFilter] = useState('active');
   const [profile, setProfile] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -32,6 +58,29 @@ const TecatlAdminScreen = () => {
   const selectedPreview = useMemo(() => (
     selectedConversation?.messages?.[selectedConversation.messages.length - 1]?.content || ''
   ), [selectedConversation]);
+
+  const conversationStats = useMemo(() => ({
+    all: conversations.length,
+    human: conversations.filter((conversation) => conversation.status === 'HUMAN_REQUIRED').length,
+    whatsapp: conversations.filter((conversation) => conversation.channel === 'WHATSAPP').length,
+    closed: conversations.filter((conversation) => conversation.status === 'CLOSED').length,
+  }), [conversations]);
+
+  const visibleConversations = useMemo(() => {
+    const filtered = conversations.filter((conversation) => {
+      if (conversationFilter === 'human') return conversation.status === 'HUMAN_REQUIRED';
+      if (conversationFilter === 'whatsapp') return conversation.channel === 'WHATSAPP';
+      if (conversationFilter === 'closed') return conversation.status === 'CLOSED';
+      if (conversationFilter === 'active') return conversation.status !== 'CLOSED';
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      const priorityDiff = getConversationPriority(a) - getConversationPriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+      return new Date(b.lastMessageAt || b.updatedAt || b.createdAt) - new Date(a.lastMessageAt || a.updatedAt || a.createdAt);
+    });
+  }, [conversationFilter, conversations]);
 
   const loadProfile = async () => {
     const { data } = await api.get('/admin/tecatl/profile');
@@ -227,68 +276,131 @@ const TecatlAdminScreen = () => {
           </nav>
 
           {activeTab === 'conversations' && (
-            <section className={styles.workspace}>
-              <aside className={styles.list}>
-                <div className={styles.listHeader}>
-                  <strong>Conversaciones</strong>
-                  <span>{conversations.length}</span>
-                </div>
-                {conversations.length === 0 ? (
-                  <div className={styles.empty}>Aun no hay conversaciones.</div>
-                ) : conversations.map((conversation) => (
-                  <button
-                    key={conversation.id}
-                    type="button"
-                    className={`${styles.rowButton} ${selectedConversation?.id === conversation.id ? styles.rowButtonActive : ''}`}
-                    onClick={() => openConversation(conversation)}
-                  >
-                    <span>{conversation.customerName || conversation.customerEmail || conversation.externalUserId || conversation.channel}</span>
-                    <small>{conversation.messages?.[0]?.content || 'Sin mensajes'}</small>
-                    <em>{conversation.status}</em>
-                  </button>
-                ))}
-              </aside>
+            <>
+              <section className={styles.conversationOverview}>
+                <button
+                  type="button"
+                  className={`${styles.metricCard} ${conversationFilter === 'active' ? styles.metricCardActive : ''}`}
+                  onClick={() => setConversationFilter('active')}
+                >
+                  <span>Activas</span>
+                  <strong>{conversationStats.all - conversationStats.closed}</strong>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.metricCard} ${conversationFilter === 'human' ? styles.metricCardActive : ''}`}
+                  onClick={() => setConversationFilter('human')}
+                >
+                  <span>Requieren humano</span>
+                  <strong>{conversationStats.human}</strong>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.metricCard} ${conversationFilter === 'whatsapp' ? styles.metricCardActive : ''}`}
+                  onClick={() => setConversationFilter('whatsapp')}
+                >
+                  <span>WhatsApp</span>
+                  <strong>{conversationStats.whatsapp}</strong>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.metricCard} ${conversationFilter === 'closed' ? styles.metricCardActive : ''}`}
+                  onClick={() => setConversationFilter('closed')}
+                >
+                  <span>Cerradas</span>
+                  <strong>{conversationStats.closed}</strong>
+                </button>
+              </section>
 
-              <div className={styles.conversationPanel}>
-                {selectedConversation ? (
-                  <>
-                    <div className={styles.conversationHeader}>
-                      <div>
-                        <strong>{selectedConversation.customerName || selectedConversation.customerEmail || 'Visitante web'}</strong>
-                        <span>{selectedConversation.channel} / {selectedConversation.intent || 'sin intent'}</span>
+              <section className={styles.workspace}>
+                <aside className={styles.list}>
+                  <div className={styles.listHeader}>
+                    <strong>Conversaciones</strong>
+                    <span>{visibleConversations.length}</span>
+                  </div>
+                  {visibleConversations.length === 0 ? (
+                    <div className={styles.empty}>No hay conversaciones en este filtro.</div>
+                  ) : visibleConversations.map((conversation) => {
+                    const handoff = getActiveHandoff(conversation);
+                    const preview = conversation.messages?.[0]?.content || 'Sin mensajes';
+                    return (
+                      <button
+                        key={conversation.id}
+                        type="button"
+                        className={`${styles.rowButton} ${selectedConversation?.id === conversation.id ? styles.rowButtonActive : ''}`}
+                        onClick={() => openConversation(conversation)}
+                      >
+                        <span>{conversation.customerName || conversation.customerEmail || conversation.externalUserId || conversation.channel}</span>
+                        <small>{preview}</small>
+                        <div className={styles.rowMeta}>
+                          <em className={`${styles.statusPill} ${conversation.status === 'HUMAN_REQUIRED' ? styles.statusHuman : ''}`}>
+                            {getStatusLabel(conversation.status)}
+                          </em>
+                          {conversation.channel === 'WHATSAPP' && <em className={styles.channelPill}>WhatsApp</em>}
+                          {handoff && <em className={styles.handoffPill}>{getHandoffLabel(handoff)}</em>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </aside>
+
+                <div className={styles.conversationPanel}>
+                  {selectedConversation ? (
+                    <>
+                      <div className={styles.conversationHeader}>
+                        <div>
+                          <strong>{selectedConversation.customerName || selectedConversation.customerEmail || 'Visitante web'}</strong>
+                          <span>{selectedConversation.channel} / {selectedConversation.intent || 'sin intent'}</span>
+                          <div className={styles.headerPills}>
+                            <em className={`${styles.statusPill} ${selectedConversation.status === 'HUMAN_REQUIRED' ? styles.statusHuman : ''}`}>
+                              {getStatusLabel(selectedConversation.status)}
+                            </em>
+                            {getActiveHandoff(selectedConversation) && (
+                              <em className={styles.handoffPill}>
+                                {getActiveHandoff(selectedConversation).reason || 'Escalacion humana'}
+                              </em>
+                            )}
+                          </div>
+                        </div>
+                        <button className={styles.secondaryButton} type="button" onClick={closeConversation} disabled={saving || selectedConversation.status === 'CLOSED'}>
+                          Cerrar
+                        </button>
                       </div>
-                      <button className={styles.secondaryButton} type="button" onClick={closeConversation} disabled={saving}>
-                        Cerrar
-                      </button>
-                    </div>
-                    <div className={styles.messages}>
-                      {selectedConversation.messages.map((message) => (
-                        <article
-                          className={`${styles.message} ${message.role === 'USER' ? styles.incoming : styles.outgoing}`}
-                          key={message.id}
-                        >
-                          <strong>{message.role === 'USER' ? 'Cliente' : message.role === 'HUMAN' ? 'Equipo' : 'Tecatl'}</strong>
-                          <p>{message.content}</p>
-                          <small>{formatDate(message.createdAt)}</small>
-                        </article>
-                      ))}
-                    </div>
-                    <form className={styles.replyBox} onSubmit={sendReply}>
-                      <textarea
-                        value={reply}
-                        onChange={(event) => setReply(event.target.value)}
-                        placeholder={`Responder sobre: ${selectedPreview.slice(0, 80)}`}
-                      />
-                      <button className={styles.primaryButton} type="submit" disabled={saving || !reply.trim()}>
-                        Responder
-                      </button>
-                    </form>
-                  </>
-                ) : (
-                  <div className={styles.empty}>Selecciona una conversacion para verla.</div>
-                )}
-              </div>
-            </section>
+                      {selectedConversation.channel === 'WHATSAPP' && (
+                        <div className={styles.deliveryNotice}>
+                          Responder aqui envia el mensaje directo al WhatsApp del cliente. Si falla el envio, no se guarda como respuesta humana.
+                        </div>
+                      )}
+                      <div className={styles.messages}>
+                        {selectedConversation.messages.map((message) => (
+                          <article
+                            className={`${styles.message} ${message.role === 'USER' ? styles.incoming : styles.outgoing}`}
+                            key={message.id}
+                          >
+                            <strong>{message.role === 'USER' ? 'Cliente' : message.role === 'HUMAN' ? 'Equipo' : 'Tecatl'}</strong>
+                            <p>{message.content}</p>
+                            <small>{formatDate(message.createdAt)}</small>
+                          </article>
+                        ))}
+                      </div>
+                      <form className={styles.replyBox} onSubmit={sendReply}>
+                        <textarea
+                          value={reply}
+                          onChange={(event) => setReply(event.target.value)}
+                          placeholder={`Responder sobre: ${selectedPreview.slice(0, 80)}`}
+                          disabled={selectedConversation.status === 'CLOSED'}
+                        />
+                        <button className={styles.primaryButton} type="submit" disabled={saving || !reply.trim() || selectedConversation.status === 'CLOSED'}>
+                          Responder
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <div className={styles.empty}>Selecciona una conversacion para verla.</div>
+                  )}
+                </div>
+              </section>
+            </>
           )}
 
           {activeTab === 'knowledge' && (

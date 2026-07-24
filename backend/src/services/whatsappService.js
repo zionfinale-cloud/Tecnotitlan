@@ -9,6 +9,8 @@ import { BadRequestError } from '../utils/errorUtils.js';
 import { getConfig } from './configService.js';
 import { clearDatabaseAuthState, useDatabaseAuthState } from './baileysDbAuthState.js';
 import { writeNotificationLog } from './notificationLogService.js';
+import { sendTransactionalMail } from './emailService.js';
+import { handleWhatsAppMessage } from '../modules/tecatl/tecatlWhatsAppAdapter.js';
 
 const {
     DisconnectReason,
@@ -36,6 +38,9 @@ const DEFAULT_RECONNECT_BASE_DELAY_MS = 5 * 60 * 1000;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 30 * 60 * 1000;
 const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_PAUSED_RETRY_AFTER_MS = 10 * 60 * 1000;
+const TECATL_STAFF_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'VENDEDOR'];
+const TECATL_BUSINESS_START_HOUR = 9;
+const TECATL_BUSINESS_END_HOUR = 19;
 const SESSION_LOCK_STALE_MS = Number(process.env.WHATSAPP_SESSION_LOCK_STALE_MS || 30 * 1000);
 const SESSION_LOCK_HEARTBEAT_MS = Number(process.env.WHATSAPP_SESSION_LOCK_HEARTBEAT_MS || 15000);
 const INSTANCE_ID = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -890,6 +895,15 @@ const getChatName = (jid, pushName, phone) => {
     return jid || 'Cliente';
 };
 
+const isCustomerDirectJid = (jid = '') => {
+    const value = String(jid || '');
+    return Boolean(value)
+        && !ignoredJids.has(value)
+        && !value.endsWith('@g.us')
+        && !value.endsWith('@broadcast')
+        && !value.endsWith('@newsletter');
+};
+
 const persistMessage = async ({
     jid,
     messageId,
@@ -904,7 +918,7 @@ const persistMessage = async ({
     fileName,
     phone,
 }) => {
-    if (!jid || ignoredJids.has(jid) || jid.endsWith('@g.us')) return null;
+    if (!isCustomerDirectJid(jid)) return null;
 
     const direction = fromMe ? 'OUTGOING' : 'INCOMING';
     const resolvedPhone = phone || getPhoneFromJid(jid);
@@ -958,6 +972,243 @@ const persistMessage = async ({
     } catch (error) {
         if (error.code === 'P2002') return null;
         throw error;
+    }
+};
+
+const getMexicoHour = () => {
+    const hourText = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Mexico_City',
+        hour: '2-digit',
+        hour12: false,
+    }).format(new Date());
+    return Number(hourText);
+};
+
+const isTecatlAfterHours = () => {
+    const hour = getMexicoHour();
+    return hour < TECATL_BUSINESS_START_HOUR || hour >= TECATL_BUSINESS_END_HOUR;
+};
+
+const escapeHtml = (value = '') => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const getTecatlStaffRecipients = async () => {
+    const users = await prisma.user.findMany({
+        where: {
+            role: { name: { in: TECATL_STAFF_ROLES } },
+        },
+        include: { role: true },
+    });
+
+    const emailRecipients = users
+        .filter((user) => user.notificationEmailEnabled !== false && user.email)
+        .map((user) => user.email);
+
+    const whatsappRecipients = users
+        .filter((user) => user.notificationWhatsappEnabled === true)
+        .map((user) => normalizePhone(user.notificationWhatsapp || user.phone))
+        .filter(Boolean);
+
+    const fallbackWhatsapp = normalizePhone(getConfig().ADMIN_WHATSAPP_NUMBER);
+    if (!whatsappRecipients.length && fallbackWhatsapp) {
+        whatsappRecipients.push(fallbackWhatsapp);
+    }
+
+    return {
+        emailRecipients: [...new Set(emailRecipients)],
+        whatsappRecipients: [...new Set(whatsappRecipients)],
+    };
+};
+
+const buildTecatlStaffMessage = ({ result, incomingText, jid, customerName }) => {
+    const conversation = result?.conversation;
+    const handoff = result?.handoff;
+    const afterHours = isTecatlAfterHours();
+    const customerLabel = customerName || conversation?.customerName || getPhoneFromJid(jid) || 'Cliente WhatsApp';
+    const scheduleText = afterHours
+        ? 'Fuera de horario. Revisar a primera hora.'
+        : 'Atender en cuanto sea posible.';
+
+    return [
+        '*Tecatl pide apoyo humano*',
+        `Cliente: ${customerLabel}`,
+        `Canal: WhatsApp`,
+        `Motivo: ${handoff?.reason || 'Consulta sin respuesta segura'}`,
+        `Horario: ${scheduleText}`,
+        '',
+        `Mensaje: ${incomingText}`,
+        '',
+        `Conversacion: ${conversation?.id || 'sin-id'}`,
+    ].join('\n');
+};
+
+const buildTecatlStaffEmailHtml = ({ result, incomingText, jid, customerName }) => {
+    const conversation = result?.conversation;
+    const handoff = result?.handoff;
+    const afterHours = isTecatlAfterHours();
+    const customerLabel = customerName || conversation?.customerName || getPhoneFromJid(jid) || 'Cliente WhatsApp';
+    const reason = handoff?.reason || 'Consulta sin respuesta segura';
+    const conversationId = conversation?.id || 'sin-id';
+    const safeMessage = escapeHtml(incomingText || '').replace(/\n/g, '<br>');
+
+    return `
+        <div style="font-family:Arial,Helvetica,sans-serif;color:#08111f;">
+          <h2 style="margin:0 0 12px;">Tecatl necesita apoyo humano</h2>
+          <p style="margin:0 0 16px;color:#506172;">${afterHours ? 'La consulta llego fuera de horario. Debe revisarse a primera hora.' : 'La consulta requiere seguimiento de un vendedor o administrador.'}</p>
+          <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
+            <tr><td style="padding:8px;border-bottom:1px solid #dce8e3;font-weight:700;">Cliente</td><td style="padding:8px;border-bottom:1px solid #dce8e3;">${escapeHtml(customerLabel)}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #dce8e3;font-weight:700;">Canal</td><td style="padding:8px;border-bottom:1px solid #dce8e3;">WhatsApp</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #dce8e3;font-weight:700;">Motivo</td><td style="padding:8px;border-bottom:1px solid #dce8e3;">${escapeHtml(reason)}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #dce8e3;font-weight:700;">Conversacion</td><td style="padding:8px;border-bottom:1px solid #dce8e3;">${escapeHtml(conversationId)}</td></tr>
+          </table>
+          <p style="margin:16px 0 8px;font-weight:700;">Mensaje del cliente</p>
+          <div style="background:#f4f8f6;border:1px solid #dce8e3;border-radius:12px;padding:14px;">${safeMessage}</div>
+        </div>
+    `;
+};
+
+const notifyTecatlHandoffStaff = async ({ result, incomingText, jid, customerName }) => {
+    if (!result?.handoff?.created) return;
+
+    const { emailRecipients, whatsappRecipients } = await getTecatlStaffRecipients();
+    const conversationId = result.conversation?.id || null;
+    const details = {
+        conversationId,
+        handoffId: result.handoff?.handoff?.id || result.handoff?.id || null,
+        reason: result.handoff?.reason || null,
+        customerName: customerName || result.conversation?.customerName || null,
+        customerJid: jid,
+        afterHours: isTecatlAfterHours(),
+    };
+
+    const subject = 'Tecatl necesita apoyo humano';
+    const emailHtml = buildTecatlStaffEmailHtml({ result, incomingText, jid, customerName });
+
+    if (emailRecipients.length) {
+        try {
+            await sendTransactionalMail({
+                to: emailRecipients,
+                subject,
+                html: emailHtml,
+                text: buildTecatlStaffMessage({ result, incomingText, jid, customerName }),
+            });
+            await writeNotificationLog({
+                channel: 'EMAIL',
+                audience: 'STAFF',
+                event: 'tecatl_handoff',
+                status: 'SENT',
+                provider: 'smtp',
+                recipient: emailRecipients.join(', '),
+                message: subject,
+                details,
+            });
+        } catch (error) {
+            await writeNotificationLog({
+                channel: 'EMAIL',
+                audience: 'STAFF',
+                event: 'tecatl_handoff',
+                status: 'FAILED',
+                provider: 'smtp',
+                recipient: emailRecipients.join(', '),
+                message: subject,
+                error: error.message,
+                details,
+            });
+        }
+    } else {
+        await writeNotificationLog({
+            channel: 'EMAIL',
+            audience: 'STAFF',
+            event: 'tecatl_handoff',
+            status: 'SKIPPED',
+            provider: 'smtp',
+            recipient: null,
+            message: 'Sin destinatarios de correo para escalacion de Tecatl.',
+            details,
+        });
+    }
+
+    const whatsappText = buildTecatlStaffMessage({ result, incomingText, jid, customerName });
+    if (!whatsappRecipients.length) {
+        await writeNotificationLog({
+            channel: 'WHATSAPP',
+            audience: 'STAFF',
+            event: 'tecatl_handoff',
+            status: 'SKIPPED',
+            provider: 'baileys',
+            recipient: null,
+            message: 'Sin destinatarios de WhatsApp para escalacion de Tecatl.',
+            details,
+        });
+        return;
+    }
+
+    await Promise.all(whatsappRecipients.map(async (phone) => {
+        try {
+            await sendMessage(phone, whatsappText, 'Tecatl');
+            await writeNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'STAFF',
+                event: 'tecatl_handoff',
+                status: 'SENT',
+                provider: 'baileys',
+                recipient: phone,
+                message: whatsappText,
+                details,
+            });
+        } catch (error) {
+            await writeNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'STAFF',
+                event: 'tecatl_handoff',
+                status: 'FAILED',
+                provider: 'baileys',
+                recipient: phone,
+                message: whatsappText,
+                error: error.message,
+                details,
+            });
+        }
+    }));
+};
+
+const handleIncomingTecatlMessage = async ({ jid, text, name }) => {
+    const cleanText = String(text || '').trim();
+    if (!cleanText) return;
+
+    try {
+        const result = await handleWhatsAppMessage({
+            message: cleanText,
+            jid,
+            name,
+        });
+
+        if (result?.reply) {
+            await sendMessage(jid, result.reply, 'Tecatl');
+        }
+
+        await notifyTecatlHandoffStaff({
+            result,
+            incomingText: cleanText,
+            jid,
+            customerName: name,
+        });
+    } catch (error) {
+        logger.warn(`[Tecatl WhatsApp] No se pudo procesar mensaje entrante ${jid}: ${error.message}`);
+        await writeNotificationLog({
+            channel: 'SYSTEM',
+            audience: 'SYSTEM',
+            event: 'tecatl_whatsapp_processing',
+            status: 'FAILED',
+            provider: 'tecatl',
+            recipient: jid,
+            message: cleanText,
+            error: error.message,
+        });
     }
 };
 
@@ -1203,21 +1454,30 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
         client.ev.on('messages.upsert', async ({ messages = [] }) => {
             for (const message of messages) {
                 const { jid, phone } = resolveChatIdentity(message);
-                if (!jid || ignoredJids.has(jid) || jid.endsWith('@g.us')) continue;
+                if (!isCustomerDirectJid(jid)) continue;
 
                 try {
                     const media = await extractIncomingMedia(message, jid);
                     const text = getMessageText(message) || getMediaLabel(media);
+                    const fromMe = Boolean(message.key?.fromMe);
                     await persistMessage({
                         jid,
                         messageId: message.key?.id,
                         text,
-                        fromMe: Boolean(message.key?.fromMe),
+                        fromMe,
                         pushName: message.pushName,
                         phone,
                         createdAt: getMessageDate(message.messageTimestamp),
                         ...media,
                     });
+
+                    if (!fromMe && text) {
+                        await handleIncomingTecatlMessage({
+                            jid,
+                            text,
+                            name: message.pushName || getChatName(jid, null, phone),
+                        });
+                    }
                 } catch (error) {
                     logger.error(`[WhatsApp] No se pudo guardar mensaje: ${error.message}`);
                 }

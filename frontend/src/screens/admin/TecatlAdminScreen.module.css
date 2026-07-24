@@ -53,6 +53,42 @@
   color: #0f172a;
 }
 
+.conversationOverview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.metricCard {
+  border: 1px solid #dbe4ee;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 1rem;
+  display: grid;
+  gap: .35rem;
+  text-align: left;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .05);
+}
+
+.metricCard span {
+  color: #64748b;
+  font-size: .82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.metricCard strong {
+  color: #06111f;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.metricCardActive {
+  border-color: #00dca2;
+  background: #ecfdf5;
+}
+
 .activeTab,
 .primaryButton {
   background: linear-gradient(135deg, #00dca2, #75f238) !important;
@@ -117,10 +153,48 @@
 }
 
 .rowButton em {
-  color: #00a878;
   font-size: .72rem;
   font-style: normal;
   font-weight: 900;
+}
+
+.rowMeta,
+.headerPills {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+
+.statusPill,
+.channelPill,
+.handoffPill {
+  width: fit-content;
+  border-radius: 999px;
+  padding: .22rem .55rem;
+  font-size: .72rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.statusPill {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.statusHuman {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.channelPill {
+  background: #dcfce7;
+  color: #047857;
+}
+
+.handoffPill {
+  background: #fff1f2;
+  color: #be123c;
 }
 
 .rowButton:hover,
@@ -136,6 +210,10 @@
   background: linear-gradient(180deg, #f8fafc, #eef7f2);
 }
 
+.conversationPanel:has(.deliveryNotice) {
+  grid-template-rows: auto auto 1fr auto;
+}
+
 .conversationHeader div {
   display: grid;
   gap: .2rem;
@@ -143,6 +221,16 @@
 
 .conversationHeader span {
   color: #64748b;
+}
+
+.deliveryNotice {
+  margin: .75rem 1rem 0;
+  border: 1px solid #a7f3d0;
+  border-radius: 14px;
+  background: #ecfdf5;
+  color: #065f46;
+  padding: .75rem .9rem;
+  font-weight: 800;
 }
 
 .messages {
@@ -316,6 +404,7 @@
 }
 
 @media (max-width: 980px) {
+  .conversationOverview,
   .workspace,
   .knowledgeGrid {
     grid-template-columns: 1fr;

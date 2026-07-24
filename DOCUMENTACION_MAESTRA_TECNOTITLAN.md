@@ -945,6 +945,24 @@ No se debe crear una publicacion de Mercado Libre automaticamente solo por trasp
 
 Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues algo como "es tipo C?", "sirve para viaje?" o "es bluetooth?", Tecatl debe usar el contexto reciente de la conversacion y las caracteristicas/etiquetas internas del producto. Si la ficha no trae ese dato, entonces si debe pedir confirmacion humana para no inventar informacion.
 
+### Tecatl en WhatsApp y escalacion humana 2026-07-23
+
+Tecatl queda integrado como primera linea de atencion para WhatsApp. Cuando entra un mensaje de cliente por WhatsApp, el backend guarda el mensaje en el panel operativo, lo procesa con Tecatl y responde desde el mismo numero conectado.
+
+Reglas:
+
+- Tecatl puede contestar preguntas de productos, pedidos, pagos, envios, garantias y datos generales usando la base de conocimiento, el catalogo, caracteristicas y contexto reciente de la conversacion.
+- Tecatl no debe inventar datos. Si no encuentra una respuesta confiable, marca la conversacion como `HUMAN_REQUIRED`, crea un `ConversationHandoff` y avisa al equipo.
+- Las escalaciones se notifican a usuarios operativos (`SUPER_ADMIN`, `ADMIN`, `SUPERVISOR`, `VENDEDOR`) segun sus preferencias: correo, WhatsApp o ambos.
+- Si no hay destinatarios de WhatsApp configurados, el sistema usa `ADMIN_WHATSAPP_NUMBER` como respaldo cuando exista.
+- Horario operativo humano: 9:00 a.m. a 7:00 p.m. hora de Mexico. Si la consulta llega despues de las 7:00 p.m. o antes de las 9:00 a.m., Tecatl responde que ya quedo registrada para seguimiento a primera hora y notifica al equipo.
+- Los mensajes del equipo enviados desde el panel de Tecatl se mandan realmente por WhatsApp cuando la conversacion viene de WhatsApp. No solo se guardan en la base de datos.
+- Cada escalacion y fallo de procesamiento queda registrado en `NotificationLog` para auditoria operativa.
+- El panel de Tecatl separa conversaciones activas, WhatsApp, cerradas y las que requieren humano para que ventas no tenga que revisar todo mezclado.
+- Tecatl solo procesa chats directos de cliente; grupos, estados, broadcasts y newsletters se ignoran para evitar respuestas automaticas fuera de contexto.
+
+Objetivo de servicio: Tecnotitlan no solo vende producto; vende seguimiento. Si el bot no resuelve, el cliente debe sentir que alguien real ya tomo el caso.
+
 ### WhatsApp operativo - decision actual 2026-07
 
 El numero operativo de WhatsApp quedo restringido/baneado despues de multiples reconexiones. La regla de seguridad sigue siendo: **no insistir con un numero restringido**. Para volver a operar WhatsApp se debe usar un numero recuperado o sano y vincularlo una sola vez con el flujo estable tipo VEVA.
