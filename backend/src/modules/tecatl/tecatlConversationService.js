@@ -1,5 +1,5 @@
 import prisma from '../../config/prisma.js';
-import { classifyIntent } from './tecatlIntentService.js';
+import { classifyIntent, normalizeText } from './tecatlIntentService.js';
 import { getRelevantKnowledge } from './tecatlKnowledgeService.js';
 import {
   buildProductDetailAnswer,
@@ -40,6 +40,82 @@ const buildHandoffReply = (message) => {
   }
 
   return `${message} Nuestro equipo atiende hasta las 7:00 p.m.; ya quedo registrado para que un vendedor lo revise a primera hora. En Tecnotitlan no dejamos al cliente solo.`;
+};
+
+const getTokens = (message = '') => normalizeText(message)
+  .replace(/[^a-z0-9\s-]/g, ' ')
+  .split(/\s+/)
+  .filter(Boolean);
+
+const includesPhrase = (normalizedMessage, phrases = []) => phrases
+  .some((phrase) => normalizedMessage.includes(normalizeText(phrase)));
+
+const includesToken = (tokens = [], values = []) => values
+  .some((value) => tokens.includes(normalizeText(value)));
+
+const buildConversationReply = ({ message, profile }) => {
+  const normalized = normalizeText(message);
+  const tokens = getTokens(message);
+  const wordCount = tokens.length;
+
+  if (includesPhrase(normalized, ['como estas', 'que tal estas', 'como andas', 'todo bien'])) {
+    return 'Estoy listo para ayudarte. Puedo orientarte con productos, stock, envios, pagos o seguimiento de tu pedido.';
+  }
+
+  if (includesPhrase(normalized, ['quien eres', 'eres bot', 'eres humano', 'que eres', 'tecatl'])) {
+    return 'Soy Tecatl, el asistente de Tecnotitlan. Te ayudo con dudas rapidas y, si algo necesita revision humana, lo paso al equipo.';
+  }
+
+  if (includesPhrase(normalized, ['gracias', 'muchas gracias', 'te agradezco'])
+    || (wordCount <= 4 && includesToken(tokens, ['ok', 'va', 'sale', 'listo', 'perfecto', 'bien', 'excelente']))) {
+    return 'Con gusto. Aqui sigo si necesitas revisar algun producto, pedido, envio o forma de pago.';
+  }
+
+  if (includesPhrase(normalized, ['me ayudas', 'puedes ayudar', 'tengo duda', 'necesito ayuda', 'informes'])
+    || (wordCount <= 3 && includesToken(tokens, ['ayuda', 'info', 'informacion']))) {
+    return 'Claro. Dime que necesitas revisar: producto, pedido, envio, garantia, forma de pago o compatibilidad.';
+  }
+
+  if (includesPhrase(normalized, ['quiero comprar', 'me interesa', 'ando buscando', 'busco algo'])
+    || (wordCount <= 4 && includesToken(tokens, ['comprar', 'cotizar', 'recomendar']))) {
+    return 'Va. Dime para que lo necesitas, tu presupuesto aproximado y si buscas alguna compatibilidad especial. Con eso te recomiendo opciones reales del catalogo.';
+  }
+
+  if (includesPhrase(normalized, ['mi pedido', 'seguimiento', 'rastreo', 'guia', 'mi paquete'])
+    && !/TECNO-\d{6}/i.test(message)) {
+    return 'Con gusto reviso tu pedido. Pasame tu folio, por ejemplo TECNO-000123, o el correo con el que hiciste la compra.';
+  }
+
+  if (wordCount <= 2 && includesToken(tokens, ['si', 'no', 'dale', 'ok', 'va'])) {
+    return 'Va, te sigo. Cuentame un poquito mas para ayudarte bien.';
+  }
+
+  if (intentLooksLikeGreeting(normalized)) return profile.welcomeMessage;
+
+  return null;
+};
+
+const intentLooksLikeGreeting = (normalizedMessage = '') => includesPhrase(normalizedMessage, [
+  'hola',
+  'buen dia',
+  'buenos dias',
+  'buenas tardes',
+  'buenas noches',
+  'que tal',
+  'saludos',
+  'hey',
+]);
+
+const buildExistingHandoffReply = (message = '') => {
+  const normalized = normalizeText(message);
+  const tokens = getTokens(message);
+
+  if (includesPhrase(normalized, ['gracias', 'muchas gracias'])
+    || includesToken(tokens, ['ok', 'va', 'sale', 'listo', 'perfecto'])) {
+    return buildHandoffReply('Con gusto. La conversacion ya esta en seguimiento humano.');
+  }
+
+  return buildHandoffReply('Gracias, ya agregue tu mensaje al seguimiento abierto.');
 };
 
 const getOrCreateProfile = async () => prisma.assistantProfile.upsert({
@@ -204,6 +280,11 @@ const buildTemplateReply = async ({ intent, message, profile, conversationId, ha
     return handoffInfo;
   };
 
+  const earlyConversationReply = ['saludo', 'pregunta_general'].includes(intent)
+    ? buildConversationReply({ message, profile })
+    : null;
+  if (earlyConversationReply) return earlyConversationReply;
+
   if (intent === 'saludo') return profile.welcomeMessage;
 
   if (intent === 'mayoreo') {
@@ -249,6 +330,9 @@ const buildTemplateReply = async ({ intent, message, profile, conversationId, ha
   const productFollowUp = await answerProductFollowUp({ message, conversationId });
   if (productFollowUp) return productFollowUp;
 
+  const conversationReply = buildConversationReply({ message, profile });
+  if (conversationReply) return conversationReply;
+
   await requestHandoff('Tecatl no encontro respuesta confiable');
   return buildHandoffReply(profile.fallbackMessage);
 };
@@ -284,7 +368,7 @@ const handleIncomingMessage = async ({
     : null;
 
   if (activeHandoff) {
-    const reply = buildHandoffReply('Ya tengo esta conversacion marcada para seguimiento humano.');
+    const reply = buildExistingHandoffReply(content);
     const assistantMessage = await prisma.chatMessage.create({
       data: {
         conversationId: conversation.id,

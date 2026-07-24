@@ -952,6 +952,8 @@ Tecatl queda integrado como primera linea de atencion para WhatsApp. Cuando entr
 Reglas:
 
 - Tecatl puede contestar preguntas de productos, pedidos, pagos, envios, garantias y datos generales usando la base de conocimiento, el catalogo, caracteristicas y contexto reciente de la conversacion.
+- Tecatl debe sostener conversacion normal antes de escalar: saludos, agradecimientos, confirmaciones cortas, dudas vagas y preguntas como "como estas?" no crean `ConversationHandoff`. En esos casos responde natural, pide contexto util o guia al cliente hacia producto, pedido, envio, garantia, pago o compatibilidad.
+- Si una conversacion ya esta en `HUMAN_REQUIRED`, los mensajes nuevos del cliente se agregan al mismo seguimiento y Tecatl responde con acuse breve. No debe crear handoffs duplicados ni repetir siempre el mismo mensaje.
 - Tecatl no debe inventar datos. Si no encuentra una respuesta confiable, marca la conversacion como `HUMAN_REQUIRED`, crea un `ConversationHandoff` y avisa al equipo.
 - Las escalaciones se notifican a usuarios operativos (`SUPER_ADMIN`, `ADMIN`, `SUPERVISOR`, `VENDEDOR`) segun sus preferencias: correo, WhatsApp o ambos.
 - Si no hay destinatarios de WhatsApp configurados, el sistema usa `ADMIN_WHATSAPP_NUMBER` como respaldo cuando exista.
