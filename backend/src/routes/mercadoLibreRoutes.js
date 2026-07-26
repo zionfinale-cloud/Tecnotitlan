@@ -6,6 +6,7 @@ import {
   handleMeliCallback,
   exchangeCodeForToken,
   handleWebhookNotification,
+  getWebhookEvents,
   getMeliOrders,
   disconnectMeli,
   getMeliItemDetails,
@@ -26,6 +27,7 @@ router.delete('/disconnect', protect, checkPermission('integration:delete'), dis
 router.get('/items/:meliItemId', protect, checkPermission('product:read'), getMeliItemDetails);
 router.put('/products/:sku/sync', protect, checkPermission('product:update'), syncStock);
 router.post('/notifications', handleWebhookNotification);
+router.get('/webhook-events', protect, checkPermission('integration:read'), getWebhookEvents);
 router.get('/orders', protect, checkPermission('order:read'), getMeliOrders);
 
 export default router;

@@ -3,6 +3,7 @@ import { URLSearchParams } from 'url';
 import logger from '../utils/logger.js';
 import { getConfig } from './configService.js';
 import prisma from '../config/prisma.js';
+import { listNotificationLogs, writeNotificationLog } from './notificationLogService.js';
 
 const MELI_API_BASE_URL = 'https://api.mercadolibre.com';
 
@@ -262,10 +263,48 @@ const updateStock = async (userId, meliItemId, newStock) => {
   }
 };
 
-const processWebhookNotification = async (notification) => {
-  logger.info(`[Meli Webhook] Evento recibido topic=${notification?.topic || 'sin-topic'} resource=${notification?.resource || 'sin-resource'}`);
+const getWebhookSource = (notification = {}) => {
+  if (notification.topic || notification.resource) return 'mercadolibre';
+  if (notification.type || notification.action || notification.payment || notification.caller_id) return 'mercadopago';
+  return 'unknown';
+};
 
-  if (!notification?.topic || !notification?.resource) return;
+const summarizeWebhook = (notification = {}, source = 'unknown') => {
+  if (source === 'mercadolibre') {
+    return `Evento Mercado Libre recibido: ${notification.topic || 'sin-topic'} ${notification.resource || 'sin-resource'}`;
+  }
+
+  if (source === 'mercadopago') {
+    const action = notification.action || notification.type || notification.payment?.state || 'sin-accion';
+    const dataId = notification.data?.id || notification.payment?.id || notification.id || 'sin-id';
+    return `Webhook Mercado Pago recibido: ${action} (${dataId}). No se importa como pedido Mercado Libre sin referencia valida.`;
+  }
+
+  return 'Webhook recibido con formato no reconocido.';
+};
+
+const processWebhookNotification = async (notification) => {
+  const source = getWebhookSource(notification);
+  const hasMeliOrderShape = Boolean(notification?.topic && notification?.resource);
+
+  logger.info(`[Meli Webhook] Evento recibido source=${source} topic=${notification?.topic || 'sin-topic'} resource=${notification?.resource || 'sin-resource'}`);
+
+  await writeNotificationLog({
+    channel: 'SYSTEM',
+    audience: 'SYSTEM',
+    event: hasMeliOrderShape ? `mercadolibre_webhook:${notification.topic}` : `${source}_webhook_received`,
+    status: hasMeliOrderShape ? 'SENT' : 'SKIPPED',
+    provider: 'mercadolibre',
+    recipient: notification?.user_id ? String(notification.user_id) : null,
+    message: summarizeWebhook(notification, source),
+    details: {
+      source,
+      notification,
+      importedAsExternalOrder: hasMeliOrderShape,
+    },
+  });
+
+  if (!hasMeliOrderShape) return;
 
   await prisma.externalOrder.upsert({
     where: {
@@ -289,12 +328,18 @@ const processWebhookNotification = async (notification) => {
   });
 };
 
+const listWebhookEvents = async ({ limit = 20 } = {}) => listNotificationLogs({
+  provider: 'mercadolibre',
+  limit,
+});
+
 export {
   assertMeliConfig,
   getIntegrationStatus,
   getValidAccessToken,
   exchangeCodeForToken,
   processWebhookNotification,
+  listWebhookEvents,
   getMeliSellerId,
   fetchMeliOrders,
   getOrder,

@@ -145,6 +145,15 @@ const getMeliOrders = asyncHandler(async (req, res) => {
   });
 });
 
+const getWebhookEvents = asyncHandler(async (req, res) => {
+  const events = await mercadoLibreService.listWebhookEvents({ limit: req.query.limit || 20 });
+
+  res.status(200).json({
+    status: 'success',
+    data: events,
+  });
+});
+
 const getMeliItemDetails = asyncHandler(async (req, res) => {
   const { meliItemId } = req.params;
   const itemDetails = await mercadoLibreService.getItem(req.user.id, meliItemId);
@@ -216,6 +225,7 @@ export {
   handleMeliCallback,
   exchangeCodeForToken,
   handleWebhookNotification,
+  getWebhookEvents,
   getMeliOrders,
   disconnectMeli,
   getMeliItemDetails,

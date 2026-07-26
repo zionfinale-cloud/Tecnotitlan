@@ -7,6 +7,9 @@ export const getNotificationLogs = asyncHandler(async (req, res) => {
     channel: req.query.channel,
     status: req.query.status,
     orderNumber: req.query.orderNumber,
+    provider: req.query.provider,
+    event: req.query.event,
+    audience: req.query.audience,
   });
 
   res.json({

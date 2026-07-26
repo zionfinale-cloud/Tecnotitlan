@@ -55,11 +55,17 @@ export const listNotificationLogs = async ({
   channel,
   status,
   orderNumber,
+  provider,
+  event,
+  audience,
 } = {}) => {
   const take = Math.min(Math.max(Number(limit) || 80, 1), 200);
   const where = {
     ...(channel ? { channel } : {}),
     ...(status ? { status } : {}),
+    ...(provider ? { provider } : {}),
+    ...(event ? { event: { contains: event, mode: 'insensitive' } } : {}),
+    ...(audience ? { audience } : {}),
     ...(orderNumber ? { orderNumber: { contains: orderNumber, mode: 'insensitive' } } : {}),
   };
 

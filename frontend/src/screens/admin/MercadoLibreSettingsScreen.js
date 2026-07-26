@@ -11,10 +11,25 @@ const formatDate = (date) => {
   }).format(new Date(date));
 };
 
+const statusLabels = {
+  SENT: 'Procesado',
+  SKIPPED: 'Recibido / omitido',
+  FAILED: 'Error',
+  PENDING: 'Pendiente',
+};
+
+const statusColors = {
+  SENT: { background: '#dcfce7', color: '#166534' },
+  SKIPPED: { background: '#fef3c7', color: '#92400e' },
+  FAILED: { background: '#fee2e2', color: '#991b1b' },
+  PENDING: { background: '#e0f2fe', color: '#075985' },
+};
+
 const MercadoLibreSettingsScreen = () => {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [webhookEvents, setWebhookEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState(null);
@@ -33,8 +48,12 @@ const MercadoLibreSettingsScreen = () => {
     setLoading(true);
     setMessage(callbackMessage);
     try {
-      const { data } = await api.get('/mercadolibre/status');
-      setStatus(data.data);
+      const [statusResponse, webhookResponse] = await Promise.all([
+        api.get('/mercadolibre/status'),
+        api.get('/mercadolibre/webhook-events?limit=12').catch(() => ({ data: { data: [] } })),
+      ]);
+      setStatus(statusResponse.data.data);
+      setWebhookEvents(webhookResponse.data.data || []);
     } catch (error) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudo cargar Mercado Libre.' });
     } finally {
@@ -84,6 +103,20 @@ const MercadoLibreSettingsScreen = () => {
       setMessage({ type: 'success', text: `Pedidos leidos: ${data.data?.count || 0}.` });
     } catch (error) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudieron leer pedidos de Mercado Libre.' });
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const refreshWebhookEvents = async () => {
+    setWorking(true);
+    setMessage(null);
+    try {
+      const { data } = await api.get('/mercadolibre/webhook-events?limit=12');
+      setWebhookEvents(data.data || []);
+      setMessage({ type: 'success', text: `Webhooks recibidos: ${(data.data || []).length}.` });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudo leer la bitacora de webhooks.' });
     } finally {
       setWorking(false);
     }
@@ -157,6 +190,56 @@ const MercadoLibreSettingsScreen = () => {
         <code style={{ display: 'block', marginTop: '.75rem', padding: '1rem', background: '#f1f5f9', borderRadius: '12px' }}>
           {status?.notificationsUrl || 'https://api.tecnotitlan.com.mx/api/mercadolibre/notifications'}
         </code>
+      </section>
+
+      <section className={styles.card} style={{ marginTop: '1rem' }}>
+        <div className={styles.header} style={{ padding: 0, marginBottom: '.75rem' }}>
+          <div>
+            <h3 className={styles.cardTitle}>Ultimos webhooks recibidos</h3>
+            <p className={styles.subtitle}>
+              Aqui veras simulaciones y eventos reales. Mercado Pago puede responder 200 OK aunque no sea una orden de Mercado Libre.
+            </p>
+          </div>
+          <button className={styles.secondaryButton} type="button" onClick={refreshWebhookEvents} disabled={working}>
+            Actualizar bitacora
+          </button>
+        </div>
+
+        {webhookEvents.length === 0 ? (
+          <p className={styles.subtitle}>Aun no hay webhooks registrados en Tecnotitlan.</p>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>Evento</th>
+                  <th>Cuenta / usuario</th>
+                  <th>Detalle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {webhookEvents.map((event) => {
+                  const badgeStyle = statusColors[event.status] || statusColors.PENDING;
+                  return (
+                    <tr key={event.id}>
+                      <td>{formatDate(event.createdAt)}</td>
+                      <td>
+                        <span style={{ ...badgeStyle, display: 'inline-flex', borderRadius: '999px', padding: '.25rem .6rem', fontWeight: 900 }}>
+                          {statusLabels[event.status] || event.status}
+                        </span>
+                      </td>
+                      <td>{event.event}</td>
+                      <td>{event.recipient || 'Sin dato'}</td>
+                      <td>{event.message || event.error || 'Sin detalle'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className={styles.card} style={{ marginTop: '1rem' }}>

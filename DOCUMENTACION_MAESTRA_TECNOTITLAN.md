@@ -917,6 +917,7 @@ Backend disponible:
 - `GET /api/mercadolibre/auth-url`: genera URL OAuth con PKCE para conectar la cuenta.
 - `GET /api/mercadolibre/callback`: recibe el codigo, guarda token y redirige al admin.
 - `GET /api/mercadolibre/orders`: lee pedidos recientes con el token vigente.
+- `GET /api/mercadolibre/webhook-events`: muestra la bitacora reciente de webhooks recibidos en el endpoint de Mercado Libre.
 - `GET /api/mercadolibre/items/:meliItemId`: revisa una publicacion vinculada.
 - `PUT /api/products/:sku/link-meli`: vincula un producto local con una publicacion real de Mercado Libre. Tambien acepta el ID interno del producto para compatibilidad.
 - `PUT /api/mercadolibre/products/:sku/sync`: actualiza stock en la publicacion vinculada.
@@ -930,6 +931,8 @@ Flujo operativo actual:
 5. Guardar el vinculo y sincronizar stock solo cuando el inventario por canal este correcto.
 
 Regla de seguridad: los webhooks de Mercado Libre no deben descontar inventario directo hasta que el flujo de conciliacion por canal este terminado. Por ahora se registran como eventos/orden externa para revision. Una venta importada debera generar una salida `SALE` en `InventoryMovement` con canal `MERCADOLIBRE`, referencia externa y validacion contra stock asignado al canal. Si no existe stock traspasado/asignado a Mercado Libre, la venta debe quedar marcada para revision en vez de inventar existencia.
+
+Nota de sandbox Mercado Pago/Mercado Libre: el simulador de Mercado Pago puede enviar eventos como `payment.updated`, `test.created` o `application.authorized` al mismo endpoint y recibir `200 OK`. Eso solo confirma que Tecnotitlan recibio el POST. No significa que exista una orden importable de Mercado Libre. Para crear o revisar pedidos de Mercado Libre el webhook debe traer formato de marketplace (`topic` y `resource`) o se debe leer la orden con el token de vendedor. Los eventos de Mercado Pago recibidos en este endpoint quedan en la bitacora como `Recibido / omitido` para auditoria, sin tocar inventario ni pedidos.
 
 ### Alerta de recompra operativa
 
