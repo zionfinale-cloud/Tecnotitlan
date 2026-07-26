@@ -25,10 +25,25 @@ const statusColors = {
   PENDING: { background: '#e0f2fe', color: '#075985' },
 };
 
+const importActionLabels = {
+  created: 'Importado a pedidos',
+  existing: 'Ya existia',
+  skipped: 'Requiere revision',
+  failed: 'Error al importar',
+};
+
+const importActionColors = {
+  created: { background: '#dcfce7', color: '#166534' },
+  existing: { background: '#e0f2fe', color: '#075985' },
+  skipped: { background: '#fef3c7', color: '#92400e' },
+  failed: { background: '#fee2e2', color: '#991b1b' },
+};
+
 const MercadoLibreSettingsScreen = () => {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [importResults, setImportResults] = useState([]);
   const [webhookEvents, setWebhookEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -100,7 +115,13 @@ const MercadoLibreSettingsScreen = () => {
     try {
       const { data } = await api.get('/mercadolibre/orders');
       setOrders(data.data?.orders || []);
-      setMessage({ type: 'success', text: `Pedidos leidos: ${data.data?.count || 0}.` });
+      setImportResults(data.data?.imports || []);
+      const imported = (data.data?.imports || []).filter((item) => ['created', 'existing'].includes(item.action)).length;
+      const review = (data.data?.imports || []).filter((item) => ['skipped', 'failed'].includes(item.action)).length;
+      setMessage({
+        type: review > 0 ? 'error' : 'success',
+        text: `Pedidos leidos: ${data.data?.count || 0}. Importados/en pedidos: ${imported}. Por revisar: ${review}.`,
+      });
     } catch (error) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudieron leer pedidos de Mercado Libre.' });
     } finally {
@@ -265,6 +286,65 @@ const MercadoLibreSettingsScreen = () => {
                 </p>
               </div>
             ))}
+          </div>
+        )}
+
+        {importResults.length > 0 && (
+          <div style={{ marginTop: '1rem' }}>
+            <h4 className={styles.cardTitle}>Resultado de importacion</h4>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Orden Meli</th>
+                    <th>Resultado</th>
+                    <th>Pedido Tecnotitlan</th>
+                    <th>Detalle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importResults.map((result) => {
+                    const badgeStyle = importActionColors[result.action] || statusColors.PENDING;
+                    const unmatched = result.unmatched || [];
+                    return (
+                      <tr key={`${result.externalOrderId}-${result.action}`}>
+                        <td>{result.externalOrderId || 'Sin dato'}</td>
+                        <td>
+                          <span style={{ ...badgeStyle, display: 'inline-flex', borderRadius: '999px', padding: '.25rem .6rem', fontWeight: 900 }}>
+                            {importActionLabels[result.action] || result.action}
+                          </span>
+                        </td>
+                        <td>
+                          {result.order?.orderNumber ? (
+                            <strong>{result.order.orderNumber}</strong>
+                          ) : (
+                            <span className={styles.subtitle}>No creado</span>
+                          )}
+                        </td>
+                        <td>
+                          {result.error && <span>{result.error}</span>}
+                          {result.inventoryWarning && <span>{result.inventoryWarning}</span>}
+                          {!result.error && !result.inventoryWarning && result.action === 'skipped' && (
+                            <span>
+                              No se importo porque la publicacion/producto de Mercado Libre no esta vinculada a un SKU local.
+                              Vincula el item en el producto antes de sincronizar.
+                            </span>
+                          )}
+                          {unmatched.length > 0 && (
+                            <div className={styles.subtitle} style={{ marginTop: '.35rem' }}>
+                              Sin empatar: {unmatched.map((item) => item.title || item.itemId || item.sku || 'Producto Meli').join(', ')}
+                            </div>
+                          )}
+                          {!result.error && !result.inventoryWarning && result.action !== 'skipped' && (
+                            <span>Listo para operar desde Pedidos.</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>

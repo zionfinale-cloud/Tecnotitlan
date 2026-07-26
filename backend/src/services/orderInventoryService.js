@@ -2,8 +2,52 @@ import { BadRequestError } from '../utils/errorUtils.js';
 
 const RESTOCK_REFERENCE_TYPE = 'ORDER_CANCEL';
 const RETURN_CONFIRMATION_STATUSES = new Set(['SHIPPED', 'DELIVERED']);
+const CHANNEL_STOCK_IN_TYPES = new Set(['CHANNEL_TRANSFER', 'RETURN_IN', 'ADJUSTMENT_IN']);
+const CHANNEL_STOCK_OUT_TYPES = new Set(['SALE', 'ADJUSTMENT_OUT', 'RETURN_OUT']);
 
 const hasText = (value) => String(value || '').trim().length > 0;
+
+const getOrderChannel = (order) => order?.salesChannel || 'WEB';
+
+const getAssignedChannelStock = async (tx, productId, channel) => {
+  const movements = await tx.inventoryMovement.findMany({
+    where: { productId, channel },
+    select: { type: true, quantity: true },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return movements.reduce((stock, movement) => {
+    const quantity = Number(movement.quantity) || 0;
+    if (CHANNEL_STOCK_IN_TYPES.has(movement.type)) return stock + quantity;
+    if (CHANNEL_STOCK_OUT_TYPES.has(movement.type)) return Math.max(stock - quantity, 0);
+    return stock;
+  }, 0);
+};
+
+const updateMarketplaceStock = async (tx, productId, channel, stockAfter) => {
+  if (channel === 'WEB') return;
+
+  await tx.marketplaceListing.upsert({
+    where: {
+      productId_channel: {
+        productId,
+        channel,
+      },
+    },
+    update: {
+      publishedStock: stockAfter,
+      syncStatus: 'local_stock_updated',
+      lastSyncedAt: new Date(),
+    },
+    create: {
+      productId,
+      channel,
+      publishedStock: stockAfter,
+      syncStatus: 'local_stock_updated',
+      status: 'READY',
+    },
+  });
+};
 
 const getShippingInfo = (order) => (
   order?.shippingInfo && typeof order.shippingInfo === 'object' && !Array.isArray(order.shippingInfo)
@@ -73,22 +117,30 @@ export const applyPaidOrderInventoryMovements = async (tx, order, createdById = 
       throw new BadRequestError(`Producto ${item.name} no encontrado al registrar salida de inventario.`, 400);
     }
 
-    if (product.countInStock < item.qty) {
+    const channel = getOrderChannel(order);
+    const stockBefore = channel === 'WEB'
+      ? product.countInStock
+      : await getAssignedChannelStock(tx, product.id, channel);
+
+    if (stockBefore < item.qty) {
       throw new BadRequestError(
-        `Pago confirmado, pero no hay stock suficiente para ${product.name}. Disponible: ${product.countInStock}.`,
+        `Pago confirmado, pero no hay stock suficiente para ${product.name} en ${channel}. Disponible: ${stockBefore}.`,
         409
       );
     }
 
-    const stockBefore = product.countInStock;
     const stockAfter = stockBefore - item.qty;
     const unitCost = product.costPrice || item.unitCost || 0;
     const unitPrice = item.price || product.price || 0;
 
-    await tx.product.update({
-      where: { id: product.id },
-      data: { countInStock: stockAfter },
-    });
+    if (channel === 'WEB') {
+      await tx.product.update({
+        where: { id: product.id },
+        data: { countInStock: stockAfter },
+      });
+    } else {
+      await updateMarketplaceStock(tx, product.id, channel, stockAfter);
+    }
 
     await tx.inventoryMovement.create({
       data: {
@@ -99,7 +151,7 @@ export const applyPaidOrderInventoryMovements = async (tx, order, createdById = 
         unitPrice,
         totalCost: item.qty * unitCost,
         totalRevenue: item.qty * unitPrice,
-        channel: 'WEB',
+        channel,
         stockBefore,
         stockAfter,
         referenceType: 'ORDER',
@@ -182,15 +234,22 @@ export const restoreCancelledOrderInventoryMovements = async (tx, order, created
     }
 
     const quantity = saleMovement.quantity || item.qty;
-    const stockBefore = product.countInStock;
+    const channel = saleMovement.channel || order.salesChannel || 'WEB';
+    const stockBefore = channel === 'WEB'
+      ? product.countInStock
+      : await getAssignedChannelStock(tx, product.id, channel);
     const stockAfter = stockBefore + quantity;
     const unitCost = saleMovement.unitCost || item.unitCost || 0;
     const unitPrice = saleMovement.unitPrice || item.price || 0;
 
-    await tx.product.update({
-      where: { id: product.id },
-      data: { countInStock: stockAfter },
-    });
+    if (channel === 'WEB') {
+      await tx.product.update({
+        where: { id: product.id },
+        data: { countInStock: stockAfter },
+      });
+    } else {
+      await updateMarketplaceStock(tx, product.id, channel, stockAfter);
+    }
 
     await tx.inventoryMovement.create({
       data: {
@@ -201,7 +260,7 @@ export const restoreCancelledOrderInventoryMovements = async (tx, order, created
         unitPrice,
         totalCost: quantity * unitCost,
         totalRevenue: saleMovement.totalRevenue || quantity * unitPrice,
-        channel: saleMovement.channel || order.salesChannel || 'WEB',
+        channel,
         stockBefore,
         stockAfter,
         referenceType: RESTOCK_REFERENCE_TYPE,

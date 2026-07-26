@@ -127,20 +127,14 @@ const handleWebhookNotification = asyncHandler(async (req, res) => {
 });
 
 const getMeliOrders = asyncHandler(async (req, res) => {
-  const meliSellerId = await mercadoLibreService.getMeliSellerId();
-
-  if (!meliSellerId) {
-    res.status(404);
-    throw new Error('No se ha conectado Mercado Libre.');
-  }
-
-  const orders = await mercadoLibreService.fetchMeliOrders(meliSellerId, req.user.id);
+  const result = await mercadoLibreService.syncMeliOrders(req.user.id);
 
   res.status(200).json({
     status: 'success',
     data: {
-      count: orders.length,
-      orders,
+      count: result.count,
+      orders: result.orders,
+      imports: result.imports,
     },
   });
 });

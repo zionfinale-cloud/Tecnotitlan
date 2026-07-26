@@ -916,7 +916,7 @@ Backend disponible:
 - `GET /api/mercadolibre/status`: muestra configuracion y conexion sin exponer tokens.
 - `GET /api/mercadolibre/auth-url`: genera URL OAuth con PKCE para conectar la cuenta.
 - `GET /api/mercadolibre/callback`: recibe el codigo, guarda token y redirige al admin.
-- `GET /api/mercadolibre/orders`: lee pedidos recientes con el token vigente.
+- `GET /api/mercadolibre/orders`: lee pedidos recientes con el token vigente, intenta importarlos a `Pedidos` y devuelve el resultado de importacion por orden.
 - `GET /api/mercadolibre/webhook-events`: muestra la bitacora reciente de webhooks recibidos en el endpoint de Mercado Libre.
 - `GET /api/mercadolibre/items/:meliItemId`: revisa una publicacion vinculada.
 - `PUT /api/products/:sku/link-meli`: vincula un producto local con una publicacion real de Mercado Libre. Tambien acepta el ID interno del producto para compatibilidad.
@@ -930,7 +930,19 @@ Flujo operativo actual:
 4. Validar la publicacion desde Tecnotitlan para confirmar que existe y pertenece a la cuenta autorizada.
 5. Guardar el vinculo y sincronizar stock solo cuando el inventario por canal este correcto.
 
-Regla de seguridad: los webhooks de Mercado Libre no deben descontar inventario directo hasta que el flujo de conciliacion por canal este terminado. Por ahora se registran como eventos/orden externa para revision. Una venta importada debera generar una salida `SALE` en `InventoryMovement` con canal `MERCADOLIBRE`, referencia externa y validacion contra stock asignado al canal. Si no existe stock traspasado/asignado a Mercado Libre, la venta debe quedar marcada para revision en vez de inventar existencia.
+Regla de seguridad: Mercado Libre no inventa pedidos ni inventario. Cuando `Leer pedidos` o un webhook real de Mercado Libre encuentra una orden pagada, Tecnotitlan intenta convertirla en un pedido interno con folio `MELI-{id}`. Para poder importarla, cada producto de la orden debe empatar con un producto local mediante `meliItemId`, vinculacion de `MarketplaceListing`, SKU o coincidencia clara de titulo. Si no se puede empatar, la orden queda como `Requiere revision` en la pantalla de Mercado Libre y en la bitacora, sin crear pedido fantasma ni tocar inventario.
+
+Cuando una orden se importa correctamente:
+
+1. Se crea o reutiliza un cliente Mercado Libre interno para trazabilidad.
+2. Se crea el pedido con `salesChannel=MERCADOLIBRE`, `paymentMethod=Mercado Libre` y folio `MELI-{id}`.
+3. Si el pago viene confirmado, el estado inicial queda como `PENDING_FULFILLMENT` / Por surtir.
+4. Se valida que exista stock asignado a Mercado Libre por traspasos reales de inventario.
+5. Si hay stock suficiente, se registra una salida `SALE` con canal `MERCADOLIBRE`.
+6. Si falta stock asignado, el pedido se crea con advertencia de inventario para revision operativa, pero no descuenta bodega ni inventa existencia.
+7. Se notifican las ventas pagadas al equipo operativo mediante las preferencias de notificacion configuradas: correo, WhatsApp o ambos.
+
+La pantalla `/admin/settings/mercadolibre` muestra dos niveles: la orden leida desde Mercado Libre y el resultado de importacion. `Importado a pedidos` significa que ya debe aparecer en `Pedidos`; `Ya existia` significa que el folio ya estaba creado; `Requiere revision` significa que falta vincular la publicacion/SKU o corregir stock asignado; `Error al importar` indica fallo tecnico a revisar en logs.
 
 Nota de sandbox Mercado Pago/Mercado Libre: el simulador de Mercado Pago puede enviar eventos como `payment.updated`, `test.created` o `application.authorized` al mismo endpoint y recibir `200 OK`. Eso solo confirma que Tecnotitlan recibio el POST. No significa que exista una orden importable de Mercado Libre. Para crear o revisar pedidos de Mercado Libre el webhook debe traer formato de marketplace (`topic` y `resource`) o se debe leer la orden con el token de vendedor. Los eventos de Mercado Pago recibidos en este endpoint quedan en la bitacora como `Recibido / omitido` para auditoria, sin tocar inventario ni pedidos.
 
