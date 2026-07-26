@@ -1001,6 +1001,7 @@ Variables recomendadas para el modo estable:
 - `WHATSAPP_MAX_RECONNECT_ATTEMPTS=1`
 - `WHATSAPP_RECONNECT_BASE_DELAY_MS=300000`
 - `WHATSAPP_RECONNECT_MAX_DELAY_MS=1800000`
+- `WHATSAPP_PROTECTED_PAUSE_MS=10800000` opcional; por defecto son 3 horas de pausa protegida despues de errores peligrosos.
 - `WHATSAPP_KEEP_ALIVE_INTERVAL_MS=300000`
 - `WHATSAPP_PAUSED_RETRY_AFTER_MS=600000`
 - `WHATSAPP_AUTO_RETRY_PAUSED=false`
@@ -1053,6 +1054,8 @@ Flujo recomendado:
 Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Baileys reporta la sesion conectada. Si no esta conectada, el sistema registra el aviso omitido en logs y no bloquea la compra ni el correo transaccional. El QR no se debe regenerar como rutina diaria; `Borrar sesion y pedir QR` solo se usa cuando se cambia de numero o cuando la sesion ya fue invalidada manualmente.
 
 Regla anti-baneo 2026-07-17: el auto-connect, watchdog, reconexiones y notificaciones nunca deben generar QR nuevo. Esos procesos solo intentan conectar cuando ya existe una sesion guardada (`hasSavedSession=true`). Si no hay sesion guardada, el backend queda en `DISCONNECTED` y pide iniciar manualmente desde `Configuracion -> WhatsApp QR`. El QR solo puede aparecer por accion humana: `Iniciar conexion` cuando no hay sesion o `Borrar sesion y pedir QR` cuando se va a vincular un numero sano.
+
+Regla anti-baneo 2026-07-26: si Baileys reporta `Connection Failure`, `401`, `403`, `loggedOut`, `bad session`, `rate limit`, QR inesperado durante autoconexion o agotamiento de intentos, el servicio entra en `PAUSED` y guarda `WHATSAPP_PROTECTED_PAUSED_UNTIL` en la tabla `settings`. Mientras esa pausa este activa, el watchdog, las notificaciones y los envios manuales no deben reconectar ni pedir QR. La pausa se limpia automaticamente solo cuando una conexion valida llega a `open`. En una restriccion de WhatsApp, esperar a que termine la ventana indicada y no presionar `Borrar sesion y pedir QR` salvo que se vaya a vincular un numero sano.
 
 Regla de estados WhatsApp 2026-07-17: `DISCONNECTED` significa corte recuperable; el watchdog puede volver a intentar con backoff. `QR_REQUIRED` significa que la sesion guardada ya no alcanza y WhatsApp esta pidiendo QR, pero el sistema no lo genera durante autoconnect. `LOGGED_OUT` significa que WhatsApp cerro o invalido la sesion guardada; requiere decision humana antes de pedir QR nuevo.
 

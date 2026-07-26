@@ -38,6 +38,8 @@ const DEFAULT_RECONNECT_BASE_DELAY_MS = 5 * 60 * 1000;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 30 * 60 * 1000;
 const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_PAUSED_RETRY_AFTER_MS = 10 * 60 * 1000;
+const DEFAULT_PROTECTED_PAUSE_MS = 3 * 60 * 60 * 1000;
+const PROTECTED_PAUSE_SETTING_KEY = 'WHATSAPP_PROTECTED_PAUSED_UNTIL';
 const TECATL_STAFF_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'VENDEDOR'];
 const TECATL_BUSINESS_START_HOUR = 9;
 const TECATL_BUSINESS_END_HOUR = 19;
@@ -47,6 +49,7 @@ const INSTANCE_ID = `${process.pid}-${Date.now()}-${Math.random().toString(36).s
 let autoConnectTimer = null;
 let autoConnectStarted = false;
 let pausedAt = null;
+let pausedUntil = null;
 let sessionLockTimer = null;
 let hasSessionLock = false;
 
@@ -115,6 +118,92 @@ const getPausedRetryAfterMs = () => {
         || DEFAULT_PAUSED_RETRY_AFTER_MS,
     );
     return Number.isFinite(rawValue) && rawValue >= 60000 ? rawValue : DEFAULT_PAUSED_RETRY_AFTER_MS;
+};
+
+const getProtectedPauseMs = () => {
+    const rawValue = Number(
+        getConfig().WHATSAPP_PROTECTED_PAUSE_MS
+        || process.env.WHATSAPP_PROTECTED_PAUSE_MS
+        || DEFAULT_PROTECTED_PAUSE_MS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= 30 * 60 * 1000
+        ? rawValue
+        : DEFAULT_PROTECTED_PAUSE_MS;
+};
+
+const getPauseRemainingMs = () => {
+    if (!pausedUntil) return 0;
+    return Math.max(0, pausedUntil - Date.now());
+};
+
+const isProtectedPauseActive = () => connectionStatus === 'PAUSED' && getPauseRemainingMs() > 0;
+
+const formatPauseUntil = () => {
+    if (!pausedUntil) return 'sin fecha definida';
+    return new Date(pausedUntil).toLocaleString('es-MX', {
+        timeZone: 'America/Mexico_City',
+        dateStyle: 'short',
+        timeStyle: 'short',
+    });
+};
+
+const loadProtectedPauseFromDb = async () => {
+    if (isProtectedPauseActive()) return pausedUntil;
+
+    try {
+        const setting = await prisma.setting.findUnique({
+            where: { key: PROTECTED_PAUSE_SETTING_KEY },
+            select: { value: true },
+        });
+        const value = Date.parse(setting?.value || '');
+        pausedUntil = Number.isFinite(value) && value > Date.now() ? value : null;
+        if (pausedUntil) {
+            connectionStatus = 'PAUSED';
+            lastError = `WhatsApp pausado para proteger el numero. No se intentara conectar automaticamente hasta ${formatPauseUntil()}.`;
+        }
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo leer pausa protegida: ${error.message}`);
+    }
+
+    return pausedUntil;
+};
+
+const persistProtectedPause = async () => {
+    if (!pausedUntil) return;
+
+    try {
+        await prisma.setting.upsert({
+            where: { key: PROTECTED_PAUSE_SETTING_KEY },
+            update: {
+                value: new Date(pausedUntil).toISOString(),
+                type: 'string',
+                description: 'Pausa protegida de WhatsApp para evitar reintentos que puedan bloquear el numero.',
+                isEditable: false,
+            },
+            create: {
+                key: PROTECTED_PAUSE_SETTING_KEY,
+                value: new Date(pausedUntil).toISOString(),
+                type: 'string',
+                description: 'Pausa protegida de WhatsApp para evitar reintentos que puedan bloquear el numero.',
+                isEditable: false,
+            },
+        });
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo guardar pausa protegida: ${error.message}`);
+    }
+};
+
+const clearProtectedPause = async () => {
+    pausedUntil = null;
+    pausedAt = null;
+    try {
+        await prisma.setting.update({
+            where: { key: PROTECTED_PAUSE_SETTING_KEY },
+            data: { value: '' },
+        }).catch(() => null);
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo limpiar pausa protegida: ${error.message}`);
+    }
 };
 
 const shouldAutoRetryPaused = () => String(
@@ -386,26 +475,20 @@ const releaseSessionLock = async () => {
 };
 
 const scheduleSessionLockRetry = (ageMs = 0) => {
-    if (reconnectTimer || resetInProgress || shutdownInProgress) return;
-
     const safeAgeMs = Number.isFinite(ageMs) ? Math.max(0, ageMs) : 0;
     const remainingMs = Math.max(0, SESSION_LOCK_STALE_MS - safeAgeMs);
-    const delayMs = Math.max(3000, Math.min(remainingMs + 1000, 30000));
 
-    connectionStatus = 'RECONNECTING';
+    clearReconnectTimer();
+    connectionStatus = 'WAITING_FOR_SESSION_LOCK';
     isInitializing = false;
+    lastError = [
+        'Otra instancia mantiene la sesion de WhatsApp activa.',
+        `Espera ${Math.ceil(remainingMs / 1000)}s o revisa que no haya otro contenedor usando el mismo numero.`,
+        'No se reintentara automaticamente para proteger la cuenta.',
+    ].join(' ');
     emitStatus();
 
-    logger.warn(`[WhatsApp] Lock de sesion activo. Reintentando en ${Math.round(delayMs / 1000)}s sin pedir QR.`);
-    reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        initialize({ allowQr: false, reason: 'session lock retry' }).catch((error) => {
-            lastError = error.message;
-            logger.error(`[WhatsApp] Reintento por lock fallido: ${error.message}`);
-            scheduleBaileysReconnect(error.message);
-        });
-    }, delayMs);
-    reconnectTimer.unref?.();
+    logger.warn(`[WhatsApp] Lock de sesion activo. Reintento automatico omitido para proteger el numero. Edad: ${Math.round(safeAgeMs / 1000)}s.`);
 };
 
 const ensureActiveAuthDir = async () => {
@@ -718,6 +801,8 @@ const closeCurrentSocketForRetry = async (reason = 'retry') => {
 const canReconnectWithSavedSession = async () => {
     if (isWhatsAppDisabledProvider()) return false;
     if (connectionStatus === 'QR_RECEIVED') return false;
+    await loadProtectedPauseFromDb();
+    if (isProtectedPauseActive()) return false;
     return hasSavedSession();
 };
 
@@ -727,7 +812,14 @@ export const ensureReadyForNotification = async () => {
     if (isSocketReady()) return true;
     if (!isAutoConnectEnabled()) return false;
 
+    await loadProtectedPauseFromDb();
+    if (isProtectedPauseActive()) {
+        logger.warn(`[WhatsApp] Notificacion omitida: pausa protegida activa hasta ${formatPauseUntil()}.`);
+        return false;
+    }
+
     if (connectionStatus === 'PAUSED' || RELINK_STATUSES.has(connectionStatus)) {
+        if (connectionStatus === 'PAUSED' && !shouldAutoRetryPaused()) return false;
         if (!await canReconnectWithSavedSession()) return false;
         reconnectAttempt = 0;
         pausedAt = null;
@@ -750,6 +842,11 @@ export const ensureReadyForNotification = async () => {
 
 const ensureReadyForSend = async (reason = 'send') => {
     if (isSocketReady()) return true;
+    await loadProtectedPauseFromDb();
+    if (isProtectedPauseActive()) {
+        logger.warn(`[WhatsApp] Envio omitido (${reason}): pausa protegida activa hasta ${formatPauseUntil()}.`);
+        return false;
+    }
     if (await ensureReadyForNotification()) return true;
     if (!await canReconnectWithSavedSession()) return false;
 
@@ -778,6 +875,21 @@ const isLoggedOutDisconnect = (lastDisconnect, statusCode, message = '') => {
         || lowerMessage.includes('logged out')
         || lowerMessage.includes('multidevice mismatch')
         || lowerMessage.includes('bad session');
+};
+
+const isProtectedDisconnect = (lastDisconnect, statusCode, message = '') => {
+    const lowerMessage = String(message || lastDisconnect?.error?.message || '').toLowerCase();
+    return statusCode === DisconnectReason.loggedOut
+        || statusCode === 401
+        || statusCode === 403
+        || lowerMessage.includes('connection failure')
+        || lowerMessage.includes('logged out')
+        || lowerMessage.includes('bad session')
+        || lowerMessage.includes('multidevice mismatch')
+        || lowerMessage.includes('unauthorized')
+        || lowerMessage.includes('forbidden')
+        || lowerMessage.includes('too many')
+        || lowerMessage.includes('rate limit');
 };
 
 const isRestartRequiredDisconnect = (statusCode, message = '') => {
@@ -813,46 +925,54 @@ const rotateSessionAndRequestQr = (reason) => {
 
 const pauseBaileysForManualReview = (reason, statusCode = null) => {
     clearReconnectTimer();
+    try {
+        sock?.end?.(new Error('WhatsApp protected pause'));
+        sock?.ws?.close?.();
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo cerrar socket al pausar sesion: ${error.message}`);
+    }
+    sock = undefined;
     releaseSessionLock().catch((error) => {
         logger.warn(`[WhatsApp] No se pudo liberar lock al pausar sesion: ${error.message}`);
     });
     reconnectAttempt = 0;
-    pausedAt = null;
-    connectionStatus = 'LOGGED_OUT';
+    pausedAt = Date.now();
+    pausedUntil = pausedAt + getProtectedPauseMs();
+    connectionStatus = 'PAUSED';
     isInitializing = false;
     lastError = [
-        'WhatsApp cerro la sesion guardada.',
+        'WhatsApp pausado para proteger el numero.',
         reason || 'Sesion cerrada o invalida.',
         statusCode ? `Codigo: ${statusCode}.` : '',
+        `No se reintentara automaticamente hasta ${formatPauseUntil()}.`,
         'Usa "Borrar sesion y pedir QR" solo cuando vayas a vincular un numero sano.',
     ].filter(Boolean).join(' ');
     logger.warn(`[WhatsApp] ${lastError}`);
+    persistProtectedPause().catch((error) => {
+        logger.warn(`[WhatsApp] No se pudo guardar pausa protegida: ${error.message}`);
+    });
     emitStatus();
 };
 
 const scheduleImmediateBaileysReconnect = (reason) => {
     if (reconnectTimer || resetInProgress || shutdownInProgress) return;
 
-    connectionStatus = 'RECONNECTING';
-    isInitializing = false;
-    emitStatus();
-
-    logger.warn(`[WhatsApp] Baileys solicito reinicio inmediato. Reintentando en 2s. Motivo: ${reason || 'restart required'}`);
-    reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        initialize({ allowQr: false, reason: 'baileys restart required' }).catch((error) => {
-            lastError = error.message;
-            logger.error(`[WhatsApp] Reconnect inmediato fallido: ${error.message}`);
-            scheduleBaileysReconnect(error.message);
-        });
-    }, 2000);
-    reconnectTimer.unref?.();
+    logger.warn(`[WhatsApp] Baileys solicito reinicio inmediato. Se pausa para evitar bloqueo del numero. Motivo: ${reason || 'restart required'}`);
+    pauseBaileysForManualReview(reason || 'restart required', DisconnectReason.restartRequired);
 };
 
 const scheduleBaileysReconnect = (reason) => {
     if (reconnectTimer || resetInProgress) return;
+    if (isProtectedPauseActive()) {
+        logger.warn(`[WhatsApp] Reintento omitido: pausa protegida activa hasta ${formatPauseUntil()}. Motivo: ${reason || 'desconocido'}`);
+        return;
+    }
 
     const maxReconnectAttempts = getMaxAutoReconnectAttempts();
+    if (reconnectAttempt >= maxReconnectAttempts) {
+        pauseBaileysForManualReview(`Reconexión detenida después de ${maxReconnectAttempts} intento(s). Último motivo: ${reason || 'desconocido'}`);
+        return;
+    }
     if (reconnectAttempt >= maxReconnectAttempts) {
         connectionStatus = 'DISCONNECTED';
         pausedAt = null;
@@ -1228,6 +1348,9 @@ const getBaileysStatus = () => ({
     authDir: activeAuthDir,
     reconnectAttempt,
     maxReconnectAttempts: getMaxAutoReconnectAttempts(),
+    pausedAt,
+    pausedUntil,
+    pauseRemainingMs: getPauseRemainingMs(),
 });
 
 export const hasSavedSession = async () => {
@@ -1271,6 +1394,16 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
 
     if (isSocketReady()) return getStatus();
     if (isInitializing) return getStatus();
+
+    await loadProtectedPauseFromDb();
+    if (isProtectedPauseActive()) {
+        clearReconnectTimer();
+        latestQr = null;
+        isInitializing = false;
+        logger.warn(`[WhatsApp] Inicializacion omitida: pausa protegida activa hasta ${formatPauseUntil()}. Motivo: ${reason}`);
+        emitStatus();
+        return getStatus();
+    }
 
     const hasSavedSession = await hasPersistedBaileysSession();
     if (!allowQr && !hasSavedSession) {
@@ -1355,8 +1488,6 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
                 if (!allowQr) {
                     latestQr = null;
                     reconnectAttempt = 0;
-                    pausedAt = null;
-                    connectionStatus = 'QR_REQUIRED';
                     isInitializing = false;
                     lastError = `WhatsApp requiere QR nuevo. No se generara automaticamente durante ${reason}; usa "Borrar sesion y pedir QR" solo cuando vayas a vincular un numero sano.`;
                     logger.warn(`[WhatsApp] ${lastError}`);
@@ -1369,7 +1500,7 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
                     releaseSessionLock().catch((error) => {
                         logger.warn(`[WhatsApp] No se pudo liberar lock tras QR protegido: ${error.message}`);
                     });
-                    emitStatus();
+                    pauseBaileysForManualReview(lastError, 401);
                     return;
                 }
                 latestQr = qr;
@@ -1384,10 +1515,20 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
                 lastError = lastDisconnect?.error?.message || `Conexion cerrada${statusCode ? ` (${statusCode})` : ''}`;
                 const restartRequired = isRestartRequiredDisconnect(statusCode, lastError);
                 const loggedOut = isLoggedOutDisconnect(lastDisconnect, statusCode, lastError);
-                const shouldReconnect = !shutdownInProgress && !resetInProgress && !loggedOut;
+                const protectedDisconnect = isProtectedDisconnect(lastDisconnect, statusCode, lastError);
+                const shouldReconnect = !shutdownInProgress && !resetInProgress && !loggedOut && !protectedDisconnect;
                 const shouldRequestQr = !shutdownInProgress && !resetInProgress && loggedOut && shouldAutoRotateSessionOnLogout();
-                logger.warn(`WhatsApp connection closed. Restart required: ${restartRequired}. Reconnecting: ${shouldReconnect}. Request QR: ${shouldRequestQr}. StatusCode: ${statusCode || 'n/a'}. Reason: ${lastError}`);
+                logger.warn(`WhatsApp connection closed. Restart required: ${restartRequired}. Protected: ${protectedDisconnect}. Reconnecting: ${shouldReconnect}. Request QR: ${shouldRequestQr}. StatusCode: ${statusCode || 'n/a'}. Reason: ${lastError}`);
                 sock = undefined;
+                releaseSessionLock().catch((error) => {
+                    logger.warn(`[WhatsApp] No se pudo liberar lock tras cierre de conexion: ${error.message}`);
+                });
+
+                if (!shutdownInProgress && !resetInProgress && protectedDisconnect) {
+                    latestQr = null;
+                    pauseBaileysForManualReview(lastError, statusCode);
+                    return;
+                }
 
                 if (!shutdownInProgress && !resetInProgress && restartRequired) {
                     latestQr = null;
@@ -1442,6 +1583,9 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
                 lastError = null;
                 reconnectAttempt = 0;
                 pausedAt = null;
+                clearProtectedPause().catch((error) => {
+                    logger.warn(`[WhatsApp] No se pudo limpiar pausa protegida tras conexion: ${error.message}`);
+                });
                 clearReconnectTimer();
                 if (!isDatabaseAuthStorage() && activeAuthDirForSync) {
                     scheduleBaileysAuthSync(activeAuthDirForSync);
@@ -1515,13 +1659,20 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
 const shouldSkipAutoConnect = () => resetInProgress
     || isInitializing
     || Boolean(reconnectTimer)
-    || connectionStatus === 'QR_RECEIVED';
+    || connectionStatus === 'QR_RECEIVED'
+    || connectionStatus === 'QR_REQUIRED';
 
 const attemptAutoConnect = async (reason = 'watchdog') => {
     if (!isAutoConnectEnabled()) return getStatus();
     if (isWhatsAppDisabledProvider()) return getStatus();
 
     if (isSocketReady()) return getStatus();
+
+    await loadProtectedPauseFromDb();
+    if (isProtectedPauseActive()) {
+        logger.warn(`[WhatsApp] Auto connect omitido (${reason}): pausa protegida activa hasta ${formatPauseUntil()}.`);
+        return getStatus();
+    }
 
     if (connectionStatus === 'PAUSED' || RELINK_STATUSES.has(connectionStatus)) {
         const hasSavedSession = await hasPersistedBaileysSession();
