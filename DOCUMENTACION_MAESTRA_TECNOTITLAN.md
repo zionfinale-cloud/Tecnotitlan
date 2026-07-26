@@ -1067,12 +1067,14 @@ Desde 2026-07-14, Tecnotitlan separa las notificaciones del cliente y las notifi
 - Cuando un pedido queda pagado, el cliente recibe su confirmacion con estado `Pago confirmado` y el equipo operativo recibe un aviso interno.
 - Cuando un pedido cambia de estado (`PENDING_PAYMENT`, `PROCESSING`, `PENDING_FULFILLMENT`, `SHIPPED`, `DELIVERED`, `CANCELLED`), el equipo operativo recibe aviso con pedido, canal, cliente, total y productos.
 - Desde 2026-07-23, el cliente tambien recibe notificacion por correo y WhatsApp en cambios generales de estado como `Preparando`, `Por surtir` y `Cancelado`. Los estados `Enviado` y `Entregado` conservan plantillas especiales porque pueden incluir guia, paqueteria y enlace de rastreo.
-- Los destinatarios internos son usuarios con rol `SUPER_ADMIN`, `ADMIN`, `SUPERVISOR` o `VENDEDOR`.
+- Los destinatarios internos son usuarios con rol `SUPER_ADMIN`, `ADMIN`, `SUPERVISOR`, `VENDEDOR`, `SELLER` o `SALES`, o usuarios con permisos operativos individuales como `order:read`, `order:update`, `inventory:read`, `inventory:update`, `support:update` o `whatsapp:chat`. Esto permite avisar a vendedores con permisos limitados sin abrirles pantallas sensibles.
 - Cada usuario puede configurar si recibe avisos por correo, WhatsApp o ambos desde `Usuarios > Editar usuario > Notificaciones operativas`.
 - El numero de WhatsApp operativo puede ser especifico para ese usuario; si queda vacio, el sistema intenta usar su telefono registrado.
 - La configuracion dinamica de la base de datos tiene prioridad sobre el `.env`. Si `WHATSAPP_AUTO_CONNECT` queda guardado como `false` en `Configuracion > Sistema`, las notificaciones no levantan la sesion aunque el `.env` diga `true`.
 - Antes de avisar al equipo por WhatsApp, el backend intenta conectar con la sesion persistente. Si no hay usuarios operativos con WhatsApp habilitado, usa `ADMIN_WHATSAPP_NUMBER` como respaldo cuando este configurado.
 - Los pedidos guardan `salesChannel` para distinguir ventas de `WEB`, `MERCADOLIBRE`, `TIKTOK_SHOP` y `AMAZON`. La pantalla de pedidos muestra un chip por canal para no mezclar visualmente ventas web con ventas de marketplace.
+- Desde 2026-07-25, los movimientos operativos de inventario (`Entrada`, `Salida manual`, `Traspaso a canal`, `Ajustes` y `Devoluciones`) tambien notifican al equipo por correo/WhatsApp segun sus preferencias.
+- Los avisos de movimientos no incluyen costos, margenes ni datos de inversion; solo SKU, producto, cantidad, canal/ubicacion, stock antes/despues y nota operativa.
 
 Regla de seguridad: si WhatsApp no esta conectado, el pedido no se bloquea. El sistema registra el aviso omitido y conserva el flujo por correo/inventario. WhatsApp es un canal de notificacion, no una condicion para vender.
 
