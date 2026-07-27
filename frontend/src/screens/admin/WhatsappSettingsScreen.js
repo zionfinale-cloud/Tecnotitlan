@@ -116,13 +116,13 @@ const WhatsappSettingsScreen = () => {
       {message && <div className={`${styles.notice} ${message.type === 'success' ? styles.success : styles.error}`}>{message.text}</div>}
       {needsRelink && (
         <div className={`${styles.notice} ${styles.error}`}>
-          WhatsApp cerro o invalido la sesion guardada. No se abrira otro QR automaticamente para evitar bloqueos; usa "Borrar sesion y pedir QR" solo cuando el numero este listo y no este activo en otro bot.
+          WhatsApp cerro o invalido la sesion guardada. No se abrira otro QR automaticamente para evitar bloqueos; usa "Borrar sesion y pedir QR" solo cuando el numero este listo y no estes reutilizando las mismas credenciales de sesion en otro servicio.
         </div>
       )}
       {isPaused && (
         <div className={`${styles.notice} ${styles.error}`}>
           {hasSavedSession
-            ? 'WhatsApp devolvio 401 y se pauso para proteger el numero. Puedes reintentar la sesion guardada una sola vez; si vuelve a pausar, esa sesion fue invalidada o el numero esta abierto en otro bot. No borres la sesion ni pidas QR repetidamente.'
+            ? 'WhatsApp devolvio un cierre sensible y se pauso para proteger el numero. Puedes reintentar la sesion guardada una sola vez; si vuelve a pausar, esa sesion fue invalidada, sus llaves se desincronizaron o se estan reutilizando las mismas credenciales en otro servicio. No borres la sesion ni pidas QR repetidamente.'
             : 'WhatsApp esta pausado para proteger el numero. No borres la sesion ni pidas QR repetidamente; espera a que termine la restriccion o usa "Borrar sesion y pedir QR" solo si vas a vincular un numero sano.'}
         </div>
       )}
@@ -172,7 +172,7 @@ const WhatsappSettingsScreen = () => {
                   : needsRelink
                     ? 'La sesion guardada necesita revinculacion. Si el numero esta sano, borra la sesion y pide un QR nuevo una sola vez.'
                   : isPaused && hasSavedSession
-                    ? 'Hay sesion guardada, pero WhatsApp devolvio 401. Reintenta una vez; si vuelve a fallar, confirma que el numero no este activo en VEVA u otro bot antes de pedir QR nuevo.'
+                    ? 'Hay sesion guardada, pero WhatsApp devolvio un cierre sensible. Reintenta una vez; si vuelve a fallar, no pidas QR repetidamente y revisa que Tecnotitlan tenga su propia vinculacion/credenciales.'
                     : isPaused
                       ? 'WhatsApp esta pausado. No solicites QR nuevo hasta que el numero este listo.'
                     : isWaitingLock
