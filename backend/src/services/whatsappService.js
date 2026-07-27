@@ -8,7 +8,7 @@ import logger from '../utils/logger.js';
 import { BadRequestError } from '../utils/errorUtils.js';
 import { getConfig } from './configService.js';
 import { clearDatabaseAuthState, useDatabaseAuthState } from './baileysDbAuthState.js';
-import { writeNotificationLog } from './notificationLogService.js';
+import { findRecentNotificationLog, writeNotificationLog } from './notificationLogService.js';
 import { sendTransactionalMail } from './emailService.js';
 import { handleWhatsAppMessage } from '../modules/tecatl/tecatlWhatsAppAdapter.js';
 
@@ -39,6 +39,10 @@ const DEFAULT_RECONNECT_MAX_DELAY_MS = 30 * 60 * 1000;
 const DEFAULT_KEEP_ALIVE_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_PAUSED_RETRY_AFTER_MS = 10 * 60 * 1000;
 const DEFAULT_PROTECTED_PAUSE_MS = 3 * 60 * 60 * 1000;
+const DEFAULT_OUTBOUND_SEND_SPACING_MS = 2500;
+const DEFAULT_CUSTOMER_NOTIFICATION_DEDUPE_MS = 12 * 60 * 60 * 1000;
+const DEFAULT_ADMIN_NOTIFICATION_DEDUPE_MS = 60 * 60 * 1000;
+const DEFAULT_TECATL_HANDOFF_DEDUPE_MS = 30 * 60 * 1000;
 const PROTECTED_PAUSE_SETTING_KEY = 'WHATSAPP_PROTECTED_PAUSED_UNTIL';
 const TECATL_STAFF_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'VENDEDOR'];
 const TECATL_BUSINESS_START_HOUR = 9;
@@ -52,6 +56,8 @@ let pausedAt = null;
 let pausedUntil = null;
 let sessionLockTimer = null;
 let hasSessionLock = false;
+let outboundSendChain = Promise.resolve();
+let lastOutboundSendAt = 0;
 
 const RELINK_STATUSES = new Set(['QR_REQUIRED', 'LOGGED_OUT']);
 
@@ -252,12 +258,82 @@ const getReconnectMaxDelayMs = () => {
         : DEFAULT_RECONNECT_MAX_DELAY_MS;
 };
 
+const getOutboundSendSpacingMs = () => {
+    const rawValue = Number(
+        getConfig().WHATSAPP_OUTBOUND_SEND_SPACING_MS
+        || process.env.WHATSAPP_OUTBOUND_SEND_SPACING_MS
+        || DEFAULT_OUTBOUND_SEND_SPACING_MS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= 0
+        ? rawValue
+        : DEFAULT_OUTBOUND_SEND_SPACING_MS;
+};
+
+const getCustomerNotificationDedupeMs = () => {
+    const rawValue = Number(
+        getConfig().WHATSAPP_CUSTOMER_NOTIFICATION_DEDUPE_MS
+        || process.env.WHATSAPP_CUSTOMER_NOTIFICATION_DEDUPE_MS
+        || DEFAULT_CUSTOMER_NOTIFICATION_DEDUPE_MS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= 60000
+        ? rawValue
+        : DEFAULT_CUSTOMER_NOTIFICATION_DEDUPE_MS;
+};
+
+const getAdminNotificationDedupeMs = () => {
+    const rawValue = Number(
+        getConfig().WHATSAPP_ADMIN_NOTIFICATION_DEDUPE_MS
+        || process.env.WHATSAPP_ADMIN_NOTIFICATION_DEDUPE_MS
+        || DEFAULT_ADMIN_NOTIFICATION_DEDUPE_MS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= 60000
+        ? rawValue
+        : DEFAULT_ADMIN_NOTIFICATION_DEDUPE_MS;
+};
+
+const getTecatlHandoffDedupeMs = () => {
+    const rawValue = Number(
+        getConfig().WHATSAPP_TECATL_HANDOFF_DEDUPE_MS
+        || process.env.WHATSAPP_TECATL_HANDOFF_DEDUPE_MS
+        || DEFAULT_TECATL_HANDOFF_DEDUPE_MS,
+    );
+    return Number.isFinite(rawValue) && rawValue >= 60000
+        ? rawValue
+        : DEFAULT_TECATL_HANDOFF_DEDUPE_MS;
+};
+
 let activeAuthDir = null;
 const BAILEYS_AUTH_PROVIDER = 'baileys';
 let authSyncTimer = null;
 let authSyncRunning = false;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const enqueueOutboundSend = async (label, task) => {
+    const run = async () => {
+        const spacingMs = getOutboundSendSpacingMs();
+        const elapsedMs = lastOutboundSendAt ? Date.now() - lastOutboundSendAt : spacingMs;
+        const waitMs = Math.max(0, spacingMs - elapsedMs);
+
+        if (waitMs > 0) {
+            logger.info(`[WhatsApp] Cola segura: esperando ${waitMs}ms antes de enviar ${label}.`);
+            await delay(waitMs);
+        }
+
+        try {
+            return await task();
+        } finally {
+            lastOutboundSendAt = Date.now();
+        }
+    };
+
+    const current = outboundSendChain
+        .catch(() => null)
+        .then(run);
+
+    outboundSendChain = current.catch(() => null);
+    return current;
+};
 
 const isSafeAuthRelativePath = (relativePath = '') => {
     if (!relativePath || path.isAbsolute(relativePath)) return false;
@@ -956,9 +1032,38 @@ const pauseBaileysForManualReview = (reason, statusCode = null) => {
 
 const scheduleImmediateBaileysReconnect = (reason) => {
     if (reconnectTimer || resetInProgress || shutdownInProgress) return;
+    if (isProtectedPauseActive()) {
+        logger.warn(`[WhatsApp] Reinicio 515 omitido: pausa protegida activa hasta ${formatPauseUntil()}. Motivo: ${reason || 'restart required'}`);
+        return;
+    }
 
-    logger.warn(`[WhatsApp] Baileys solicito reinicio inmediato. Se pausa para evitar bloqueo del numero. Motivo: ${reason || 'restart required'}`);
-    pauseBaileysForManualReview(reason || 'restart required', DisconnectReason.restartRequired);
+    const maxReconnectAttempts = getMaxAutoReconnectAttempts();
+    if (reconnectAttempt >= maxReconnectAttempts) {
+        pauseBaileysForManualReview(`Reinicio seguro detenido despues de ${maxReconnectAttempts} intento(s). Ultimo motivo: ${reason || 'restart required'}`, DisconnectReason.restartRequired);
+        return;
+    }
+
+    const delayMs = 5000;
+    reconnectAttempt += 1;
+    connectionStatus = 'RECONNECTING';
+    isInitializing = false;
+    lastError = `WhatsApp solicito reinicio seguro (${reason || 'restart required'}). Reintentando con sesion guardada sin pedir QR.`;
+    emitStatus();
+
+    logger.warn(`[WhatsApp] Baileys solicito reinicio 515/restart required. Reintento seguro ${reconnectAttempt}/${maxReconnectAttempts} en ${Math.round(delayMs / 1000)}s. Motivo: ${reason || 'restart required'}`);
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        initialize({ allowQr: false, reason: 'baileys restart required' }).catch((error) => {
+            lastError = error.message;
+            logger.error(`[WhatsApp] Reintento seguro tras 515 fallo: ${error.message}`);
+            if (isProtectedDisconnect(null, null, error.message)) {
+                pauseBaileysForManualReview(error.message);
+                return;
+            }
+            scheduleBaileysReconnect(error.message);
+        });
+    }, delayMs);
+    reconnectTimer.unref?.();
 };
 
 const scheduleBaileysReconnect = (reason) => {
@@ -1268,6 +1373,33 @@ const notifyTecatlHandoffStaff = async ({ result, incomingText, jid, customerNam
     }
 
     await Promise.all(whatsappRecipients.map(async (phone) => {
+        const recentLog = await findRecentNotificationLog({
+            channel: 'WHATSAPP',
+            audience: 'STAFF',
+            event: 'tecatl_handoff',
+            recipient: phone,
+            sinceMs: getTecatlHandoffDedupeMs(),
+        });
+
+        if (recentLog) {
+            await writeNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'STAFF',
+                event: 'tecatl_handoff',
+                status: 'SKIPPED',
+                provider: 'baileys',
+                recipient: phone,
+                message: 'Escalacion de Tecatl omitida para evitar duplicados recientes.',
+                details: {
+                    ...details,
+                    dedupeWindowMs: getTecatlHandoffDedupeMs(),
+                    skippedBecauseOfLogId: recentLog.id,
+                    skippedBecauseOfCreatedAt: recentLog.createdAt,
+                },
+            });
+            return;
+        }
+
         try {
             await sendMessage(phone, whatsappText, 'Tecatl');
             await writeNotificationLog({
@@ -1532,7 +1664,6 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
 
                 if (!shutdownInProgress && !resetInProgress && restartRequired) {
                     latestQr = null;
-                    reconnectAttempt = 0;
                     scheduleImmediateBaileysReconnect(lastError);
                     return;
                 }
@@ -1857,7 +1988,10 @@ export const sendMessage = async (number, message, sentBy = null) => {
     const attemptSend = async () => {
         for (const targetJid of targets) {
             try {
-                const sent = await sock.sendMessage(targetJid, { text });
+                const sent = await enqueueOutboundSend(
+                    `mensaje a ${targetJid}`,
+                    () => sock.sendMessage(targetJid, { text }),
+                );
                 sentTargetJid = sent?.key?.remoteJid || targetJid;
                 if (targetJid !== requestedJid) {
                     logger.info(`[WhatsApp] Mensaje enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
@@ -1965,7 +2099,10 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
     const attemptSend = async () => {
         for (const targetJid of targets) {
             try {
-                const sent = await sock.sendMessage(targetJid, payload);
+                const sent = await enqueueOutboundSend(
+                    `adjunto a ${targetJid}`,
+                    () => sock.sendMessage(targetJid, payload),
+                );
                 sentTargetJid = sent?.key?.remoteJid || targetJid;
                 if (targetJid !== requestedJid) {
                     logger.info(`[WhatsApp] Adjunto enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
@@ -2176,6 +2313,35 @@ const sendCustomerOrderMessage = async (order, messageBuilder, eventName) => {
             return;
         }
 
+        const recentLog = await findRecentNotificationLog({
+            channel: 'WHATSAPP',
+            audience: 'CUSTOMER',
+            event: eventName,
+            recipient: phone,
+            order,
+            sinceMs: getCustomerNotificationDedupeMs(),
+        });
+        if (recentLog) {
+            logger.warn(`[WhatsApp] ${eventName} omitido para ${orderNumber}: ya se envio recientemente a ${phone}.`);
+            await writeNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'CUSTOMER',
+                event: eventName,
+                status: 'SKIPPED',
+                provider: getWhatsAppProvider(),
+                recipient: phone,
+                order,
+                message: 'Aviso omitido para evitar duplicados recientes.',
+                details: {
+                    connectionStatus,
+                    dedupeWindowMs: getCustomerNotificationDedupeMs(),
+                    skippedBecauseOfLogId: recentLog.id,
+                    skippedBecauseOfCreatedAt: recentLog.createdAt,
+                },
+            });
+            return;
+        }
+
         const text = messageBuilder(order);
         const sendResult = await sendMessage(phone, text, 'Sistema');
         logger.info(`[WhatsApp] ${eventName} enviado para ${orderNumber} a ${phone}`);
@@ -2277,10 +2443,11 @@ export const sendCustomerOrderStatusNotification = async (order) => {
             'aviso de cancelacion al cliente'
         );
     }
+    const normalizedStatus = String(status || 'sin_estado').trim().toLowerCase();
     return sendCustomerOrderMessage(
         order,
         (currentOrder) => buildStatusMessage(currentOrder),
-        'aviso de estado al cliente'
+        `aviso de estado ${normalizedStatus} al cliente`
     );
 };
 export const sendAdminOrderPaidNotification = async (order) => {
@@ -2296,6 +2463,33 @@ export const sendAdminOrderPaidNotification = async (order) => {
         const message = `Pago confirmado en Tecnotitlan\nPedido: ${orderNumber}\nTotal: ${total}`;
 
         if (adminWhatsappNumber) {
+            const recentLog = await findRecentNotificationLog({
+                channel: 'WHATSAPP',
+                audience: 'ADMIN',
+                event: 'aviso de pago admin',
+                recipient: adminWhatsappNumber,
+                order,
+                sinceMs: getAdminNotificationDedupeMs(),
+            });
+            if (recentLog) {
+                logger.warn(`[WhatsApp] Aviso de pago admin omitido para ${orderNumber}: ya se envio recientemente a ${adminWhatsappNumber}.`);
+                await writeNotificationLog({
+                    channel: 'WHATSAPP',
+                    audience: 'ADMIN',
+                    event: 'aviso de pago admin',
+                    status: 'SKIPPED',
+                    provider: getWhatsAppProvider(),
+                    recipient: adminWhatsappNumber,
+                    order,
+                    message: 'Aviso admin omitido para evitar duplicados recientes.',
+                    details: {
+                        connectionStatus,
+                        dedupeWindowMs: getAdminNotificationDedupeMs(),
+                        skippedBecauseOfLogId: recentLog.id,
+                        skippedBecauseOfCreatedAt: recentLog.createdAt,
+                    },
+                });
+            } else {
             const sendResult = await sendMessage(adminWhatsappNumber, message, 'Sistema');
             await writeNotificationLog({
                 channel: 'WHATSAPP',
@@ -2311,6 +2505,7 @@ export const sendAdminOrderPaidNotification = async (order) => {
                     whatsapp: sendResult,
                 },
             });
+            }
         }
 
         if (n8nWebhookUrl) {

@@ -50,6 +50,35 @@ export const writeNotificationLog = async ({
   }
 };
 
+export const findRecentNotificationLog = async ({
+  channel,
+  audience,
+  event,
+  recipient = null,
+  order = null,
+  orderId = null,
+  orderNumber = null,
+  status = 'SENT',
+  sinceMs = 5 * 60 * 1000,
+} = {}) => {
+  const orderInfo = order ? normalizeOrder(order) : {};
+  const createdAt = new Date(Date.now() - Math.max(Number(sinceMs) || 0, 0));
+
+  return prisma.notificationLog.findFirst({
+    where: {
+      channel,
+      audience,
+      event,
+      status,
+      recipient: trimText(recipient),
+      orderId: orderId || orderInfo.orderId || null,
+      orderNumber: orderNumber || orderInfo.orderNumber || null,
+      createdAt: { gte: createdAt },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
 export const listNotificationLogs = async ({
   limit = 80,
   channel,

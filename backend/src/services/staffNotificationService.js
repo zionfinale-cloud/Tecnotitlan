@@ -3,7 +3,7 @@ import logger from '../utils/logger.js';
 import { sendTransactionalMail } from './emailService.js';
 import * as whatsappService from './whatsappService.js';
 import { getConfig } from './configService.js';
-import { writeNotificationLog } from './notificationLogService.js';
+import { findRecentNotificationLog, writeNotificationLog } from './notificationLogService.js';
 
 const OPERATIONAL_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'VENDEDOR', 'SELLER', 'SALES'];
 
@@ -46,6 +46,8 @@ const currency = new Intl.NumberFormat('es-MX', {
   style: 'currency',
   currency: 'MXN',
 });
+const DEFAULT_STAFF_WHATSAPP_DEDUPE_MS = 15 * 60 * 1000;
+const DEFAULT_TECATL_HANDOFF_DEDUPE_MS = 30 * 60 * 1000;
 
 const escapeHtml = (value = '') => String(value)
   .replace(/&/g, '&amp;')
@@ -119,6 +121,28 @@ const getStaffRecipients = async () => {
   return users.filter(isOperationalRecipient);
 };
 
+const getStaffWhatsappDedupeMs = () => {
+  const rawValue = Number(
+    getConfig().WHATSAPP_STAFF_NOTIFICATION_DEDUPE_MS
+    || process.env.WHATSAPP_STAFF_NOTIFICATION_DEDUPE_MS
+    || DEFAULT_STAFF_WHATSAPP_DEDUPE_MS
+  );
+  return Number.isFinite(rawValue) && rawValue >= 60000
+    ? rawValue
+    : DEFAULT_STAFF_WHATSAPP_DEDUPE_MS;
+};
+
+const getTecatlHandoffDedupeMs = () => {
+  const rawValue = Number(
+    getConfig().WHATSAPP_TECATL_HANDOFF_DEDUPE_MS
+    || process.env.WHATSAPP_TECATL_HANDOFF_DEDUPE_MS
+    || DEFAULT_TECATL_HANDOFF_DEDUPE_MS
+  );
+  return Number.isFinite(rawValue) && rawValue >= 60000
+    ? rawValue
+    : DEFAULT_TECATL_HANDOFF_DEDUPE_MS;
+};
+
 const buildEmailHtml = ({ title, preview, order, rows = [] }) => `
   <div style="font-family:Arial,sans-serif;background:#f5f8fb;padding:24px;color:#07111f;">
     <div style="max-width:680px;margin:auto;background:#ffffff;border-radius:18px;border:1px solid #dbe4ee;overflow:hidden;">
@@ -183,7 +207,7 @@ const sendStaffEmail = async ({ subject, title, preview, order, rows }) => {
   });
 };
 
-const sendStaffWhatsApp = async ({ order, message }) => {
+const sendStaffWhatsApp = async ({ order, message, event = 'staff_order_notification' }) => {
   const staff = await getStaffRecipients();
   const recipients = staff
     .filter((user) => user.notificationWhatsappEnabled === true)
@@ -202,7 +226,7 @@ const sendStaffWhatsApp = async ({ order, message }) => {
       await writeNotificationLog({
         channel: 'WHATSAPP',
         audience: 'STAFF',
-        event: 'staff_order_notification',
+        event,
         status: 'SKIPPED',
         provider: 'baileys',
         order,
@@ -216,24 +240,63 @@ const sendStaffWhatsApp = async ({ order, message }) => {
     allRecipients.findIndex((candidate) => candidate.phone === recipient.phone) === index
   ));
 
+  const dedupeWindowMs = getStaffWhatsappDedupeMs();
+  const recipientsToSend = [];
+
+  for (const recipient of dedupedRecipients) {
+    const recentLog = await findRecentNotificationLog({
+      channel: 'WHATSAPP',
+      audience: 'STAFF',
+      event,
+      recipient: recipient.phone,
+      order,
+      sinceMs: dedupeWindowMs,
+    });
+
+    if (recentLog) {
+      logger.warn(`[Staff Notifications] WhatsApp omitido para ${recipient.name}: ${event} ya se envio recientemente.`);
+      await writeNotificationLog({
+        channel: 'WHATSAPP',
+        audience: 'STAFF',
+        event,
+        status: 'SKIPPED',
+        provider: 'baileys',
+        recipient: recipient.phone,
+        order,
+        message: 'Aviso a staff omitido para evitar duplicados recientes.',
+        details: {
+          recipientName: recipient.name,
+          dedupeWindowMs,
+          skippedBecauseOfLogId: recentLog.id,
+          skippedBecauseOfCreatedAt: recentLog.createdAt,
+        },
+      });
+      continue;
+    }
+
+    recipientsToSend.push(recipient);
+  }
+
+  if (recipientsToSend.length === 0) return;
+
   const results = await Promise.allSettled(
-    dedupedRecipients.map((recipient) => whatsappService.sendMessage(recipient.phone, message, 'Sistema'))
+    recipientsToSend.map((recipient) => whatsappService.sendMessage(recipient.phone, message, 'Sistema'))
   );
 
   results.forEach((result, index) => {
-    const recipient = dedupedRecipients[index];
+    const recipient = recipientsToSend[index];
     if (result.status === 'rejected') {
       logger.warn(`[Staff Notifications] WhatsApp omitido para ${recipient.name}: ${result.reason?.message || result.reason}`);
     }
   });
 
   await Promise.all(results.map((result, index) => {
-    const recipient = dedupedRecipients[index];
+    const recipient = recipientsToSend[index];
     const failed = result.status === 'rejected';
     return writeNotificationLog({
       channel: 'WHATSAPP',
       audience: 'STAFF',
-      event: 'staff_order_notification',
+      event,
       status: failed ? 'FAILED' : 'SENT',
       provider: 'baileys',
       recipient: recipient.phone,
@@ -389,12 +452,51 @@ const sendStaffOperationalWhatsApp = async ({ movement, message }) => {
     return;
   }
 
+  const dedupeWindowMs = getStaffWhatsappDedupeMs();
+  const recipientsToSend = [];
+
+  for (const recipient of recipients) {
+    const recentLog = await findRecentNotificationLog({
+      channel: 'WHATSAPP',
+      audience: 'STAFF',
+      event: 'inventory_movement',
+      recipient: recipient.phone,
+      sinceMs: dedupeWindowMs,
+    });
+
+    if (recentLog) {
+      logger.warn(`[Staff Notifications] Inventario omitido para ${recipient.name}: ya hubo aviso reciente.`);
+      await writeNotificationLog({
+        channel: 'WHATSAPP',
+        audience: 'STAFF',
+        event: 'inventory_movement',
+        status: 'SKIPPED',
+        provider: 'baileys',
+        recipient: recipient.phone,
+        message: 'Movimiento operativo omitido para evitar duplicados recientes.',
+        details: {
+          movementId: movement.id,
+          movementType: movement.type,
+          recipientName: recipient.name,
+          dedupeWindowMs,
+          skippedBecauseOfLogId: recentLog.id,
+          skippedBecauseOfCreatedAt: recentLog.createdAt,
+        },
+      });
+      continue;
+    }
+
+    recipientsToSend.push(recipient);
+  }
+
+  if (recipientsToSend.length === 0) return;
+
   const results = await Promise.allSettled(
-    recipients.map((recipient) => whatsappService.sendMessage(recipient.phone, message, 'Sistema'))
+    recipientsToSend.map((recipient) => whatsappService.sendMessage(recipient.phone, message, 'Sistema'))
   );
 
   await Promise.all(results.map((result, index) => {
-    const recipient = recipients[index];
+    const recipient = recipientsToSend[index];
     const failed = result.status === 'rejected';
     return writeNotificationLog({
       channel: 'WHATSAPP',
@@ -474,7 +576,7 @@ export const notifyStaffOrderPaid = async (order) => {
       order,
       rows: [{ label: 'Estado', value: getStatusLabel(order.status) }],
     });
-    await sendStaffWhatsApp({ order, message });
+    await sendStaffWhatsApp({ order, message, event: 'staff_order_paid_whatsapp' });
   } catch (error) {
     logger.warn(`[Staff Notifications] No se pudo avisar venta ${order.orderNumber}: ${error.message}`);
   }
@@ -507,7 +609,7 @@ export const notifyStaffOrderStatusChanged = async (order, context = {}) => {
         ...(context.notes ? [{ label: 'Nota', value: context.notes }] : []),
       ],
     });
-    await sendStaffWhatsApp({ order, message });
+    await sendStaffWhatsApp({ order, message, event: `staff_order_status_${String(context.nextStatus || order.status || 'unknown').toLowerCase()}_whatsapp` });
   } catch (error) {
     logger.warn(`[Staff Notifications] No se pudo avisar cambio de estado ${order.orderNumber}: ${error.message}`);
   }
