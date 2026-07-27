@@ -23,7 +23,8 @@ router.use(protect);
 
 router.get('/status', checkPermission('integration:read', 'whatsapp:chat', 'support:update'), asyncHandler(async (req, res) => {
   const hasSavedSession = await whatsappService.hasSavedSession();
-  res.json({ status: 'success', data: { ...whatsappService.getStatus(), hasSavedSession } });
+  const status = await whatsappService.refreshProtectedPauseState();
+  res.json({ status: 'success', data: { ...status, hasSavedSession } });
 }));
 
 router.get('/qr', superAdminOnly, checkPermission('system:configure'), asyncHandler(async (req, res) => {
@@ -32,6 +33,9 @@ router.get('/qr', superAdminOnly, checkPermission('system:configure'), asyncHand
 }));
 
 router.post('/initialize', superAdminOnly, checkPermission('system:configure'), asyncHandler(async (req, res) => {
+  if (req.body?.clearPause === true) {
+    await whatsappService.clearProtectedPauseForManualRetry();
+  }
   const hasSavedSession = await whatsappService.hasSavedSession();
   const status = await whatsappService.initialize({
     allowQr: !hasSavedSession,
@@ -44,6 +48,12 @@ router.post('/initialize', superAdminOnly, checkPermission('system:configure'), 
 router.post('/reset', superAdminOnly, checkPermission('system:configure'), asyncHandler(async (req, res) => {
   const status = await whatsappService.resetSession();
   res.status(202).json({ status: 'success', data: status });
+}));
+
+router.post('/clear-pause', superAdminOnly, checkPermission('system:configure'), asyncHandler(async (req, res) => {
+  const status = await whatsappService.clearProtectedPauseForManualRetry();
+  const hasSavedSession = await whatsappService.hasSavedSession();
+  res.status(202).json({ status: 'success', data: { ...status, hasSavedSession } });
 }));
 
 router.get('/chats', canAttendWhatsApp, asyncHandler(async (req, res) => {

@@ -24,6 +24,7 @@ const WhatsappSettingsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [clearingPause, setClearingPause] = useState(false);
   const [message, setMessage] = useState(null);
 
   const loadStatus = async () => {
@@ -51,7 +52,7 @@ const WhatsappSettingsScreen = () => {
     setStarting(true);
     setMessage(null);
     try {
-      const { data } = await api.post('/integrations/whatsapp/initialize');
+      const { data } = await api.post('/integrations/whatsapp/initialize', { clearPause: status?.status === 'PAUSED' });
       setStatus(data.data);
       setMessage({ type: 'success', text: 'Conexion iniciada. Si ya existe sesion guardada, debe reconectar sin QR. Si no existe sesion, aparecera un QR para escanear una sola vez.' });
       await loadStatus();
@@ -59,6 +60,25 @@ const WhatsappSettingsScreen = () => {
       setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudo iniciar WhatsApp.' });
     } finally {
       setStarting(false);
+    }
+  };
+
+  const clearPause = async () => {
+    const confirmed = window.confirm('Esto quitara la pausa protegida para permitir un reintento manual. Usalo solo si ya paso la restriccion de WhatsApp o vas a vincular un numero sano. Continuamos?');
+    if (!confirmed) return;
+
+    setClearingPause(true);
+    setMessage(null);
+    try {
+      const { data } = await api.post('/integrations/whatsapp/clear-pause');
+      setStatus(data.data);
+      setQr('');
+      setMessage({ type: 'success', text: 'Pausa liberada. Ahora reintenta la sesion guardada; si no conecta, pide QR nuevo una sola vez.' });
+      await loadStatus();
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudo liberar la pausa de WhatsApp.' });
+    } finally {
+      setClearingPause(false);
     }
   };
 
@@ -108,6 +128,11 @@ const WhatsappSettingsScreen = () => {
         <button className={styles.primaryButton} type="button" onClick={start} disabled={starting || isDisabled || isWaitingLock}>
           {startButtonLabel}
         </button>
+        {isPaused && (
+          <button className={styles.secondaryButton} type="button" onClick={clearPause} disabled={clearingPause || starting || resetting || isDisabled}>
+            {clearingPause ? 'Liberando...' : 'Liberar pausa'}
+          </button>
+        )}
         <button className={styles.secondaryButton} type="button" onClick={reset} disabled={resetting || starting || isDisabled}>
           {resetting ? 'Reiniciando...' : 'Borrar sesion y pedir QR'}
         </button>
@@ -122,8 +147,8 @@ const WhatsappSettingsScreen = () => {
       {isPaused && (
         <div className={`${styles.notice} ${styles.error}`}>
           {hasSavedSession
-            ? 'WhatsApp devolvio un cierre sensible y se pauso para proteger el numero. Puedes reintentar la sesion guardada una sola vez; si vuelve a pausar, esa sesion fue invalidada, sus llaves se desincronizaron o se estan reutilizando las mismas credenciales en otro servicio. No borres la sesion ni pidas QR repetidamente.'
-            : 'WhatsApp esta pausado para proteger el numero. No borres la sesion ni pidas QR repetidamente; espera a que termine la restriccion o usa "Borrar sesion y pedir QR" solo si vas a vincular un numero sano.'}
+            ? 'WhatsApp devolvio un cierre sensible y se pauso para proteger el numero. Si ya paso la restriccion, libera la pausa y reintenta la sesion guardada una sola vez; si vuelve a pausar, esa sesion fue invalidada o sus llaves se desincronizaron. No borres la sesion ni pidas QR repetidamente.'
+            : 'WhatsApp esta pausado para proteger el numero. Si ya paso la restriccion, libera la pausa y pide QR nuevo solo una vez cuando vayas a vincular un numero sano.'}
         </div>
       )}
       {isWaitingLock && (
@@ -172,9 +197,9 @@ const WhatsappSettingsScreen = () => {
                   : needsRelink
                     ? 'La sesion guardada necesita revinculacion. Si el numero esta sano, borra la sesion y pide un QR nuevo una sola vez.'
                   : isPaused && hasSavedSession
-                    ? 'Hay sesion guardada, pero WhatsApp devolvio un cierre sensible. Reintenta una vez; si vuelve a fallar, no pidas QR repetidamente y revisa que Tecnotitlan tenga su propia vinculacion/credenciales.'
+                    ? 'Hay sesion guardada, pero WhatsApp esta pausado. Libera la pausa y reintenta la sesion guardada una sola vez.'
                     : isPaused
-                      ? 'WhatsApp esta pausado. No solicites QR nuevo hasta que el numero este listo.'
+                      ? 'WhatsApp esta pausado. Libera la pausa solo si el numero ya esta listo para vincularse.'
                     : isWaitingLock
                       ? 'Esperando que se libere la sesion activa.'
                       : status?.hasSavedSession

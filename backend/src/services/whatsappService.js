@@ -166,6 +166,12 @@ const loadProtectedPauseFromDb = async () => {
         if (pausedUntil) {
             connectionStatus = 'PAUSED';
             lastError = `WhatsApp pausado para proteger el numero. No se intentara conectar automaticamente hasta ${formatPauseUntil()}.`;
+        } else if (setting?.value) {
+            await clearProtectedPause();
+            if (connectionStatus === 'PAUSED') {
+                connectionStatus = 'DISCONNECTED';
+            }
+            lastError = 'La pausa protegida de WhatsApp ya expiro. Puedes reintentar la sesion guardada desde Configuracion > WhatsApp QR.';
         }
     } catch (error) {
         logger.warn(`[WhatsApp] No se pudo leer pausa protegida: ${error.message}`);
@@ -1505,6 +1511,29 @@ export const getStatus = () => {
     return getBaileysStatus();
 };
 
+export const refreshProtectedPauseState = async () => {
+    if (isWhatsAppDisabledProvider()) return getDisabledStatus();
+    await loadProtectedPauseFromDb();
+    return getStatus();
+};
+
+export const clearProtectedPauseForManualRetry = async () => {
+    if (isWhatsAppDisabledProvider()) return getDisabledStatus();
+
+    await clearProtectedPause();
+    if (connectionStatus === 'PAUSED') {
+        connectionStatus = 'DISCONNECTED';
+    }
+    pausedAt = null;
+    pausedUntil = null;
+    reconnectAttempt = 0;
+    latestQr = null;
+    lastError = 'Pausa protegida liberada manualmente. Reintenta la sesion guardada; si no conecta, pide QR nuevo solo una vez.';
+    logger.warn('[WhatsApp] Pausa protegida liberada manualmente por Super Admin.');
+    emitStatus();
+    return getStatus();
+};
+
 export const getLatestQr = () => {
     if (isWhatsAppDisabledProvider()) return null;
     return latestQr;
@@ -1910,6 +1939,7 @@ export const resetSession = async () => {
 
     resetInProgress = true;
     clearReconnectTimer();
+    await clearProtectedPause();
 
     latestQr = null;
     lastError = null;
