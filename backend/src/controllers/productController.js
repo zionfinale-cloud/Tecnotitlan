@@ -649,8 +649,9 @@ const linkProductToMeli = asyncHandler(async (req, res, next) => {
   const { meliItemId } = req.body;
   const { id: productIdentifier } = req.params;
   const userId = req.user.id;
+  const normalizedMeliItemId = String(meliItemId || '').trim().toUpperCase();
 
-  if (!meliItemId) {
+  if (!normalizedMeliItemId) {
     return next(new BadRequestError('Se requiere el ID del artículo de Mercado Libre (meliItemId).'));
   }
 
@@ -667,19 +668,70 @@ const linkProductToMeli = asyncHandler(async (req, res, next) => {
     return next(new NotFoundError('Producto no encontrado'));
   }
 
-  // Validar que el item de Meli existe y pertenece al usuario
-  const meliItem = await meliService.getItem(userId, meliItemId); // Este servicio debe seguir funcionando
-  if (!meliItem) {
-    return next(new NotFoundError(`El artículo de Mercado Libre con ID ${meliItemId} no se encontró o no tienes acceso a él.`));
+  const linkedProduct = await prisma.product.findFirst({
+    where: {
+      meliItemId: normalizedMeliItemId,
+      id: { not: product.id },
+    },
+    select: { sku: true, name: true },
+  });
+  if (linkedProduct) {
+    return next(new BadRequestError(
+      `La publicacion ${normalizedMeliItemId} ya esta vinculada a ${linkedProduct.sku} - ${linkedProduct.name}.`,
+    ));
   }
 
-  const updatedProduct = await prisma.product.update({
-    where: { id: product.id },
-    data: {
-      meliItemId: meliItem.id,
-      meliPublicationUrl: meliItem.permalink,
-      lastMeliSync: null,
-    },
+  // Validar que el item de Meli existe y pertenece al usuario conectado.
+  const meliItem = await meliService.getItem(userId, normalizedMeliItemId);
+  if (!meliItem) {
+    return next(new NotFoundError(`El articulo de Mercado Libre con ID ${normalizedMeliItemId} no se encontro o no tienes acceso a el.`));
+  }
+
+  const linkedAt = new Date();
+  const updatedProduct = await prisma.$transaction(async (tx) => {
+    const nextProduct = await tx.product.update({
+      where: { id: product.id },
+      data: {
+        meliItemId: String(meliItem.id || normalizedMeliItemId).toUpperCase(),
+        meliPublicationUrl: meliItem.permalink || null,
+        lastMeliSync: linkedAt,
+      },
+    });
+
+    await tx.marketplaceListing.upsert({
+      where: {
+        productId_channel: {
+          productId: product.id,
+          channel: 'MERCADOLIBRE',
+        },
+      },
+      update: {
+        externalProductId: String(meliItem.id || normalizedMeliItemId).toUpperCase(),
+        externalSku: product.sku,
+        title: meliItem.title || product.name,
+        price: Number(meliItem.price || product.price || 0),
+        publishedStock: Number(meliItem.available_quantity || 0),
+        status: meliItem.status === 'active' ? 'ACTIVE' : 'READY',
+        syncStatus: 'LINKED',
+        lastSyncedAt: linkedAt,
+        rawData: meliItem,
+      },
+      create: {
+        productId: product.id,
+        channel: 'MERCADOLIBRE',
+        externalProductId: String(meliItem.id || normalizedMeliItemId).toUpperCase(),
+        externalSku: product.sku,
+        title: meliItem.title || product.name,
+        price: Number(meliItem.price || product.price || 0),
+        publishedStock: Number(meliItem.available_quantity || 0),
+        status: meliItem.status === 'active' ? 'ACTIVE' : 'READY',
+        syncStatus: 'LINKED',
+        lastSyncedAt: linkedAt,
+        rawData: meliItem,
+      },
+    });
+
+    return nextProduct;
   });
 
   res.status(200).json({ status: 'success', data: { product: updatedProduct } });

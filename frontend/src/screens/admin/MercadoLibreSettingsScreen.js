@@ -45,6 +45,9 @@ const MercadoLibreSettingsScreen = () => {
   const [orders, setOrders] = useState([]);
   const [importResults, setImportResults] = useState([]);
   const [webhookEvents, setWebhookEvents] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [linkSelections, setLinkSelections] = useState({});
+  const [linkingItemId, setLinkingItemId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState(null);
@@ -59,16 +62,29 @@ const MercadoLibreSettingsScreen = () => {
     return null;
   }, [searchParams]);
 
+  const unmatchedItems = useMemo(() => {
+    const itemsById = new Map();
+    importResults.flatMap((result) => result.unmatched || []).forEach((item) => {
+      const itemId = String(item.itemId || '').trim().toUpperCase();
+      if (itemId && !itemsById.has(itemId)) {
+        itemsById.set(itemId, { ...item, itemId });
+      }
+    });
+    return Array.from(itemsById.values());
+  }, [importResults]);
+
   const loadStatus = async () => {
     setLoading(true);
     setMessage(callbackMessage);
     try {
-      const [statusResponse, webhookResponse] = await Promise.all([
+      const [statusResponse, webhookResponse, productsResponse] = await Promise.all([
         api.get('/mercadolibre/status'),
         api.get('/mercadolibre/webhook-events?limit=12').catch(() => ({ data: { data: [] } })),
+        api.get('/products', { params: { pageSize: 250, sortBy: 'createdAt_desc' } }),
       ]);
       setStatus(statusResponse.data.data);
       setWebhookEvents(webhookResponse.data.data || []);
+      setProducts(productsResponse.data?.data?.products || []);
     } catch (error) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudo cargar Mercado Libre.' });
     } finally {
@@ -109,19 +125,30 @@ const MercadoLibreSettingsScreen = () => {
     }
   };
 
+  const applyOrderSync = (payload = {}, prefix = '') => {
+    const nextOrders = payload.orders || [];
+    const nextImports = payload.imports || [];
+    const imported = nextImports.filter((item) => ['created', 'existing'].includes(item.action)).length;
+    const review = nextImports.filter((item) => item.action === 'skipped').length;
+    const failed = nextImports.filter((item) => item.action === 'failed').length;
+
+    setOrders(nextOrders);
+    setImportResults(nextImports);
+    setMessage({
+      type: failed > 0 ? 'error' : review > 0 ? 'warning' : 'success',
+      text: [
+        prefix,
+        `Pedidos leidos: ${payload.count || 0}. Importados/en pedidos: ${imported}. Por vincular: ${review}. Errores: ${failed}.`,
+      ].filter(Boolean).join(' '),
+    });
+  };
+
   const loadOrders = async () => {
     setWorking(true);
     setMessage(null);
     try {
       const { data } = await api.get('/mercadolibre/orders');
-      setOrders(data.data?.orders || []);
-      setImportResults(data.data?.imports || []);
-      const imported = (data.data?.imports || []).filter((item) => ['created', 'existing'].includes(item.action)).length;
-      const review = (data.data?.imports || []).filter((item) => ['skipped', 'failed'].includes(item.action)).length;
-      setMessage({
-        type: review > 0 ? 'error' : 'success',
-        text: `Pedidos leidos: ${data.data?.count || 0}. Importados/en pedidos: ${imported}. Por revisar: ${review}.`,
-      });
+      applyOrderSync(data.data);
     } catch (error) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'No se pudieron leer pedidos de Mercado Libre.' });
     } finally {
@@ -143,6 +170,40 @@ const MercadoLibreSettingsScreen = () => {
     }
   };
 
+  const linkProductAndImport = async (item) => {
+    const productId = linkSelections[item.itemId];
+    if (!productId) {
+      setMessage({ type: 'warning', text: `Selecciona el producto local que corresponde a ${item.title || item.itemId}.` });
+      return;
+    }
+
+    setWorking(true);
+    setLinkingItemId(item.itemId);
+    setMessage(null);
+    try {
+      const selectedProduct = products.find((product) => product.id === productId);
+      await api.put(`/products/${encodeURIComponent(productId)}/link-meli`, { meliItemId: item.itemId });
+
+      const [{ data: ordersResponse }, { data: webhookResponse }] = await Promise.all([
+        api.get('/mercadolibre/orders'),
+        api.get('/mercadolibre/webhook-events?limit=12').catch(() => ({ data: { data: [] } })),
+      ]);
+      setWebhookEvents(webhookResponse.data || []);
+      applyOrderSync(
+        ordersResponse.data,
+        `Publicacion ${item.itemId} vinculada a ${selectedProduct?.sku || 'producto local'}.`,
+      );
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.message || `No se pudo vincular la publicacion ${item.itemId}.`,
+      });
+    } finally {
+      setLinkingItemId(null);
+      setWorking(false);
+    }
+  };
+
   if (loading) return <div>Cargando Mercado Libre...</div>;
 
   const integration = status?.integration;
@@ -153,7 +214,7 @@ const MercadoLibreSettingsScreen = () => {
         <div>
           <h2 className={styles.title}>Mercado Libre</h2>
           <p className={styles.subtitle}>
-            Fase 1: conectar cuenta, guardar tokens y preparar lectura de pedidos. La publicacion automatica queda para la siguiente fase.
+            Conecta la cuenta, vincula publicaciones con productos locales e importa pedidos sin duplicarlos.
           </p>
         </div>
         <button className={styles.primaryButton} type="button" onClick={connect} disabled={working || !status?.isConfigured}>
@@ -161,7 +222,13 @@ const MercadoLibreSettingsScreen = () => {
         </button>
       </div>
 
-      {message && <div className={`${styles.notice} ${message.type === 'success' ? styles.success : styles.error}`}>{message.text}</div>}
+      {message && (
+        <div className={`${styles.notice} ${
+          message.type === 'success' ? styles.success : message.type === 'warning' ? styles.warning : styles.error
+        }`}>
+          {message.text}
+        </div>
+      )}
 
       {!status?.isConfigured && (
         <div className={`${styles.notice} ${styles.error}`}>
@@ -327,7 +394,7 @@ const MercadoLibreSettingsScreen = () => {
                           {!result.error && !result.inventoryWarning && result.action === 'skipped' && (
                             <span>
                               No se importo porque la publicacion/producto de Mercado Libre no esta vinculada a un SKU local.
-                              Vincula el item en el producto antes de sincronizar.
+                              Usa el asistente de vinculacion que aparece debajo.
                             </span>
                           )}
                           {unmatched.length > 0 && (
@@ -344,6 +411,58 @@ const MercadoLibreSettingsScreen = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {unmatchedItems.length > 0 && (
+          <div className={styles.mappingPanel}>
+            <div>
+              <h4 className={styles.cardTitle}>Ventas pendientes de vincular</h4>
+              <p className={styles.subtitle}>
+                Elige a que producto de Tecnotitlan corresponde cada publicacion. Al vincularla se vuelven a leer los pedidos,
+                se crean en Pedidos, se aplica inventario y se avisa al equipo.
+              </p>
+            </div>
+
+            <div className={styles.mappingList}>
+              {unmatchedItems.map((item) => (
+                <div className={styles.mappingRow} key={item.itemId}>
+                  <div className={styles.mappingCopy}>
+                    <strong>{item.title || 'Publicacion de Mercado Libre'}</strong>
+                    <span>Item: {item.itemId}</span>
+                    {item.skuCandidates?.length > 0 && (
+                      <span>Referencias recibidas: {item.skuCandidates.join(', ')}</span>
+                    )}
+                  </div>
+                  <div className={styles.mappingControls}>
+                    <select
+                      className={styles.select}
+                      value={linkSelections[item.itemId] || ''}
+                      onChange={(event) => setLinkSelections((current) => ({
+                        ...current,
+                        [item.itemId]: event.target.value,
+                      }))}
+                      disabled={working}
+                    >
+                      <option value="">Selecciona un producto local</option>
+                      {products.map((product) => (
+                        <option value={product.id} key={product.id}>
+                          {product.sku} - {product.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className={styles.primaryButton}
+                      type="button"
+                      onClick={() => linkProductAndImport(item)}
+                      disabled={working || !linkSelections[item.itemId]}
+                    >
+                      {linkingItemId === item.itemId ? 'Vinculando...' : 'Vincular e importar'}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

@@ -730,19 +730,6 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
         orderItems: {
           create: items.map(({ product, raw, match, ...item }) => item),
         },
-        externalOrders: {
-          create: {
-            channel: MELI_CHANNEL,
-            externalOrderId,
-            externalStatus: meliOrder.status || null,
-            customerName: getMeliCustomerName(meliOrder),
-            totalPrice,
-            shippingPrice,
-            netRevenue: totalPrice,
-            orderedAt: toSafeDate(meliOrder.date_created),
-            rawData: { meliOrder, matchedItems: items.map((item) => ({ productId: item.productId, match: item.match })) },
-          },
-        },
         statusHistory: {
           create: {
             status: orderStatus,
@@ -753,6 +740,37 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
         },
       },
       include: ORDER_INCLUDE,
+    });
+
+    await tx.externalOrder.upsert({
+      where: {
+        channel_externalOrderId: {
+          channel: MELI_CHANNEL,
+          externalOrderId,
+        },
+      },
+      update: {
+        externalStatus: meliOrder.status || null,
+        customerName: getMeliCustomerName(meliOrder),
+        totalPrice,
+        shippingPrice,
+        netRevenue: totalPrice,
+        orderedAt: toSafeDate(meliOrder.date_created),
+        rawData: { meliOrder, matchedItems: items.map((item) => ({ productId: item.productId, match: item.match })) },
+        orderId: createdOrder.id,
+      },
+      create: {
+        channel: MELI_CHANNEL,
+        externalOrderId,
+        externalStatus: meliOrder.status || null,
+        customerName: getMeliCustomerName(meliOrder),
+        totalPrice,
+        shippingPrice,
+        netRevenue: totalPrice,
+        orderedAt: toSafeDate(meliOrder.date_created),
+        rawData: { meliOrder, matchedItems: items.map((item) => ({ productId: item.productId, match: item.match })) },
+        orderId: createdOrder.id,
+      },
     });
 
     if (inventoryWarning) {

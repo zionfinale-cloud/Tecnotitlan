@@ -944,6 +944,21 @@ Cuando una orden se importa correctamente:
 
 La pantalla `/admin/settings/mercadolibre` muestra dos niveles: la orden leida desde Mercado Libre y el resultado de importacion. `Importado a pedidos` significa que ya debe aparecer en `Pedidos`; `Ya existia` significa que el folio ya estaba creado; `Requiere revision` significa que falta vincular la publicacion/SKU o corregir stock asignado; `Error al importar` indica fallo tecnico a revisar en logs.
 
+#### Vinculacion asistida de ventas pendientes
+
+Cuando Mercado Libre entrega una orden cuyo item no esta vinculado a un SKU local, Tecnotitlan conserva la orden externa para auditoria, pero no crea el pedido interno, no descuenta inventario y no envia una notificacion de venta. Esto evita ventas fantasma y movimientos sobre el producto equivocado.
+
+La correccion se realiza en la misma pantalla `/admin/settings/mercadolibre`:
+
+1. Presionar `Leer pedidos`.
+2. En `Ventas pendientes de vincular`, identificar la publicacion recibida por titulo e ID `MLM...`.
+3. Seleccionar el producto maestro correcto de Tecnotitlan.
+4. Presionar `Vincular e importar`.
+
+El vinculo se guarda en `Product.meliItemId` y en `MarketplaceListing`, por lo que solo se declara una vez. Despues, el sistema vuelve a leer las ordenes pendientes de forma idempotente: reutiliza la auditoria externa, crea un unico pedido `MELI-{id}`, valida y descuenta el stock asignado a Mercado Libre cuando corresponde, y notifica al equipo por los canales habilitados. Repetir `Leer pedidos` no duplica el pedido, el movimiento de inventario ni la notificacion.
+
+Si la publicacion ya esta vinculada a otro producto, el sistema rechaza el cambio para evitar mezclar catalogos. Si la orden puede vincularse pero falta stock asignado al canal, el pedido se crea y queda visible con una advertencia operativa; no se inventa existencia ni se descuenta stock de bodega.
+
 Nota de sandbox Mercado Pago/Mercado Libre: el simulador de Mercado Pago puede enviar eventos como `payment.updated`, `test.created` o `application.authorized` al mismo endpoint y recibir `200 OK`. Eso solo confirma que Tecnotitlan recibio el POST. No significa que exista una orden importable de Mercado Libre. Para crear o revisar pedidos de Mercado Libre el webhook debe traer formato de marketplace (`topic` y `resource`) o se debe leer la orden con el token de vendedor. Los eventos de Mercado Pago recibidos en este endpoint quedan en la bitacora como `Recibido / omitido` para auditoria, sin tocar inventario ni pedidos.
 
 ### Alerta de recompra operativa
