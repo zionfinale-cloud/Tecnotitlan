@@ -10,6 +10,7 @@ import {
   getMeliOrders,
   disconnectMeli,
   getMeliItemDetails,
+  getPublicationRequirements,
   syncStock,
 } from '../controllers/mercadoLibreController.js';
 import { protect } from '../middleware/authMiddleware.js';
@@ -25,6 +26,12 @@ router.post('/token', protect, checkPermission('integration:update'), exchangeCo
 router.delete('/disconnect', protect, checkPermission('integration:delete'), disconnectMeli);
 
 router.get('/items/:meliItemId', protect, checkPermission('product:read'), getMeliItemDetails);
+router.get(
+  '/publication-requirements',
+  protect,
+  checkPermission('integration:read'),
+  getPublicationRequirements
+);
 router.put('/products/:sku/sync', protect, checkPermission('product:update'), syncStock);
 router.post('/notifications', handleWebhookNotification);
 router.get('/webhook-events', protect, checkPermission('integration:read'), getWebhookEvents);

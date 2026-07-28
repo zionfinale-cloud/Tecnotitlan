@@ -12,6 +12,7 @@ import {
   getLowStockProducts,
   countProducts,
   linkProductToMeli,
+  publishProductToMeli,
   createProductReview,
   deleteProductReview,
   getTopProducts,
@@ -48,6 +49,7 @@ router.delete('/:sku/permanent', protect, checkPermission('product:delete'), per
 router.route('/:sku/reviews').post(protect, createProductReview);
 router.route('/:sku/reviews/:reviewId').delete(protect, checkPermission('product:delete'), deleteProductReview);
 router.put('/:id/link-meli', protect, checkPermission('product:update'), linkProductToMeli);
+router.post('/:id/publish-meli', protect, checkPermission('product:update'), publishProductToMeli);
 router.put('/:id/stock', protect, checkPermission('product:update'), updateProductStock);
 
 // --- Ruta genérica por SKU (debe ir al final) ---

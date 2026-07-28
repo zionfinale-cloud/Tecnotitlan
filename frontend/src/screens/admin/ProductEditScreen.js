@@ -125,6 +125,13 @@ const ProductEditScreen = () => {
   const [meliPreview, setMeliPreview] = useState(null);
   const [meliMessage, setMeliMessage] = useState('');
   const [meliError, setMeliError] = useState('');
+  const [meliRequirements, setMeliRequirements] = useState(null);
+  const [meliPublishForm, setMeliPublishForm] = useState({
+    categoryId: '',
+    listingTypeId: 'gold_special',
+    condition: 'new',
+    attributes: {},
+  });
 
   const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
   const predefinedSkuValues = useMemo(() => SKU_PREFIXES.map((prefix) => prefix.value), []);
@@ -376,6 +383,109 @@ const ProductEditScreen = () => {
     }
   };
 
+  const prepareMeliPublication = async () => {
+    if (!isEditing) {
+      setMeliError('Guarda primero el producto antes de preparar la publicacion.');
+      return;
+    }
+
+    setMeliLoading(true);
+    setMeliError('');
+    setMeliMessage('');
+
+    try {
+      const { data } = await api.get('/mercadolibre/publication-requirements', {
+        params: {
+          title: form.name,
+          productId: id,
+          categoryId: meliPublishForm.categoryId || undefined,
+        },
+      });
+      const requirements = data.data || {};
+      setMeliRequirements(requirements);
+      setMeliPublishForm((current) => ({
+        ...current,
+        categoryId: requirements.categoryId || current.categoryId,
+        attributes: (requirements.attributes || []).reduce((result, attribute) => ({
+          ...result,
+          [attribute.id]: current.attributes[attribute.id] || (
+            attribute.id === 'BRAND' ? form.brand : ''
+          ),
+        }), {}),
+      }));
+      setMeliMessage(
+        requirements.inventory?.assignedStock > 0
+          ? 'Ficha preparada. Revisa categoria, atributos y stock antes de publicar.'
+          : 'Ficha preparada, pero primero debes traspasar piezas de Bodega/Web a Mercado Libre.'
+      );
+    } catch (err) {
+      setMeliRequirements(null);
+      setMeliError(err.response?.data?.message || 'No se pudo preparar la publicacion de Mercado Libre.');
+    } finally {
+      setMeliLoading(false);
+    }
+  };
+
+  const updateMeliAttribute = (attributeId, value) => {
+    setMeliPublishForm((current) => ({
+      ...current,
+      attributes: {
+        ...current.attributes,
+        [attributeId]: value,
+      },
+    }));
+  };
+
+  const publishMeliProduct = async () => {
+    if (!meliRequirements) {
+      setMeliError('Primero prepara y revisa la publicacion.');
+      return;
+    }
+
+    const missingAttribute = (meliRequirements.attributes || []).find(
+      (attribute) => attribute.required && !String(
+        meliPublishForm.attributes[attribute.id] || ''
+      ).trim()
+    );
+    if (missingAttribute) {
+      setMeliError(`Completa el atributo obligatorio: ${missingAttribute.name}.`);
+      return;
+    }
+
+    setMeliLoading(true);
+    setMeliError('');
+    setMeliMessage('');
+
+    try {
+      const attributes = Object.entries(meliPublishForm.attributes)
+        .map(([attributeId, value]) => ({
+          id: attributeId,
+          value_name: String(value || '').trim(),
+        }))
+        .filter((attribute) => attribute.value_name);
+      const { data } = await api.post(`/products/${encodeURIComponent(id)}/publish-meli`, {
+        categoryId: meliPublishForm.categoryId,
+        listingTypeId: meliPublishForm.listingTypeId,
+        condition: meliPublishForm.condition,
+        attributes,
+      });
+      const product = data.data?.product || {};
+      const item = data.data?.item || {};
+      setForm((current) => ({
+        ...current,
+        meliItemId: product.meliItemId || item.id || '',
+        meliPublicationUrl: product.meliPublicationUrl || item.permalink || '',
+        lastMeliSync: product.lastMeliSync || new Date().toISOString(),
+      }));
+      setMeliPreview(item);
+      setMeliMessage(data.message || 'Producto publicado correctamente en Mercado Libre.');
+    } catch (err) {
+      setMeliError(err.response?.data?.message || 'No se pudo publicar el producto en Mercado Libre.');
+    } finally {
+      setMeliLoading(false);
+    }
+  };
+
   const linkMeliPublication = async () => {
     const itemId = String(form.meliItemId || '').trim();
     if (!isEditing || !itemId) {
@@ -397,7 +507,11 @@ const ProductEditScreen = () => {
         meliPublicationUrl: product.meliPublicationUrl || current.meliPublicationUrl,
         lastMeliSync: product.lastMeliSync || '',
       }));
-      setMeliMessage('Producto vinculado a Mercado Libre. Ya puedes sincronizar stock cuando lo necesites.');
+      const assignedStock = Number(data.data?.assignedStock || 0);
+      const remoteStock = Number(data.data?.remoteStockBeforeLink || 0);
+      setMeliMessage(
+        `Publicacion vinculada. Mercado Libre tenia ${remoteStock} pieza(s) y Tecnotitlan la concilio a ${assignedStock} pieza(s) asignadas.`
+      );
     } catch (err) {
       setMeliError(err.response?.data?.message || 'No se pudo vincular el producto con Mercado Libre.');
     } finally {
@@ -600,11 +714,136 @@ const ProductEditScreen = () => {
               <div className={`${styles.field} ${styles.fieldFull}`}>
                 <label className={styles.label}>Mercado Libre</label>
                 <div className={styles.assistBox}>
-                  <strong>Vinculo de publicacion</strong>
+                  {!form.meliItemId && (
+                    <>
+                      <strong>Publicar desde Tecnotitlan</strong>
+                      <small>
+                        Tecnotitlan creara la publicacion, guardara el item ID y enviara solamente el stock
+                        que hayas traspasado a Mercado Libre.
+                      </small>
+                      <div className={styles.inlineForm}>
+                        <button
+                          className={styles.secondaryButton}
+                          type="button"
+                          onClick={prepareMeliPublication}
+                          disabled={meliLoading}
+                        >
+                          {meliRequirements ? 'Actualizar preparacion' : 'Preparar publicacion'}
+                        </button>
+                      </div>
+                      {meliRequirements && (
+                        <>
+                          <div className={styles.inventorySummary}>
+                            <span>Bodega/Web <strong>{meliRequirements.inventory?.warehouseStock ?? 0}</strong></span>
+                            <span>Asignado a Meli <strong>{meliRequirements.inventory?.assignedStock ?? 0}</strong></span>
+                            <span>Publicable <strong>{meliRequirements.inventory?.publishableStock ?? 0}</strong></span>
+                          </div>
+                          <small>
+                            Categoria sugerida: <strong>
+                              {meliRequirements.categoryName || meliRequirements.categoryId}
+                            </strong>
+                            {meliRequirements.domainName ? ` / ${meliRequirements.domainName}` : ''}
+                          </small>
+                          <div className={styles.formGrid}>
+                            <div className={styles.field}>
+                              <label className={styles.label} htmlFor="meli-category">Categoria Meli</label>
+                              <input
+                                id="meli-category"
+                                className={styles.input}
+                                value={meliPublishForm.categoryId}
+                                onChange={(event) => setMeliPublishForm((current) => ({
+                                  ...current,
+                                  categoryId: event.target.value.trim().toUpperCase(),
+                                }))}
+                              />
+                            </div>
+                            <div className={styles.field}>
+                              <label className={styles.label} htmlFor="meli-listing-type">Tipo de publicacion</label>
+                              <select
+                                id="meli-listing-type"
+                                className={styles.select}
+                                value={meliPublishForm.listingTypeId}
+                                onChange={(event) => setMeliPublishForm((current) => ({
+                                  ...current,
+                                  listingTypeId: event.target.value,
+                                }))}
+                              >
+                                <option value="gold_special">Clasica</option>
+                                <option value="gold_pro">Premium</option>
+                              </select>
+                            </div>
+                            <div className={styles.field}>
+                              <label className={styles.label} htmlFor="meli-condition">Condicion</label>
+                              <select
+                                id="meli-condition"
+                                className={styles.select}
+                                value={meliPublishForm.condition}
+                                onChange={(event) => setMeliPublishForm((current) => ({
+                                  ...current,
+                                  condition: event.target.value,
+                                }))}
+                              >
+                                <option value="new">Nuevo</option>
+                                <option value="used">Usado</option>
+                              </select>
+                            </div>
+                          </div>
+                          {(meliRequirements.attributes || []).length > 0 && (
+                            <div className={styles.meliAttributeGrid}>
+                              {(meliRequirements.attributes || []).map((attribute) => (
+                                <div className={styles.field} key={attribute.id}>
+                                  <label className={styles.label} htmlFor={`meli-${attribute.id}`}>
+                                    {attribute.name}{attribute.required ? ' *' : ''}
+                                  </label>
+                                  {attribute.values?.length ? (
+                                    <select
+                                      id={`meli-${attribute.id}`}
+                                      className={styles.select}
+                                      value={meliPublishForm.attributes[attribute.id] || ''}
+                                      onChange={(event) => updateMeliAttribute(attribute.id, event.target.value)}
+                                    >
+                                      <option value="">Selecciona</option>
+                                      {attribute.values.map((value) => (
+                                        <option key={value.id || value.name} value={value.name}>
+                                          {value.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <input
+                                      id={`meli-${attribute.id}`}
+                                      className={styles.input}
+                                      value={meliPublishForm.attributes[attribute.id] || ''}
+                                      onChange={(event) => updateMeliAttribute(attribute.id, event.target.value)}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            className={styles.button}
+                            type="button"
+                            onClick={publishMeliProduct}
+                            disabled={meliLoading || Number(meliRequirements.inventory?.publishableStock || 0) <= 0}
+                          >
+                            Publicar en Mercado Libre
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                  <strong>{form.meliItemId ? 'Publicacion vinculada' : 'Vincular una publicacion existente'}</strong>
                   <small>
-                    Pega aqui el ID de la publicacion de Mercado Libre para validar que existe, guardar el vinculo
-                    y sincronizar el stock local cuando lo decidas.
+                    Si la publicacion ya existe, pega su ID. Al vincularla, el stock remoto se reemplazara
+                    por las piezas realmente asignadas desde Inventario.
                   </small>
+                  {!form.meliItemId && (
+                    <small>
+                      Primero realiza el traspaso Bodega/Web → Mercado Libre. Sin stock asignado,
+                      Tecnotitlan no permitira guardar el vinculo ni modificar la publicacion remota.
+                    </small>
+                  )}
                   <div className={styles.inlineForm}>
                     <input
                       className={styles.input}

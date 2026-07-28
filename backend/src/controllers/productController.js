@@ -5,6 +5,11 @@ import path from 'path';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
 import { NotFoundError, BadRequestError } from '../utils/errorUtils.js';
 import * as meliService from '../services/mercadoLibreService.js';
+import { getConfig } from '../services/configService.js';
+import {
+  getPublishableStock,
+  syncMercadoLibreListingStock,
+} from '../services/channelStockSyncService.js';
 import logger from '../utils/logger.js';
 
 const SKU_PREFIX_BY_CATEGORY = {
@@ -681,6 +686,21 @@ const linkProductToMeli = asyncHandler(async (req, res, next) => {
     ));
   }
 
+  const existingListing = await prisma.marketplaceListing.findUnique({
+    where: {
+      productId_channel: {
+        productId: product.id,
+        channel: 'MERCADOLIBRE',
+      },
+    },
+  });
+  const assignedStock = Number(existingListing?.publishedStock || 0);
+  if (assignedStock <= 0) {
+    return next(new BadRequestError(
+      'Antes de vincular la publicacion, traspasa al menos una pieza desde Bodega/Web a Mercado Libre. Tecnotitlan usara esa existencia asignada como unica fuente de stock.',
+    ));
+  }
+
   // Validar que el item de Meli existe y pertenece al usuario conectado.
   const meliItem = await meliService.getItem(userId, normalizedMeliItemId);
   if (!meliItem) {
@@ -688,6 +708,15 @@ const linkProductToMeli = asyncHandler(async (req, res, next) => {
   }
 
   const linkedAt = new Date();
+  const remoteAvailableQuantity = Number(meliItem.available_quantity || 0);
+  const listingRawData = {
+    ...meliItem,
+    tecnotitlan: {
+      linkedAt: linkedAt.toISOString(),
+      remoteAvailableQuantity,
+      inventorySource: 'LOCAL_ASSIGNED_STOCK',
+    },
+  };
   const updatedProduct = await prisma.$transaction(async (tx) => {
     const nextProduct = await tx.product.update({
       where: { id: product.id },
@@ -710,11 +739,10 @@ const linkProductToMeli = asyncHandler(async (req, res, next) => {
         externalSku: product.sku,
         title: meliItem.title || product.name,
         price: Number(meliItem.price || product.price || 0),
-        publishedStock: Number(meliItem.available_quantity || 0),
         status: meliItem.status === 'active' ? 'ACTIVE' : 'READY',
         syncStatus: 'LINKED',
         lastSyncedAt: linkedAt,
-        rawData: meliItem,
+        rawData: listingRawData,
       },
       create: {
         productId: product.id,
@@ -723,18 +751,54 @@ const linkProductToMeli = asyncHandler(async (req, res, next) => {
         externalSku: product.sku,
         title: meliItem.title || product.name,
         price: Number(meliItem.price || product.price || 0),
-        publishedStock: Number(meliItem.available_quantity || 0),
+        publishedStock: 0,
         status: meliItem.status === 'active' ? 'ACTIVE' : 'READY',
         syncStatus: 'LINKED',
         lastSyncedAt: linkedAt,
-        rawData: meliItem,
+        rawData: listingRawData,
       },
     });
 
     return nextProduct;
   });
 
-  res.status(200).json({ status: 'success', data: { product: updatedProduct } });
+  const marketplaceListing = await prisma.marketplaceListing.findUnique({
+    where: {
+      productId_channel: {
+        productId: updatedProduct.id,
+        channel: 'MERCADOLIBRE',
+      },
+    },
+  });
+  let syncResult = null;
+  let syncWarning = null;
+
+  try {
+    syncResult = await syncMercadoLibreListingStock({
+      userId,
+      product: updatedProduct,
+      listing: marketplaceListing,
+    });
+  } catch (syncError) {
+    syncWarning = syncError.message;
+    logger.warn(
+      `[ProductCtrl] ${updatedProduct.sku} vinculado, pero no se concilio stock Meli: ${syncError.message}`
+    );
+  }
+
+  res.status(200).json({
+    status: 'success',
+    message: syncWarning
+      ? 'Publicacion vinculada. Revisa la sincronizacion de inventario.'
+      : 'Publicacion vinculada y stock conciliado con el inventario asignado.',
+    data: {
+      product: updatedProduct,
+      sync: syncResult,
+      warning: syncWarning,
+      remoteStockBeforeLink: remoteAvailableQuantity,
+      assignedStock: Number(marketplaceListing?.publishedStock || assignedStock),
+    },
+  });
 });
 
 /**
@@ -742,6 +806,150 @@ const linkProductToMeli = asyncHandler(async (req, res, next) => {
  * @route   POST /api/products/:sku/reviews
  * @access  Private
  */
+const toPublicProductImageUrl = (url) => {
+  if (!url || String(url).startsWith('data:') || String(url).startsWith('blob:')) {
+    return null;
+  }
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  const apiBaseUrl = getConfig().API_PUBLIC_URL || 'https://api.tecnotitlan.com.mx';
+  try {
+    return new URL(url, `${apiBaseUrl.replace(/\/$/, '')}/`).toString();
+  } catch {
+    return null;
+  }
+};
+
+const publishProductToMeli = asyncHandler(async (req, res, next) => {
+  const product = await prisma.product.findUnique({
+    where: { id: req.params.id },
+    include: {
+      media: true,
+      characteristics: true,
+      marketplaceListings: {
+        where: { channel: 'MERCADOLIBRE' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!product) {
+    return next(new NotFoundError('Producto no encontrado'));
+  }
+  if (product.meliItemId) {
+    return next(new BadRequestError(
+      'Este producto ya tiene una publicacion de Mercado Libre vinculada.'
+    ));
+  }
+
+  const listing = product.marketplaceListings[0];
+  if (!listing || Number(listing.publishedStock || 0) <= 0) {
+    return next(new BadRequestError(
+      'Primero traspasa unidades de Bodega/Web a Mercado Libre desde Inventario.'
+    ));
+  }
+
+  const categoryId = String(req.body.categoryId || '').trim();
+  if (!categoryId) {
+    return next(new BadRequestError('Selecciona una categoria valida de Mercado Libre.'));
+  }
+
+  const pictures = product.media
+    .filter((media) => !media.type || String(media.type).toUpperCase() === 'IMAGE')
+    .map((media) => toPublicProductImageUrl(media.url))
+    .filter(Boolean)
+    .slice(0, 12)
+    .map((source) => ({ source }));
+
+  if (pictures.length === 0) {
+    return next(new BadRequestError(
+      'Agrega al menos una imagen publica al producto antes de publicarlo en Mercado Libre.'
+    ));
+  }
+
+  const submittedAttributes = Array.isArray(req.body.attributes) ? req.body.attributes : [];
+  const attributes = submittedAttributes
+    .map((attribute) => ({
+      id: String(attribute?.id || '').trim(),
+      value_name: String(attribute?.value_name ?? attribute?.valueName ?? '').trim(),
+    }))
+    .filter((attribute) => attribute.id && attribute.value_name);
+
+  if (product.brand && !attributes.some((attribute) => attribute.id === 'BRAND')) {
+    attributes.push({ id: 'BRAND', value_name: product.brand });
+  }
+
+  const stockToPublish = getPublishableStock(listing);
+  const payload = {
+    title: String(product.name || product.sku).trim().slice(0, 60),
+    category_id: categoryId,
+    price: Number(product.price),
+    currency_id: 'MXN',
+    available_quantity: stockToPublish,
+    buying_mode: 'buy_it_now',
+    listing_type_id: String(req.body.listingTypeId || 'gold_special'),
+    condition: String(req.body.condition || 'new'),
+    pictures,
+    attributes,
+    seller_custom_field: product.sku,
+  };
+
+  const meliItem = await meliService.createItem(req.user.id, payload);
+  await meliService.createItemDescription(req.user.id, meliItem.id, product.description);
+
+  const now = new Date();
+  const rawData = {
+    ...meliItem,
+    tecnotitlan: {
+      publishedAt: now.toISOString(),
+      inventorySource: 'LOCAL_ASSIGNED_STOCK',
+      assignedStock: Number(listing.publishedStock || 0),
+      stockBuffer: Number(listing.stockBuffer || 0),
+      publishedStock: stockToPublish,
+    },
+  };
+
+  const updatedProduct = await prisma.$transaction(async (tx) => {
+    const savedProduct = await tx.product.update({
+      where: { id: product.id },
+      data: {
+        meliItemId: meliItem.id,
+        meliPublicationUrl: meliItem.permalink || null,
+        lastMeliSync: now,
+      },
+    });
+
+    await tx.marketplaceListing.update({
+      where: { id: listing.id },
+      data: {
+        externalProductId: meliItem.id,
+        externalSku: product.sku,
+        title: meliItem.title || payload.title,
+        price: Number(meliItem.price ?? product.price),
+        status: 'ACTIVE',
+        syncStatus: 'SYNCED_TO_MELI',
+        lastSyncedAt: now,
+        rawData,
+      },
+    });
+
+    return savedProduct;
+  });
+
+  res.status(201).json({
+    status: 'success',
+    message: `Producto publicado con ${stockToPublish} pieza(s) asignadas a Mercado Libre.`,
+    data: {
+      product: updatedProduct,
+      item: meliItem,
+      assignedStock: Number(listing.publishedStock || 0),
+      publishedStock: stockToPublish,
+    },
+  });
+});
+
 const createProductReview = asyncHandler(async (req, res, next) => {
   const { rating, comment } = req.body;
   const product = await prisma.product.findUnique({ where: { sku: req.params.sku.toUpperCase() } });
@@ -1024,6 +1232,7 @@ export {
   getLowStockProducts,
   countProducts,
   linkProductToMeli, // Exportar la nueva función
+  publishProductToMeli,
   createProductReview,
   deleteProductReview,
   getTopProducts,

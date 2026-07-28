@@ -4,7 +4,10 @@ import { getConfig } from '../services/configService.js';
 import { generateRandomString, generateCodeChallenge } from '../utils/pkce.js';
 import logger from '../utils/logger.js';
 import prisma from '../config/prisma.js';
-import { syncMercadoLibreListingStock } from '../services/channelStockSyncService.js';
+import {
+  getPublishableStock,
+  syncMercadoLibreListingStock,
+} from '../services/channelStockSyncService.js';
 
 const oauthStates = new Map();
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -160,6 +163,89 @@ const getMeliItemDetails = asyncHandler(async (req, res) => {
   res.status(200).json({ status: 'success', data: itemDetails });
 });
 
+const getPublicationRequirements = asyncHandler(async (req, res) => {
+  const title = String(req.query.title || '').trim();
+  const productId = String(req.query.productId || '').trim();
+  let categoryId = String(req.query.categoryId || '').trim();
+  let prediction = null;
+  let inventory = null;
+
+  if (productId) {
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        countInStock: true,
+        marketplaceListings: {
+          where: { channel: 'MERCADOLIBRE' },
+          take: 1,
+          select: {
+            publishedStock: true,
+            stockBuffer: true,
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      res.status(404);
+      throw new Error('Producto local no encontrado.');
+    }
+
+    const listing = product.marketplaceListings[0] || null;
+    inventory = {
+      warehouseStock: Number(product.countInStock || 0),
+      assignedStock: Number(listing?.publishedStock || 0),
+      stockBuffer: Number(listing?.stockBuffer || 0),
+      publishableStock: getPublishableStock(listing),
+    };
+  }
+
+  if (!categoryId) {
+    if (!title) {
+      res.status(400);
+      throw new Error('Indica el titulo del producto para sugerir una categoria.');
+    }
+    prediction = await mercadoLibreService.predictCategory(req.user.id, title);
+    categoryId = prediction?.category_id || '';
+  }
+
+  if (!categoryId) {
+    res.status(422);
+    throw new Error('Mercado Libre no pudo sugerir una categoria. Capturala manualmente.');
+  }
+
+  const attributes = await mercadoLibreService.getCategoryAttributes(req.user.id, categoryId);
+  const editableAttributes = attributes
+    .filter((attribute) => {
+      const tags = attribute?.tags || {};
+      return Boolean(tags.required || tags.catalog_required || tags.recommended);
+    })
+    .map((attribute) => ({
+      id: attribute.id,
+      name: attribute.name,
+      valueType: attribute.value_type,
+      required: Boolean(attribute?.tags?.required || attribute?.tags?.catalog_required),
+      values: Array.isArray(attribute.values)
+        ? attribute.values.slice(0, 100).map((value) => ({
+          id: value.id,
+          name: value.name,
+        }))
+        : [],
+    }));
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      categoryId,
+      categoryName: prediction?.category_name || null,
+      domainName: prediction?.domain_name || null,
+      attributes: editableAttributes,
+      inventory,
+    },
+  });
+});
+
 const syncStock = asyncHandler(async (req, res) => {
   const { sku } = req.params;
   const product = await prisma.product.findUnique({
@@ -223,5 +309,6 @@ export {
   getMeliOrders,
   disconnectMeli,
   getMeliItemDetails,
+  getPublicationRequirements,
   syncStock,
 };

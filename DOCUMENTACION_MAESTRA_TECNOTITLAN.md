@@ -1131,6 +1131,51 @@ Si después de un despliegue nuevo no puedes iniciar sesión y recibes un error 
 2.  **Conflicto con reCAPTCHA:** Si en la consola del navegador ves un aviso de `recaptcha key not provided`, puede que el backend esté requiriendo la validación pero el frontend no la esté enviando.
     -   **Solución a Largo Plazo:** Asegúrate de que las variables `REACT_APP_RECAPTCHA_SITE_KEY` (en el frontend) y `RECAPTCHA_SECRET_KEY` (en el backend) estén configuradas correctamente.
     -   **Prueba de Diagnóstico Rápida:** Para descartar que este sea el problema, puedes comentar temporalmente el middleware de `verifyCaptcha` en la ruta de login (`/api/users/login`) dentro del archivo `d:/Tecnotitlan/backend/src/routes/userRoutes.js`.
+---
+
+## 16. Mercado Libre: publicacion, inventario e importacion de pedidos
+
+### Fuente unica de inventario
+
+Tecnotitlan es la fuente de verdad del inventario. Las cantidades tienen significados distintos:
+
+- **Bodega/Web:** piezas fisicas disponibles en Tecnotitlan.
+- **Asignado a Mercado Libre:** piezas que salieron de Bodega/Web y quedaron reservadas para ese canal.
+- **Publicado en Mercado Libre:** cantidad remota enviada por Tecnotitlan. Se calcula como asignado menos stock de seguridad.
+
+Un traspaso de 5 piezas desde Bodega/Web a Mercado Libre deja 0 en bodega si solo habia 5, y deja 5 asignadas a Mercado Libre. No crea otras 5 piezas. Si una publicacion existente tenia 10 unidades remotas, al vincularla Tecnotitlan la concilia a las 5 realmente asignadas.
+
+### Flujo recomendado para un producto nuevo
+
+1. Crear el producto en **Productos** con SKU, precio, descripcion, caracteristicas e imagenes.
+2. Registrar la entrada fisica en **Inventario > Entradas**.
+3. Realizar el traspaso desde **Bodega/Web** hacia **Mercado Libre**.
+4. Abrir el producto, entrar a la seccion **Mercado Libre** y pulsar **Preparar publicacion**.
+5. Confirmar categoria, atributos obligatorios, condicion y tipo de publicacion.
+6. Pulsar **Publicar en Mercado Libre**.
+7. Tecnotitlan crea la publicacion, guarda el item ID, vincula el SKU y publica exclusivamente el stock asignado.
+
+La publicacion se bloquea si no existe stock asignado a Mercado Libre. Para publicaciones creadas previamente fuera de Tecnotitlan, primero se hace el traspaso y despues se usa **Vincular una publicacion existente**.
+
+### Recuperacion del producto AUR-002
+
+La publicacion de prueba `MLM3193668611` usa el SKU local `AUR-002`. Si se traspasaron 5 piezas y Bodega/Web quedo en 0, esa distribucion es correcta: las 5 piezas ahora pertenecen al canal Mercado Libre. Al vincular el item, la cantidad remota anterior de 10 debe conciliarse a 5, no sumarse.
+
+### Importacion de pedidos y comisiones
+
+Los pedidos de Mercado Libre se importan de forma idempotente por su ID externo. La comision reportada por Mercado Libre (`marketplace_fee`) se guarda como `paymentFee`; el ingreso neto se calcula como total menos comisiones. Solo despues de crear correctamente el pedido interno se descuenta inventario y se notifican la venta y el estado al equipo.
+
+Las ordenes que antes fallaron con `Argument paymentFee is missing` se pueden recuperar despues de desplegar el backend actualizado pulsando **Leer pedidos**. El reintento no duplica pedidos ya importados.
+
+### Despliegue
+
+No se requiere migracion de Prisma para esta fase. En EasyPanel:
+
+1. Desplegar primero el servicio **api**.
+2. Confirmar que el backend inicia y conecta con Prisma.
+3. Desplegar despues el servicio **web**.
+4. Abrir Mercado Libre en Configuracion y pulsar **Leer pedidos**.
+
 # Aviso de Privacidad Integral
 
 **Última actualización:** Diciembre 2025

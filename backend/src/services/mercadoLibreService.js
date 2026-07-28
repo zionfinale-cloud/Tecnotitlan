@@ -155,6 +155,13 @@ const buildMeliPaymentResult = (order = {}) => ({
   },
 });
 
+const getMeliPaymentFee = (order = {}) => {
+  const payments = Array.isArray(order.payments) ? order.payments : [];
+  return payments
+    .filter((payment) => String(payment?.status || '').toLowerCase() === 'approved')
+    .reduce((total, payment) => total + toNumber(payment?.marketplace_fee, 0), 0);
+};
+
 const getLineItemId = (line = {}) => line.item?.id || line.item_id || line.item?.item_id || null;
 
 const collectSkuCandidates = (line = {}) => uniqueTruthy([
@@ -640,6 +647,8 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
   const shippingPrice = toNumber(meliOrder.shipping?.cost, 0);
   const itemsPrice = items.reduce((total, item) => total + item.qty * item.price, 0);
   const totalPrice = toNumber(meliOrder.paid_amount, toNumber(meliOrder.total_amount, itemsPrice + shippingPrice));
+  const paymentFee = getMeliPaymentFee(meliOrder);
+  const netRevenue = Math.max(totalPrice - paymentFee, 0);
 
   if (items.length === 0) {
     await prisma.externalOrder.upsert({
@@ -706,6 +715,7 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
         taxPrice: 0,
         shippingPrice,
         totalPrice,
+        paymentFee,
         isPaid,
         paidAt: isPaid ? (toSafeDate(meliOrder.date_closed) || toSafeDate(meliOrder.date_created) || new Date()) : null,
         paymentMethod: 'Mercado Libre',
@@ -754,7 +764,8 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
         customerName: getMeliCustomerName(meliOrder),
         totalPrice,
         shippingPrice,
-        netRevenue: totalPrice,
+        feesEstimated: paymentFee,
+        netRevenue,
         orderedAt: toSafeDate(meliOrder.date_created),
         rawData: { meliOrder, matchedItems: items.map((item) => ({ productId: item.productId, match: item.match })) },
         orderId: createdOrder.id,
@@ -766,7 +777,8 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
         customerName: getMeliCustomerName(meliOrder),
         totalPrice,
         shippingPrice,
-        netRevenue: totalPrice,
+        feesEstimated: paymentFee,
+        netRevenue,
         orderedAt: toSafeDate(meliOrder.date_created),
         rawData: { meliOrder, matchedItems: items.map((item) => ({ productId: item.productId, match: item.match })) },
         orderId: createdOrder.id,
@@ -803,7 +815,13 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
   });
 
   if (notifyStaff && isPaid && order) {
-    await notifyStaffOrderPaid(order);
+    try {
+      await notifyStaffOrderPaid(order);
+    } catch (notificationError) {
+      logger.error(
+        `[MercadoLibre] Orden ${order.orderNumber} importada, pero fallo el aviso al equipo: ${notificationError.message}`
+      );
+    }
   }
 
   return {
@@ -875,6 +893,107 @@ const getItem = async (userId, meliItemId) => {
     return data;
   } catch (error) {
     logger.error(`[Meli Service] Error al obtener item ${meliItemId}:`, error.response?.data || error.message);
+    return null;
+  }
+};
+
+const getMeliErrorMessage = (error, fallback) => {
+  const apiMessage = error?.response?.data?.message;
+  const apiCause = error?.response?.data?.cause;
+  const causeMessage = Array.isArray(apiCause)
+    ? apiCause.map((cause) => cause?.message || cause?.code).filter(Boolean).join('; ')
+    : '';
+
+  return [apiMessage, causeMessage, error?.message, fallback].find(Boolean);
+};
+
+const predictCategory = async (userId, title) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.get(
+      `${MELI_API_BASE_URL}/sites/MLM/domain_discovery/search`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params: { q: title, limit: 1 },
+      }
+    );
+    return Array.isArray(data) ? data[0] || null : null;
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudo predecir categoria: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudo sugerir una categoria de Mercado Libre.'));
+  }
+};
+
+const getCategoryAttributes = async (userId, categoryId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.get(
+      `${MELI_API_BASE_URL}/categories/${categoryId}/attributes`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudieron leer atributos de ${categoryId}: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudieron leer los atributos de la categoria.'));
+  }
+};
+
+const createItem = async (userId, payload) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.post(`${MELI_API_BASE_URL}/items`, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return data;
+  } catch (error) {
+    logger.error(
+      `[MercadoLibre] No se pudo publicar: ${JSON.stringify(error?.response?.data || error.message)}`
+    );
+    throw new Error(getMeliErrorMessage(error, 'Mercado Libre rechazo la publicacion.'));
+  }
+};
+
+const createItemDescription = async (userId, itemId, plainText) => {
+  if (!plainText?.trim()) {
+    return null;
+  }
+
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.post(
+      `${MELI_API_BASE_URL}/items/${itemId}/description`,
+      { plain_text: plainText.trim() },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    return data;
+  } catch (error) {
+    logger.warn(
+      `[MercadoLibre] ${itemId} se publico, pero fallo su descripcion: ${error.message}`
+    );
     return null;
   }
 };
@@ -1024,5 +1143,9 @@ export {
   importMeliOrder,
   getOrder,
   getItem,
+  predictCategory,
+  getCategoryAttributes,
+  createItem,
+  createItemDescription,
   updateStock,
 };
