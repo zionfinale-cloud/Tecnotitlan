@@ -25,6 +25,7 @@ let io;
 let latestQr = null;
 let connectionStatus = 'DISCONNECTED';
 let isInitializing = false;
+let initializePromise = null;
 let lastError = null;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
@@ -1084,15 +1085,6 @@ const scheduleBaileysReconnect = (reason) => {
         pauseBaileysForManualReview(`Reconexión detenida después de ${maxReconnectAttempts} intento(s). Último motivo: ${reason || 'desconocido'}`);
         return;
     }
-    if (reconnectAttempt >= maxReconnectAttempts) {
-        connectionStatus = 'DISCONNECTED';
-        pausedAt = null;
-        reconnectAttempt = 0;
-        lastError = `Reconexión detenida después de ${maxReconnectAttempts} intento(s). Último motivo: ${reason || 'desconocido'}`;
-        logger.warn(`[WhatsApp] ${lastError}`);
-        emitStatus();
-        return;
-    }
 
     const delayMs = getReconnectDelayMs();
     reconnectAttempt += 1;
@@ -1539,7 +1531,7 @@ export const getLatestQr = () => {
     return latestQr;
 };
 
-export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => {
+const initializeInternal = async ({ allowQr = true, reason = 'manual' } = {}) => {
     if (isWhatsAppDisabledProvider()) {
         stopAutoConnectWatchdog();
         clearReconnectTimer();
@@ -1816,8 +1808,28 @@ export const initialize = async ({ allowQr = true, reason = 'manual' } = {}) => 
     }
 };
 
+export const initialize = async (options = {}) => {
+    if (isSocketReady()) return getStatus();
+
+    if (initializePromise) {
+        logger.info(`[WhatsApp] Inicialización reutilizada: ya hay un intento activo (${options.reason || 'manual'}).`);
+        await initializePromise.catch((error) => {
+            logger.warn(`[WhatsApp] Intento compartido terminó con error: ${error.message}`);
+        });
+        return getStatus();
+    }
+
+    initializePromise = initializeInternal(options);
+    try {
+        return await initializePromise;
+    } finally {
+        initializePromise = null;
+    }
+};
+
 const shouldSkipAutoConnect = () => resetInProgress
     || isInitializing
+    || Boolean(initializePromise)
     || Boolean(reconnectTimer)
     || connectionStatus === 'QR_RECEIVED'
     || connectionStatus === 'QR_REQUIRED';
