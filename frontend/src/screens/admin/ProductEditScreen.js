@@ -946,9 +946,18 @@ const ProductEditScreen = () => {
                       onError={(event) => {
                         setImageWarnings((current) => ({
                           ...current,
-                          [index]: 'La imagen se ve localmente, pero la URL publica no esta disponible. Revisa volumen /app/uploads o usa almacenamiento externo.',
+                          [index]: item.previewUrl
+                            ? 'No se pudo mostrar la vista previa local. Vuelve a seleccionar el archivo antes de guardar.'
+                            : 'La imagen no esta disponible publicamente. Guarda el producto para organizarla por SKU; si persiste, revisa el volumen /app/uploads.',
                         }));
                         event.currentTarget.src = FALLBACK_PRODUCT_IMAGE;
+                      }}
+                      onLoad={() => {
+                        setImageWarnings((current) => {
+                          const next = { ...current };
+                          delete next[index];
+                          return next;
+                        });
                       }}
                     />
                     {imageWarnings[index] && (

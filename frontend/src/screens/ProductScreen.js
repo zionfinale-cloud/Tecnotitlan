@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Container } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -14,11 +14,47 @@ import styles from './ProductScreen.module.css';
 
 const fallbackImage = FALLBACK_PRODUCT_IMAGE;
 
+const isInternalCharacteristic = (characteristic) =>
+  /^\s*(?:etiquetas?\s*tecatl|tecatl\s*tags?)\s*$/i.test(characteristic?.key || '');
+
+const getEmbeddedVideo = (url) => {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.replace(/^www\./, '').toLowerCase();
+
+    if (hostname === 'youtu.be') {
+      const videoId = parsed.pathname.split('/').filter(Boolean)[0];
+      return videoId ? { type: 'iframe', src: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?rel=0` } : null;
+    }
+
+    if (hostname.includes('youtube.com')) {
+      const videoId = parsed.searchParams.get('v') || parsed.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/)?.[1];
+      return videoId ? { type: 'iframe', src: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?rel=0` } : null;
+    }
+
+    if (hostname.includes('tiktok.com')) {
+      const videoId = parsed.pathname.match(/\/video\/(\d+)/)?.[1];
+      return videoId ? { type: 'iframe', src: `https://www.tiktok.com/embed/v2/${videoId}` } : null;
+    }
+
+    if (/\.(mp4|webm|ogg)(?:$|\?)/i.test(parsed.pathname)) {
+      return { type: 'video', src: parsed.toString() };
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return null;
+};
+
 const ProductScreen = () => {
   const { sku } = useParams();
   const [qty, setQty] = useState(1);
   const [product, setProduct] = useState(null);
   const [activeImage, setActiveImage] = useState('');
+  const [showVideo, setShowVideo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -34,8 +70,10 @@ const ProductScreen = () => {
 
       try {
         const { data } = await api.get(`/products/${sku}`);
-        setProduct(data.data.product);
-        setActiveImage(resolveAssetUrl(data.data.product?.media?.[0]?.url, ''));
+        const nextProduct = data.data.product;
+        setProduct(nextProduct);
+        setActiveImage(resolveAssetUrl(nextProduct?.media?.[0]?.url, ''));
+        setShowVideo(false);
       } catch (err) {
         setError(err.response?.data?.message || 'Producto no encontrado.');
       } finally {
@@ -48,7 +86,11 @@ const ProductScreen = () => {
 
   const image = activeImage || resolveAssetUrl(product?.image || product?.media?.[0]?.url);
   const isFallbackImage = image === fallbackImage;
-  const characteristics = product?.characteristics || [];
+  const visibleCharacteristics = useMemo(
+    () => (product?.characteristics || []).filter((item) => !isInternalCharacteristic(item)),
+    [product]
+  );
+  const embeddedVideo = useMemo(() => getEmbeddedVideo(product?.youtubeUrl), [product?.youtubeUrl]);
   const availableStock = getItemAvailableStock(product);
   const hasStock = hasItemAvailability(product);
   const maxQuantity = availableStock === null ? 10 : Math.min(availableStock, 10);
@@ -76,6 +118,11 @@ const ProductScreen = () => {
     showToast(itemToAdd);
   };
 
+  const selectImage = (url) => {
+    setShowVideo(false);
+    setActiveImage(resolveAssetUrl(url));
+  };
+
   return (
     <Container className={styles.page}>
       <Link to="/" className={styles.backLink}>
@@ -87,74 +134,73 @@ const ProductScreen = () => {
       ) : error ? (
         <Message variant="danger">{error}</Message>
       ) : (
-        <div className={styles.grid}>
-          <section className={styles.gallery}>
-            {isFallbackImage ? (
-              <div className={styles.placeholderText}>TECNOTITLAN</div>
-            ) : (
-              <img
-                src={image}
-                alt={product.name}
-                className={styles.productImage}
-                onError={(event) => {
-                  event.currentTarget.src = fallbackImage;
-                }}
-              />
-            )}
-            {product.media?.length > 1 && (
+        <div className={styles.productLayout}>
+          <section className={styles.gallery} aria-label="Galeria del producto">
+            <div className={styles.galleryStage}>
+              {showVideo && embeddedVideo ? (
+                embeddedVideo.type === 'video' ? (
+                  <video className={styles.videoPlayer} controls autoPlay playsInline src={embeddedVideo.src} />
+                ) : (
+                  <iframe
+                    className={styles.videoFrame}
+                    src={embeddedVideo.src}
+                    title={`Video de ${product.name}`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                )
+              ) : isFallbackImage ? (
+                <div className={styles.placeholderText}>TECNOTITLAN</div>
+              ) : (
+                <img
+                  src={image}
+                  alt={product.name}
+                  className={styles.productImage}
+                  onError={(event) => {
+                    event.currentTarget.src = fallbackImage;
+                  }}
+                />
+              )}
+            </div>
+
+            {(product.media?.length > 1 || embeddedVideo) && (
               <div className={styles.thumbRow}>
-                {product.media.map((item) => (
+                {product.media?.map((item, index) => {
+                  const itemUrl = resolveAssetUrl(item.url);
+                  return (
+                    <button
+                      aria-label={`Ver imagen ${index + 1} de ${product.name}`}
+                      className={`${styles.thumbButton} ${!showVideo && itemUrl === image ? styles.thumbActive : ''}`}
+                      key={item.id || item.url}
+                      type="button"
+                      onClick={() => selectImage(item.url)}
+                    >
+                      <img src={itemUrl} alt={item.altText || `${product.name} ${index + 1}`} />
+                    </button>
+                  );
+                })}
+                {embeddedVideo && (
                   <button
-                    className={`${styles.thumbButton} ${resolveAssetUrl(item.url) === image ? styles.thumbActive : ''}`}
-                    key={item.id || item.url}
+                    aria-label={`Reproducir video de ${product.name}`}
+                    className={`${styles.thumbButton} ${styles.videoThumb} ${showVideo ? styles.thumbActive : ''}`}
                     type="button"
-                    onClick={() => setActiveImage(resolveAssetUrl(item.url))}
+                    onClick={() => setShowVideo(true)}
                   >
-                    <img src={resolveAssetUrl(item.url)} alt={item.altText || product.name} />
+                    <i className="fas fa-play"></i>
+                    <span>Video</span>
                   </button>
-                ))}
+                )}
               </div>
             )}
           </section>
 
-          <section className={styles.infoStack}>
-            <article className={styles.panel}>
+          <aside className={styles.purchaseColumn}>
+            <article className={styles.summaryPanel}>
               <span className={styles.category}>{product.category?.name || product.sku}</span>
               <h1 className={styles.title}>{product.name}</h1>
-
               <div className={styles.ratingRow}>
                 <Rating value={product.rating || 0} text={`${product.numReviews || 0} resenas`} color="var(--cta-color)" />
               </div>
-
-              <div className={styles.priceLine}>
-                <span className={styles.priceLabel}>Precio</span>
-                <span className={styles.price}>{currencySymbol}{Number(product.price || 0).toFixed(2)}</span>
-              </div>
-
-              <div>
-                <div className={styles.descriptionTitle}>Descripcion</div>
-                <p className={styles.description}>{product.description}</p>
-              </div>
-
-              {characteristics.length > 0 && (
-                <div>
-                  <div className={styles.descriptionTitle}>Especificaciones</div>
-                  <div className={styles.specGrid}>
-                    {characteristics.map((item) => (
-                      <div className={styles.specItem} key={item.id || `${item.key}-${item.value}`}>
-                        <span>{item.key}</span>
-                        <strong>{item.value}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {product.youtubeUrl && (
-                <a className={styles.videoLink} href={product.youtubeUrl} target="_blank" rel="noreferrer">
-                  <i className="fas fa-play-circle"></i> Ver video del producto
-                </a>
-              )}
             </article>
 
             <aside className={styles.buyBox}>
@@ -167,9 +213,7 @@ const ProductScreen = () => {
                 {hasStock ? (
                   <strong className={styles.stockOk}>
                     {getAvailabilityText(product)}
-                    {availableStock !== null && availableStock <= 3 && (
-                      <small className={styles.stockHint}>Quedan pocas piezas</small>
-                    )}
+                    {availableStock !== null && availableStock <= 3 && <small className={styles.stockHint}>Quedan pocas piezas</small>}
                   </strong>
                 ) : (
                   <strong className={styles.stockOut}>Agotado temporalmente</strong>
@@ -180,10 +224,8 @@ const ProductScreen = () => {
                 <div className={styles.buyRow}>
                   <span>Cantidad</span>
                   <select className={styles.select} value={qty} onChange={(event) => setQty(Number(event.target.value))}>
-                    {[...Array(maxQuantity).keys()].map((x) => (
-                      <option key={x + 1} value={x + 1}>
-                        {x + 1}
-                      </option>
+                    {[...Array(maxQuantity).keys()].map((value) => (
+                      <option key={value + 1} value={value + 1}>{value + 1}</option>
                     ))}
                   </select>
                 </div>
@@ -200,6 +242,29 @@ const ProductScreen = () => {
               <div className={styles.benefit}><i className="fas fa-medal"></i> Garantia y respaldo</div>
               <div className={styles.benefit}><i className="fas fa-headset"></i> Atencion personalizada</div>
             </div>
+          </aside>
+
+          <section className={styles.details}>
+            {product.description && (
+              <article className={styles.detailsPanel}>
+                <h2>Descripcion</h2>
+                <p className={styles.description}>{product.description}</p>
+              </article>
+            )}
+
+            {visibleCharacteristics.length > 0 && (
+              <article className={styles.detailsPanel}>
+                <h2>Especificaciones</h2>
+                <dl className={styles.specList}>
+                  {visibleCharacteristics.map((item) => (
+                    <div key={item.id || `${item.key}-${item.value}`}>
+                      <dt>{item.key}</dt>
+                      <dd>{item.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </article>
+            )}
           </section>
         </div>
       )}

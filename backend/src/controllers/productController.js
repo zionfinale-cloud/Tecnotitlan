@@ -107,20 +107,38 @@ const stripCostFields = (record) => {
 
 const stripCostFieldsFromList = (records = []) => records.map(stripCostFields);
 
-const normalizeMediaPayload = (media = []) =>
-  Array.isArray(media)
-    ? media
-        .filter((item) => item && item.url)
-        .map((item) => ({
-          type: item.type || 'IMAGE',
-          url: item.url,
-          altText: item.altText || null,
-        }))
-    : [];
+const normalizeMediaPayload = (media = []) => {
+  if (!Array.isArray(media)) return [];
+
+  const seen = new Set();
+  return media.reduce((normalized, item) => {
+    if (!item?.url) return normalized;
+
+    const type = item.type || 'IMAGE';
+    const uniqueKey = `${type}:${item.url}`;
+    if (seen.has(uniqueKey)) return normalized;
+
+    seen.add(uniqueKey);
+    normalized.push({
+      type,
+      url: item.url,
+      altText: item.altText || null,
+    });
+    return normalized;
+  }, []);
+};
 
 const uploadsRoot = path.resolve(process.cwd(), 'uploads');
 
-const getPublicBaseUrl = (req) => `${req.protocol}://${req.get('host')}`;
+const getPublicBaseUrl = (req) =>
+  (process.env.API_PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const isPathInsideUploadsRoot = (absolutePath) => {
+  const relativePath = path.relative(uploadsRoot, absolutePath);
+  return relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+};
 
 const localUploadPathFromUrl = (url) => {
   try {
@@ -136,7 +154,7 @@ const localUploadPathFromUrl = (url) => {
       .join(path.sep);
     const absolutePath = path.resolve(uploadsRoot, relativePath);
 
-    return absolutePath.startsWith(uploadsRoot) ? absolutePath : null;
+    return isPathInsideUploadsRoot(absolutePath) ? absolutePath : null;
   } catch (error) {
     return null;
   }
@@ -146,7 +164,15 @@ const moveFileSafely = async (sourcePath, destinationPath) => {
   if (sourcePath === destinationPath) return;
 
   await fs.mkdir(path.dirname(destinationPath), { recursive: true });
-  await fs.rm(destinationPath, { force: true });
+
+  try {
+    await fs.access(destinationPath);
+    const error = new Error(`El archivo destino ya existe: ${destinationPath}`);
+    error.code = 'EEXIST';
+    throw error;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
 
   try {
     await fs.rename(sourcePath, destinationPath);
@@ -154,6 +180,31 @@ const moveFileSafely = async (sourcePath, destinationPath) => {
     if (error.code !== 'EXDEV') throw error;
     await fs.copyFile(sourcePath, destinationPath);
     await fs.unlink(sourcePath);
+  }
+};
+
+const getNextMediaIndex = async (productUploadDir, sku) => {
+  try {
+    const filenames = await fs.readdir(productUploadDir);
+    const mediaFilename = new RegExp(`^${escapeRegExp(sku)}-(\\d+)\\.[a-z0-9]+$`, 'i');
+    const maxIndex = filenames.reduce((highest, filename) => {
+      const match = filename.match(mediaFilename);
+      return match ? Math.max(highest, Number(match[1])) : highest;
+    }, 0);
+    return maxIndex + 1;
+  } catch (error) {
+    if (error.code === 'ENOENT') return 1;
+    throw error;
+  }
+};
+
+const isCanonicalProductMediaPath = ({ item, prefix, sku, publicBaseUrl }) => {
+  try {
+    const parsed = new URL(item.url, publicBaseUrl);
+    const expectedPath = `/uploads/${prefix}/${sku}/`;
+    return parsed.pathname.startsWith(expectedPath);
+  } catch (error) {
+    return false;
   }
 };
 
@@ -165,29 +216,54 @@ const organizeProductMedia = async ({ media, sku, req }) => {
   const productUploadDir = path.join(uploadsRoot, prefix, sku);
   const publicBaseUrl = getPublicBaseUrl(req);
 
-  return Promise.all(
-    normalizedMedia.map(async (item, index) => {
-      const sourcePath = localUploadPathFromUrl(item.url);
-      if (!sourcePath) return item;
+  let nextMediaIndex = await getNextMediaIndex(productUploadDir, sku);
+  const organizedMedia = [];
 
+  // Procesamos en serie: reordenar conserva las rutas existentes y cada alta nueva
+  // obtiene el siguiente indice libre, sin sobrescribir fotos ya publicadas.
+  for (const item of normalizedMedia) {
+    if (isCanonicalProductMediaPath({ item, prefix, sku, publicBaseUrl })) {
+      organizedMedia.push(item);
+      continue;
+    }
+
+    const sourcePath = localUploadPathFromUrl(item.url);
+    if (!sourcePath) {
+      organizedMedia.push(item);
+      continue;
+    }
+
+    try {
+      await fs.access(sourcePath);
+    } catch (error) {
+      organizedMedia.push(item);
+      continue;
+    }
+
+    const extension = (path.extname(sourcePath) || '.jpg').toLowerCase();
+    let filename;
+    let destinationPath;
+
+    do {
+      filename = `${sku}-${String(nextMediaIndex).padStart(2, '0')}${extension}`;
+      destinationPath = path.join(productUploadDir, filename);
+      nextMediaIndex += 1;
       try {
-        await fs.access(sourcePath);
+        await fs.access(destinationPath);
       } catch (error) {
-        return item;
+        if (error.code === 'ENOENT') break;
+        throw error;
       }
+    } while (true);
 
-      const extension = (path.extname(sourcePath) || '.jpg').toLowerCase();
-      const filename = `${sku}-${String(index + 1).padStart(2, '0')}${extension}`;
-      const destinationPath = path.join(productUploadDir, filename);
+    await moveFileSafely(sourcePath, destinationPath);
+    organizedMedia.push({
+      ...item,
+      url: `${publicBaseUrl}/uploads/${prefix}/${sku}/${filename}`,
+    });
+  }
 
-      await moveFileSafely(sourcePath, destinationPath);
-
-      return {
-        ...item,
-        url: `${publicBaseUrl}/uploads/${prefix}/${sku}/${filename}`,
-      };
-    })
-  );
+  return organizedMedia;
 };
 
 const normalizeCharacteristicsPayload = (characteristics = []) =>

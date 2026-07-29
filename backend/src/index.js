@@ -169,8 +169,10 @@ app.use(express.json());
     app.use('/api/admin/tecatl', tecatlAdminRoutes);
     app.use('/api/notification-logs', notificationLogRoutes);
 
-    const __dirname = path.resolve();
-    app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
+// Los archivos de producto viven en el volumen persistente montado en /app/uploads.
+// `process.cwd()` es /app dentro del contenedor y D:\Tecnotitlan en desarrollo.
+const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+app.use('/uploads', express.static(uploadsRoot, { maxAge: '1h', fallthrough: true }));
 
     // Ruta raíz para verificar que la API está en línea
    app.get('/', (req, res) => {

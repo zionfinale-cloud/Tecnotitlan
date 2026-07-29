@@ -251,6 +251,14 @@ EXPOSE 5000
 CMD [ "node", "backend/src/index.js" ]
 ```
 
+## Media Por SKU Y Ficha De Producto (2026-07-29)
+
+- Los archivos se cargan primero de forma temporal y, al guardar el producto, se organizan con su SKU definitivo en `/app/uploads/<PREFIJO>/<SKU>/`.
+- El nombre de cada imagen usa un indice incremental (`<SKU>-01`, `<SKU>-02`, etc.). Reordenar la galeria conserva las rutas actuales; nuevas cargas se agregan sin sobrescribir archivos existentes.
+- La API publica los archivos desde `/uploads` y en produccion debe conservar el volumen persistente montado en `/app/uploads`.
+- La ficha publica separa galeria, compra, descripcion y especificaciones. Las etiquetas internas de Tecatl no se muestran al cliente.
+- El video del producto se reproduce integrado en la galeria cuando la fuente permite embeberse (YouTube, TikTok o archivo de video directo).
+
 ### `d:\Tecnotitlan\docker-compose.yml`
 
 ```yaml
