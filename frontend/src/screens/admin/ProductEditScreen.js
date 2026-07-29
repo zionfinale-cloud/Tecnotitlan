@@ -836,7 +836,27 @@ const ProductEditScreen = () => {
                                   <label className={styles.label} htmlFor={`meli-${attribute.id}`}>
                                     {attribute.name}{attribute.required ? ' *' : ''}
                                   </label>
-                                  {attribute.values?.length ? (
+                                  {attribute.allowCustomValue ? (
+                                    <>
+                                      <input
+                                        id={`meli-${attribute.id}`}
+                                        list={`meli-${attribute.id}-suggestions`}
+                                        className={styles.input}
+                                        value={meliPublishForm.attributes[attribute.id] || ''}
+                                        onChange={(event) => updateMeliAttribute(attribute.id, event.target.value)}
+                                        placeholder={attribute.hint || `Escribe la ${attribute.name.toLowerCase()} real`}
+                                        maxLength={attribute.valueMaxLength || undefined}
+                                      />
+                                      <datalist id={`meli-${attribute.id}-suggestions`}>
+                                        {(attribute.values || []).map((value) => (
+                                          <option key={value.id || value.name} value={value.name} />
+                                        ))}
+                                      </datalist>
+                                      <small className={styles.fieldHint}>
+                                        Escribe la marca real si no aparece en las sugerencias.
+                                      </small>
+                                    </>
+                                  ) : attribute.values?.length ? (
                                     <select
                                       id={`meli-${attribute.id}`}
                                       className={styles.select}
@@ -856,6 +876,7 @@ const ProductEditScreen = () => {
                                       className={styles.input}
                                       value={meliPublishForm.attributes[attribute.id] || ''}
                                       onChange={(event) => updateMeliAttribute(attribute.id, event.target.value)}
+                                      maxLength={attribute.valueMaxLength || undefined}
                                     />
                                   )}
                                 </div>

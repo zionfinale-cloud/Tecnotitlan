@@ -234,6 +234,9 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
       name: attribute.name,
       valueType: attribute.value_type,
       required: Boolean(attribute?.tags?.required || attribute?.tags?.catalog_required),
+      allowCustomValue: attribute.id === 'BRAND' && attribute.value_type === 'string',
+      hint: attribute.hint || '',
+      valueMaxLength: Number(attribute.value_max_length) || null,
       values: Array.isArray(attribute.values)
         ? attribute.values.slice(0, 100).map((value) => ({
           id: value.id,

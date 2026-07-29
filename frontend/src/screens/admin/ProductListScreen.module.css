@@ -463,6 +463,12 @@
     color: #0f172a;
 }
 
+.fieldHint {
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
 .input,
 .select,
 .textarea {

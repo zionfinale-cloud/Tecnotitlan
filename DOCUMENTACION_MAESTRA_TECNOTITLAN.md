@@ -1170,6 +1170,10 @@ Un traspaso de 5 piezas desde Bodega/Web a Mercado Libre deja 0 en bodega si sol
 
 La publicacion se bloquea si no existe stock asignado a Mercado Libre. Para publicaciones creadas previamente fuera de Tecnotitlan, primero se hace el traspaso y despues se usa **Vincular una publicacion existente**.
 
+### Marca y atributos de catalogo
+
+Los valores que Mercado Libre devuelve para atributos como **Marca** son sugerencias del catalogo, no deben obligar a declarar una marca falsa. Cuando la categoria permite una marca textual, Tecnotitlan muestra sugerencias y permite capturar la marca real, por ejemplo `G-TIDE`. El valor se envia como atributo `BRAND` al publicar.
+
 ### Recuperacion del producto AUR-002
 
 La publicacion de prueba `MLM3193668611` usa el SKU local `AUR-002`. Si se traspasaron 5 piezas y Bodega/Web quedo en 0, esa distribucion es correcta: las 5 piezas ahora pertenecen al canal Mercado Libre. Al vincular el item, la cantidad remota anterior de 10 debe conciliarse a 5, no sumarse.
