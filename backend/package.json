@@ -8,7 +8,7 @@
     "start": "node src/index.js",
     "build": "prisma generate",
     "server": "nodemon src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test test/*.test.js",
     "postinstall": "echo 'Skipping automatic prisma generate. Run manually if needed.'",
     "prisma:deploy": "npx prisma migrate deploy --schema=./prisma/schema.prisma",
     "seed:import": "node prisma/seed.js",
