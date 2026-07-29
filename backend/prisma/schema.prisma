@@ -138,6 +138,9 @@ model Product {
   countInStock         Int                  @default(0)
   productType          ProductType          @default(IN_HOUSE)
   supplierInfo         String?
+  supplierStock        Int                  @default(0) @map("supplier_stock")
+  supplierStockUnlimited Boolean            @default(false) @map("supplier_stock_unlimited")
+  supplierLeadTimeMinutes Int               @default(60) @map("supplier_lead_time_minutes")
   shippingPayer        ShippingPayer        @default(CUSTOMER) @map("shipping_payer")
   shippingCostEstimate Float?               @default(0) @map("shipping_cost_estimate")
   weightKg             Float?               @map("weight_kg")
@@ -397,6 +400,8 @@ model MarketplaceListing {
   publishedStock       Int?                     @map("published_stock")
   stockBuffer          Int                      @default(0) @map("stock_buffer")
   commissionRate       Float?                   @map("commission_rate")
+  fixedFee              Float                    @default(0) @map("fixed_fee")
+  autoPrice             Boolean                  @default(true) @map("auto_price")
   shippingCostEstimate Float?                   @map("shipping_cost_estimate")
   status               MarketplaceListingStatus @default(DRAFT)
   syncStatus           String?                  @map("sync_status")
@@ -696,6 +701,7 @@ enum NotificationDeliveryStatus {
 enum ProductType {
   IN_HOUSE
   DROPSHIPPING
+  SUPPLIER_ON_DEMAND
 }
 
 enum ShippingPayer {

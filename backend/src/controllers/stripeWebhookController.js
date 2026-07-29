@@ -86,8 +86,8 @@ const markStripeOrderPaid = async (paymentIntent) => {
     return null;
   }
 
-  const isDropshippingOrder = order.orderItems.some(
-    item => item.product.productType === 'DROPSHIPPING'
+  const requiresFulfillmentOrder = order.orderItems.some(
+    item => ['DROPSHIPPING', 'SUPPLIER_ON_DEMAND'].includes(item.product.productType)
   );
 
   const { updatedOrder, shouldNotify } = await prisma.$transaction(async (tx) => {
@@ -99,7 +99,7 @@ const markStripeOrderPaid = async (paymentIntent) => {
         data: {
           isPaid: true,
           paidAt: new Date(),
-          status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
+        status: requiresFulfillmentOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
           paymentResult: {
             id: paymentIntent.id,
             status: paymentIntent.status,

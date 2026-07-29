@@ -9,6 +9,7 @@ import {
   restoreCancelledOrderInventoryMovements,
 } from '../services/orderInventoryService.js';
 import { refundStripeOrderIfEligible } from '../services/stripeRefundService.js';
+import { hasProductAvailability } from '../utils/productAvailability.js';
 import {
   sendOrderDeliveredEmail,
   sendOrderPaidEmail,
@@ -83,6 +84,12 @@ const ORDER_INCLUDE = {
           sku: true,
           name: true,
           productType: true,
+          countInStock: true,
+          supplierStock: true,
+          supplierStockUnlimited: true,
+          supplierLeadTimeMinutes: true,
+          costPrice: true,
+          price: true,
         },
       },
     },
@@ -172,6 +179,10 @@ const addOrderItems = asyncHandler(async (req, res, next) => {
     const dbProduct = productMap[item.product];
     if (dbProduct.productType === 'IN_HOUSE' && dbProduct.countInStock < item.qty) {
       return next(new BadRequestError(`No hay suficiente stock para ${dbProduct.name}. Disponible: ${dbProduct.countInStock}.`));
+    }
+    if (dbProduct.productType === 'SUPPLIER_ON_DEMAND' && !hasProductAvailability(dbProduct, item.qty)) {
+      const available = dbProduct.countInStock + dbProduct.supplierStock;
+      return next(new BadRequestError(`No hay disponibilidad suficiente para ${dbProduct.name}. Disponible entre bodega y proveedor: ${available}.`));
     }
   }
 
@@ -394,8 +405,8 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
     return next(new BadRequestError('El pago no corresponde a este pedido.', 400));
   }
 
-  const isDropshippingOrder = order.orderItems.some(
-    item => item.product.productType === 'DROPSHIPPING'
+  const requiresFulfillmentOrder = order.orderItems.some(
+    item => ['DROPSHIPPING', 'SUPPLIER_ON_DEMAND'].includes(item.product.productType)
   );
 
   const { updatedOrder, shouldNotify } = await prisma.$transaction(async (tx) => {
@@ -404,7 +415,7 @@ const confirmStripePayment = asyncHandler(async (req, res, next) => {
       data: {
         isPaid: true,
         paidAt: new Date(),
-        status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
+        status: requiresFulfillmentOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
         paymentResult: {
           id: paymentIntent.id,
           status: paymentIntent.status,
@@ -485,8 +496,8 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
       return res.status(200).json({ status: 'success', data: { order } });
     }
 
-    const isDropshippingOrder = order.orderItems.some(
-      item => item.product.productType === 'DROPSHIPPING'
+    const requiresFulfillmentOrder = order.orderItems.some(
+      item => ['DROPSHIPPING', 'SUPPLIER_ON_DEMAND'].includes(item.product.productType)
     );
 
     const updatedOrder = await prisma.$transaction(async (tx) => {
@@ -495,7 +506,7 @@ const updateOrderToPaid = asyncHandler(async (req, res, next) => {
         data: {
           isPaid: true,
           paidAt: new Date(),
-          status: isDropshippingOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
+          status: requiresFulfillmentOrder ? 'PENDING_FULFILLMENT' : 'PROCESSING',
           paymentResult: {
             id: paymentResult.id,
             status: paymentResult.status,
@@ -636,9 +647,11 @@ const retryOrderInventoryOperational = asyncHandler(async (req, res, next) => {
   if (!order) return next(new NotFoundError('Pedido no encontrado'));
   if (!order.isPaid) return next(new BadRequestError('Confirma el pago antes de mover inventario.'));
 
-  const inHouseItems = (order.orderItems || []).filter((item) => item.product?.productType === 'IN_HOUSE');
-  if (inHouseItems.length === 0) {
-    return next(new BadRequestError('Este pedido no tiene productos de inventario propio para descontar.'));
+  const inventoryItems = (order.orderItems || []).filter(
+    (item) => ['IN_HOUSE', 'SUPPLIER_ON_DEMAND'].includes(item.product?.productType)
+  );
+  if (inventoryItems.length === 0) {
+    return next(new BadRequestError('Este pedido no tiene productos con inventario administrado para descontar.'));
   }
 
   const updatedOrder = await prisma.$transaction(async (tx) => {

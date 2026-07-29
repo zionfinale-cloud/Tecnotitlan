@@ -1180,6 +1180,38 @@ No se requiere migracion de Prisma para esta fase. En EasyPanel:
 3. Desplegar despues el servicio **web**.
 4. Abrir Mercado Libre en Configuracion y pulsar **Leer pedidos**.
 
+### Proveedor local bajo pedido y precios por canal (2026-07-29)
+
+Esta modalidad permite operar con proveedor local sin mezclar promesas de suministro con mercancia fisica ni con capital invertido.
+
+#### Regla financiera e inventario
+
+- **Inversiones** registra el dinero disponible, entradas de capital y gastos reales. La disponibilidad declarada por un proveedor no reduce una inversion.
+- **Bodega/Web** representa solo piezas propias que ya se compraron y recibieron. Las entradas reales se registran desde **Inventario > Entradas**.
+- Un producto de tipo **Proveedor local / bajo pedido** conserva, por separado, existencia finita o ilimitada del proveedor y tiempo estimado de surtido.
+- Al confirmarse una venta pagada, se usan primero piezas propias. La parte surtida por proveedor genera en ese momento la compra real y su salida por venta; asi el dinero solo se descuenta cuando realmente se necesita comprar ese articulo.
+- Una cancelacion aprobada restaura de forma idempotente las piezas propias o del proveedor que se hubieran descontado. No debe duplicar devoluciones ni movimientos.
+
+#### Canales y precios
+
+- Un traspaso sigue siendo fisico: mueve unidades de Bodega/Web a Mercado Libre, TikTok Shop o Amazon. No debe inventar unidades ni cambiar una promesa del proveedor por stock propio.
+- **Publicado** es el numero configurado en una publicacion remota; no equivale por si mismo a mercancia apartada. Se conserva separado del stock fisico/asignado.
+- El precio web (`product.price`) es el importe meta que se busca recibir antes de costos propios de marketplace. El precio automatico por canal absorbe comision porcentual, cuota fija y envio que el negocio decida absorber:
+
+  `(precio web + cuota fija + envio absorbido) / (1 - comision)`.
+
+- La comision acepta `16` o `0.16` para representar 16%. El precio calculado se puede sobrescribir solo al desactivar **Precio automatico** en el canal.
+
+#### Flujo operativo recomendado
+
+1. Crear producto y definir si es inventario propio o proveedor local bajo pedido.
+2. Registrar solamente las compras ya pagadas como entradas de inventario y ligarlas a una inversion cuando corresponda.
+3. Configurar precio/comision/cuota por canal antes de publicar.
+4. Trasladar unidades fisicas a un marketplace solo cuando efectivamente se manden a su bodega o se reserven para ese canal.
+5. Dejar que webhooks importen ventas y actualicen pedidos, movimientos y notificaciones.
+
+La publicacion automatica remota depende todavia de que cada articulo tenga categoria, atributos obligatorios e imagenes aceptadas por Mercado Libre. Esa validacion es necesaria antes de convertir un traspaso en una publicacion real; no es una segunda fuente de inventario.
+
 # Aviso de Privacidad Integral
 
 **Última actualización:** Diciembre 2025

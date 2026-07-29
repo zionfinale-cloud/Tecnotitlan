@@ -489,6 +489,21 @@
     color: #64748b;
 }
 
+.checkboxLabel {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: #1e293b;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.checkboxLabel input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: #00b86b;
+}
+
 .error {
     background: #fff1f2;
     border: 1px solid #fecdd3;

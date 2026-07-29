@@ -9,6 +9,7 @@ import { SettingsContext } from '../context/SettingsContext';
 import { ToastContext } from '../context/ToastContext';
 import api from '../services/apiService';
 import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
+import { getAvailabilityText, getItemAvailableStock, hasItemAvailability } from '../utils/productAvailability';
 import styles from './ProductScreen.module.css';
 
 const fallbackImage = FALLBACK_PRODUCT_IMAGE;
@@ -48,8 +49,9 @@ const ProductScreen = () => {
   const image = activeImage || resolveAssetUrl(product?.image || product?.media?.[0]?.url);
   const isFallbackImage = image === fallbackImage;
   const characteristics = product?.characteristics || [];
-  const stockCount = Number(product?.countInStock || 0);
-  const hasStock = stockCount > 0;
+  const availableStock = getItemAvailableStock(product);
+  const hasStock = hasItemAvailability(product);
+  const maxQuantity = availableStock === null ? 10 : Math.min(availableStock, 10);
 
   const addToCartHandler = () => {
     if (!product || !hasStock) return;
@@ -61,7 +63,13 @@ const ProductScreen = () => {
       price: product.price,
       image,
       qty,
-      countInStock: stockCount,
+      countInStock: product.countInStock,
+      availableStock: product.availableStock,
+      availabilityMode: product.availabilityMode,
+      productType: product.productType,
+      supplierStock: product.supplierStock,
+      supplierStockUnlimited: product.supplierStockUnlimited,
+      supplierLeadTimeMinutes: product.supplierLeadTimeMinutes,
     };
 
     addToCart(itemToAdd);
@@ -158,8 +166,8 @@ const ProductScreen = () => {
                 <span>Estado</span>
                 {hasStock ? (
                   <strong className={styles.stockOk}>
-                    {stockCount} disponible{stockCount === 1 ? '' : 's'}
-                    {stockCount <= 3 && (
+                    {getAvailabilityText(product)}
+                    {availableStock !== null && availableStock <= 3 && (
                       <small className={styles.stockHint}>Quedan pocas piezas</small>
                     )}
                   </strong>
@@ -172,7 +180,7 @@ const ProductScreen = () => {
                 <div className={styles.buyRow}>
                   <span>Cantidad</span>
                   <select className={styles.select} value={qty} onChange={(event) => setQty(Number(event.target.value))}>
-                    {[...Array(stockCount).keys()].slice(0, 10).map((x) => (
+                    {[...Array(maxQuantity).keys()].map((x) => (
                       <option key={x + 1} value={x + 1}>
                         {x + 1}
                       </option>

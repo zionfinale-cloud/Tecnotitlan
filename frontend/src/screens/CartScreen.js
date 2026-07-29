@@ -6,12 +6,10 @@ import { AuthContext } from '../context/AuthContext';
 import { SettingsContext } from '../context/SettingsContext';
 import Message from '../components/Message';
 import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
+import { getAvailabilityText, getItemAvailableStock } from '../utils/productAvailability';
 import styles from './CartScreen.module.css';
 
-const getItemStock = (item) => {
-    const stock = Number(item.countInStock);
-    return Number.isFinite(stock) ? stock : null;
-};
+const getItemStock = (item) => getItemAvailableStock(item);
 
 const CartScreen = () => {
     const navigate = useNavigate();
@@ -91,13 +89,9 @@ const CartScreen = () => {
                                                 <Link to={`/product/${item.sku || item.product}`} className={styles.productLink}>
                                                     {item.name}
                                                 </Link>
-                                                {stock !== null && (
-                                                    <small className={hasItemStockIssue ? styles.stockIssue : styles.stockNote}>
-                                                        {stock > 0
-                                                            ? `${stock} disponible${stock === 1 ? '' : 's'}`
-                                                            : 'Agotado temporalmente'}
-                                                    </small>
-                                                )}
+                                                <small className={hasItemStockIssue ? styles.stockIssue : styles.stockNote}>
+                                                    {getAvailabilityText(item)}
+                                                </small>
                                             </Col>
 
                                             <Col md={2} className="p-0">

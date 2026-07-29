@@ -1,6 +1,12 @@
 import { BadRequestError } from '../utils/errorUtils.js';
+import {
+  getDefaultMarketplaceOfferStock,
+  hasProductAvailability,
+  isSupplierOnDemand,
+} from '../utils/productAvailability.js';
 
 const RESTOCK_REFERENCE_TYPE = 'ORDER_CANCEL';
+const SUPPLIER_PURCHASE_REFERENCE_TYPE = 'SUPPLIER_JIT_PURCHASE';
 const RETURN_CONFIRMATION_STATUSES = new Set(['SHIPPED', 'DELIVERED']);
 const CHANNEL_STOCK_IN_TYPES = new Set(['CHANNEL_TRANSFER', 'RETURN_IN', 'ADJUSTMENT_IN']);
 const CHANNEL_STOCK_OUT_TYPES = new Set(['SALE', 'ADJUSTMENT_OUT', 'RETURN_OUT']);
@@ -49,6 +55,28 @@ const updateMarketplaceStock = async (tx, productId, channel, stockAfter) => {
   });
 };
 
+const updateSupplierMarketplaceOffers = async (tx, product) => {
+  const listings = await tx.marketplaceListing.findMany({
+    where: {
+      productId: product.id,
+      channel: { not: 'WEB' },
+      status: { not: 'ARCHIVED' },
+    },
+    select: { id: true, stockBuffer: true },
+  });
+
+  for (const listing of listings) {
+    await tx.marketplaceListing.update({
+      where: { id: listing.id },
+      data: {
+        publishedStock: getDefaultMarketplaceOfferStock(product, listing.stockBuffer),
+        syncStatus: 'local_stock_updated',
+        lastSyncedAt: new Date(),
+      },
+    });
+  }
+};
+
 const getShippingInfo = (order) => (
   order?.shippingInfo && typeof order.shippingInfo === 'object' && !Array.isArray(order.shippingInfo)
     ? order.shippingInfo
@@ -88,7 +116,7 @@ const getReturnGateStatus = (order) => {
 export const applyPaidOrderInventoryMovements = async (tx, order, createdById = null) => {
   for (const item of order.orderItems || []) {
     const productType = item.product?.productType;
-    if (productType !== 'IN_HOUSE') continue;
+    if (!['IN_HOUSE', 'SUPPLIER_ON_DEMAND'].includes(productType)) continue;
 
     const existingMovement = await tx.inventoryMovement.findFirst({
       where: {
@@ -108,6 +136,9 @@ export const applyPaidOrderInventoryMovements = async (tx, order, createdById = 
         id: true,
         name: true,
         countInStock: true,
+        productType: true,
+        supplierStock: true,
+        supplierStockUnlimited: true,
         costPrice: true,
         price: true,
       },
@@ -118,28 +149,75 @@ export const applyPaidOrderInventoryMovements = async (tx, order, createdById = 
     }
 
     const channel = getOrderChannel(order);
-    const stockBefore = channel === 'WEB'
-      ? product.countInStock
-      : await getAssignedChannelStock(tx, product.id, channel);
+    const supplierOnDemand = isSupplierOnDemand(product);
 
-    if (stockBefore < item.qty) {
+    if (supplierOnDemand && !hasProductAvailability(product, item.qty)) {
       throw new BadRequestError(
-        `Pago confirmado, pero no hay stock suficiente para ${product.name} en ${channel}. Disponible: ${stockBefore}.`,
+        `Pago confirmado, pero no hay disponibilidad suficiente para ${product.name}.`,
         409
       );
     }
 
-    const stockAfter = stockBefore - item.qty;
+    const channelStockBefore = channel === 'WEB'
+      ? product.countInStock
+      : await getAssignedChannelStock(tx, product.id, channel);
+
+    if (!supplierOnDemand && channelStockBefore < item.qty) {
+      throw new BadRequestError(
+        `Pago confirmado, pero no hay stock suficiente para ${product.name} en ${channel}. Disponible: ${channelStockBefore}.`,
+        409
+      );
+    }
+
+    const ownedQuantity = supplierOnDemand
+      ? Math.min(product.countInStock, item.qty)
+      : item.qty;
+    const supplierQuantity = supplierOnDemand ? item.qty - ownedQuantity : 0;
+    const ownedStockAfter = product.countInStock - ownedQuantity;
+    const channelStockAfter = channelStockBefore - item.qty;
     const unitCost = product.costPrice || item.unitCost || 0;
     const unitPrice = item.price || product.price || 0;
 
-    if (channel === 'WEB') {
+    if (supplierQuantity > 0) {
+      const supplierStockAfter = product.supplierStockUnlimited
+        ? product.supplierStock
+        : product.supplierStock - supplierQuantity;
+
       await tx.product.update({
         where: { id: product.id },
-        data: { countInStock: stockAfter },
+        data: {
+          countInStock: ownedStockAfter,
+          ...(!product.supplierStockUnlimited
+            ? { supplierStock: supplierStockAfter }
+            : {}),
+        },
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          type: 'PURCHASE',
+          productId: product.id,
+          quantity: supplierQuantity,
+          unitCost,
+          unitPrice: null,
+          totalCost: supplierQuantity * unitCost,
+          totalRevenue: null,
+          channel,
+          stockBefore: product.countInStock,
+          stockAfter: product.countInStock + supplierQuantity,
+          referenceType: SUPPLIER_PURCHASE_REFERENCE_TYPE,
+          referenceId: order.id,
+          notes: `Compra bajo demanda para pedido ${order.orderNumber}`,
+          createdById,
+        },
+      });
+    } else if (channel === 'WEB' || supplierOnDemand) {
+      await tx.product.update({
+        where: { id: product.id },
+        data: { countInStock: ownedStockAfter },
       });
     } else {
-      await updateMarketplaceStock(tx, product.id, channel, stockAfter);
+      await updateMarketplaceStock(tx, product.id, channel, channelStockAfter);
     }
 
     await tx.inventoryMovement.create({
@@ -152,14 +230,28 @@ export const applyPaidOrderInventoryMovements = async (tx, order, createdById = 
         totalCost: item.qty * unitCost,
         totalRevenue: item.qty * unitPrice,
         channel,
-        stockBefore,
-        stockAfter,
+        stockBefore: supplierOnDemand
+          ? product.countInStock + supplierQuantity
+          : channelStockBefore,
+        stockAfter: supplierOnDemand ? ownedStockAfter : channelStockAfter,
         referenceType: 'ORDER',
         referenceId: order.id,
-        notes: `Venta pagada en pedido ${order.orderNumber}`,
+        notes: supplierOnDemand
+          ? `Venta pagada en pedido ${order.orderNumber}. Propio: ${ownedQuantity}; proveedor: ${supplierQuantity}.`
+          : `Venta pagada en pedido ${order.orderNumber}`,
         createdById,
       },
     });
+
+    if (supplierOnDemand) {
+      await updateSupplierMarketplaceOffers(tx, {
+        ...product,
+        countInStock: ownedStockAfter,
+        supplierStock: product.supplierStockUnlimited
+          ? product.supplierStock
+          : product.supplierStock - supplierQuantity,
+      });
+    }
   }
 };
 
@@ -180,7 +272,7 @@ export const restoreCancelledOrderInventoryMovements = async (tx, order, created
 
   for (const item of order.orderItems || []) {
     const productType = item.product?.productType;
-    if (productType !== 'IN_HOUSE') continue;
+    if (!['IN_HOUSE', 'SUPPLIER_ON_DEMAND'].includes(productType)) continue;
 
     const saleMovement = await tx.inventoryMovement.findFirst({
       where: {
@@ -226,6 +318,9 @@ export const restoreCancelledOrderInventoryMovements = async (tx, order, created
         id: true,
         name: true,
         countInStock: true,
+        productType: true,
+        supplierStock: true,
+        supplierStockUnlimited: true,
       },
     });
 
@@ -235,14 +330,40 @@ export const restoreCancelledOrderInventoryMovements = async (tx, order, created
 
     const quantity = saleMovement.quantity || item.qty;
     const channel = saleMovement.channel || order.salesChannel || 'WEB';
-    const stockBefore = channel === 'WEB'
+    const supplierOnDemand = isSupplierOnDemand(product);
+    const supplierPurchase = supplierOnDemand
+      ? await tx.inventoryMovement.findFirst({
+        where: {
+          type: 'PURCHASE',
+          productId: item.productId,
+          referenceType: SUPPLIER_PURCHASE_REFERENCE_TYPE,
+          referenceId: order.id,
+        },
+        select: { quantity: true },
+      })
+      : null;
+    const supplierQuantity = Math.min(supplierPurchase?.quantity || 0, quantity);
+    const ownedQuantity = quantity - supplierQuantity;
+    const stockBefore = supplierOnDemand
+      ? product.countInStock
+      : channel === 'WEB'
       ? product.countInStock
       : await getAssignedChannelStock(tx, product.id, channel);
-    const stockAfter = stockBefore + quantity;
+    const stockAfter = stockBefore + (supplierOnDemand ? ownedQuantity : quantity);
     const unitCost = saleMovement.unitCost || item.unitCost || 0;
     const unitPrice = saleMovement.unitPrice || item.price || 0;
 
-    if (channel === 'WEB') {
+    if (supplierOnDemand) {
+      await tx.product.update({
+        where: { id: product.id },
+        data: {
+          countInStock: stockAfter,
+          ...(!product.supplierStockUnlimited && supplierQuantity > 0
+            ? { supplierStock: product.supplierStock + supplierQuantity }
+            : {}),
+        },
+      });
+    } else if (channel === 'WEB') {
       await tx.product.update({
         where: { id: product.id },
         data: { countInStock: stockAfter },
@@ -265,10 +386,22 @@ export const restoreCancelledOrderInventoryMovements = async (tx, order, created
         stockAfter,
         referenceType: RESTOCK_REFERENCE_TYPE,
         referenceId: order.id,
-        notes: `Reversa automatica por cancelacion del pedido ${order.orderNumber}`,
+        notes: supplierOnDemand
+          ? `Reversa por cancelacion ${order.orderNumber}. Propio: ${ownedQuantity}; proveedor liberado: ${supplierQuantity}.`
+          : `Reversa automatica por cancelacion del pedido ${order.orderNumber}`,
         createdById,
       },
     });
+
+    if (supplierOnDemand) {
+      await updateSupplierMarketplaceOffers(tx, {
+        ...product,
+        countInStock: stockAfter,
+        supplierStock: product.supplierStockUnlimited
+          ? product.supplierStock
+          : product.supplierStock + supplierQuantity,
+      });
+    }
 
     restoredItems += quantity;
   }

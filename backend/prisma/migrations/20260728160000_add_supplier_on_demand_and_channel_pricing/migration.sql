@@ -1,0 +1,10 @@
+ALTER TYPE "ProductType" ADD VALUE IF NOT EXISTS 'SUPPLIER_ON_DEMAND';
+
+ALTER TABLE "products"
+ADD COLUMN "supplier_stock" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "supplier_stock_unlimited" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "supplier_lead_time_minutes" INTEGER NOT NULL DEFAULT 60;
+
+ALTER TABLE "marketplace_listings"
+ADD COLUMN "fixed_fee" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN "auto_price" BOOLEAN NOT NULL DEFAULT true;

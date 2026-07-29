@@ -4,6 +4,7 @@ import Rating from './Rating';
 import { CartContext } from '../context/CartContext';
 import { ToastContext } from '../context/ToastContext';
 import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
+import { getAvailabilityText, hasItemAvailability } from '../utils/productAvailability';
 import styles from './Product.module.css';
 
 const Product = ({ product }) => {
@@ -11,8 +12,7 @@ const Product = ({ product }) => {
   const { showToast } = useContext(ToastContext);
   const productUrl = `/product/${product.sku || product._id || product.id}`;
   const image = resolveAssetUrl(product.image || product.media?.[0]?.url);
-  const stockCount = Number(product.countInStock || 0);
-  const hasStock = stockCount > 0;
+  const hasStock = hasItemAvailability(product);
 
   const addToCartHandler = (event) => {
     event.preventDefault();
@@ -25,7 +25,13 @@ const Product = ({ product }) => {
       price: product.price,
       image,
       qty: 1,
-      countInStock: stockCount,
+      countInStock: product.countInStock,
+      availableStock: product.availableStock,
+      availabilityMode: product.availabilityMode,
+      productType: product.productType,
+      supplierStock: product.supplierStock,
+      supplierStockUnlimited: product.supplierStockUnlimited,
+      supplierLeadTimeMinutes: product.supplierLeadTimeMinutes,
     };
 
     addToCart(item);
@@ -48,7 +54,7 @@ const Product = ({ product }) => {
         <span className={styles.category}>{product.sku || 'Seleccion Tecnotitlan'}</span>
         <Link to={productUrl} className={styles.title}>{product.name}</Link>
         <span className={`${styles.stockBadge} ${!hasStock ? styles.stockBadgeOut : ''}`}>
-          {hasStock ? `${stockCount} disponible${stockCount === 1 ? '' : 's'}` : 'Agotado temporalmente'}
+          {getAvailabilityText(product)}
         </span>
         <div className={styles.rating}>
           <Rating value={product.rating || 0} text={`(${product.numReviews || 0})`} color="#75f238" />

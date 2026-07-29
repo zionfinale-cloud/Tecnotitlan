@@ -10,6 +10,11 @@ import {
   getPublishableStock,
   syncMercadoLibreListingStock,
 } from '../services/channelStockSyncService.js';
+import {
+  decorateProductAvailability,
+  getProductAvailableStock,
+} from '../utils/productAvailability.js';
+import { resolveMarketplacePrice } from '../services/channelPricingService.js';
 import logger from '../utils/logger.js';
 
 const SKU_PREFIX_BY_CATEGORY = {
@@ -81,6 +86,12 @@ const parseOptionalFloat = (value) => {
   if (value === undefined || value === null || value === '') return null;
   const parsed = parseFloat(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseOptionalBoolean = (value, fallback = false) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return Boolean(value);
 };
 
 const canViewCosts = (user) => {
@@ -206,6 +217,9 @@ const createProduct = asyncHandler(async (req, res, next) => {
     characteristics,
     productType,
     supplierInfo,
+    supplierStock,
+    supplierStockUnlimited,
+    supplierLeadTimeMinutes,
     youtubeUrl,
     skuPrefix,
     shippingPayer,
@@ -255,6 +269,9 @@ const createProduct = asyncHandler(async (req, res, next) => {
         countInStock: parseInt(countInStock, 10) || 0, // Convertir a número entero
         productType: productType || 'IN_HOUSE', // Usar enums de Prisma
         supplierInfo,
+        supplierStock: Math.max(parseInt(supplierStock, 10) || 0, 0),
+        supplierStockUnlimited: parseOptionalBoolean(supplierStockUnlimited),
+        supplierLeadTimeMinutes: Math.max(parseInt(supplierLeadTimeMinutes, 10) || 60, 0),
         youtubeUrl,
         shippingPayer: shippingPayer || 'CUSTOMER',
         shippingCostEstimate: parseOptionalFloat(shippingCostEstimate),
@@ -374,7 +391,10 @@ const getProducts = asyncHandler(async (req, res, next) => {
     skip: pageSize * (page - 1),
   });
 
-  const safeProducts = canViewCosts(req.user) ? products : stripCostFieldsFromList(products);
+  const availableProducts = products.map(decorateProductAvailability);
+  const safeProducts = canViewCosts(req.user)
+    ? availableProducts
+    : stripCostFieldsFromList(availableProducts);
 
   res.status(200).json({
     status: 'success',
@@ -412,7 +432,11 @@ const getProductById = asyncHandler(async (req, res, next) => {
   if (product) {
     res.status(200).json({
       status: 'success',
-      data: { product: canViewCosts(req.user) ? product : stripCostFields(product) },
+      data: {
+        product: canViewCosts(req.user)
+          ? decorateProductAvailability(product)
+          : stripCostFields(decorateProductAvailability(product)),
+      },
     });
   } else {
     return next(new NotFoundError('Producto no encontrado'));
@@ -435,6 +459,9 @@ const updateProduct = asyncHandler(async (req, res, next) => {
     brand,
     productType,
     supplierInfo,
+    supplierStock,
+    supplierStockUnlimited,
+    supplierLeadTimeMinutes,
     media,
     characteristics,
     shippingPayer,
@@ -474,6 +501,25 @@ const updateProduct = asyncHandler(async (req, res, next) => {
           brand,
           productType: productType || product.productType,
           supplierInfo,
+          ...(supplierStock !== undefined
+            ? { supplierStock: Math.max(parseInt(supplierStock, 10) || 0, 0) }
+            : {}),
+          ...(supplierStockUnlimited !== undefined
+            ? {
+              supplierStockUnlimited: parseOptionalBoolean(
+                supplierStockUnlimited,
+                product.supplierStockUnlimited
+              ),
+            }
+            : {}),
+          ...(supplierLeadTimeMinutes !== undefined
+            ? {
+              supplierLeadTimeMinutes: Math.max(
+                parseInt(supplierLeadTimeMinutes, 10) || 0,
+                0
+              ),
+            }
+            : {}),
           youtubeUrl,
           shippingPayer: shippingPayer || product.shippingPayer,
           shippingCostEstimate: parseOptionalFloat(shippingCostEstimate),
@@ -847,7 +893,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   const listing = product.marketplaceListings[0];
   if (!listing || Number(listing.publishedStock || 0) <= 0) {
     return next(new BadRequestError(
-      'Primero traspasa unidades de Bodega/Web a Mercado Libre desde Inventario.'
+      'Configura una oferta de stock mayor a cero para Mercado Libre desde Canales.'
     ));
   }
 
@@ -882,10 +928,11 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   }
 
   const stockToPublish = getPublishableStock(listing);
+  const pricing = resolveMarketplacePrice({ product, listing });
   const payload = {
     title: String(product.name || product.sku).trim().slice(0, 60),
     category_id: categoryId,
-    price: Number(product.price),
+    price: pricing.price,
     currency_id: 'MXN',
     available_quantity: stockToPublish,
     buying_mode: 'buy_it_now',
@@ -904,10 +951,13 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     ...meliItem,
     tecnotitlan: {
       publishedAt: now.toISOString(),
-      inventorySource: 'LOCAL_ASSIGNED_STOCK',
+      inventorySource: product.productType === 'SUPPLIER_ON_DEMAND'
+        ? 'SUPPLIER_ON_DEMAND'
+        : 'LOCAL_ASSIGNED_STOCK',
       assignedStock: Number(listing.publishedStock || 0),
       stockBuffer: Number(listing.stockBuffer || 0),
       publishedStock: stockToPublish,
+      pricing,
     },
   };
 
@@ -927,7 +977,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
         externalProductId: meliItem.id,
         externalSku: product.sku,
         title: meliItem.title || payload.title,
-        price: Number(meliItem.price ?? product.price),
+        price: Number(meliItem.price ?? pricing.price),
         status: 'ACTIVE',
         syncStatus: 'SYNCED_TO_MELI',
         lastSyncedAt: now,
@@ -940,7 +990,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
 
   res.status(201).json({
     status: 'success',
-    message: `Producto publicado con ${stockToPublish} pieza(s) asignadas a Mercado Libre.`,
+    message: `Producto publicado con ${stockToPublish} pieza(s) ofertadas en Mercado Libre.`,
     data: {
       product: updatedProduct,
       item: meliItem,
@@ -1016,20 +1066,37 @@ const createProductReview = asyncHandler(async (req, res, next) => {
  */
 const getMostStockedProducts = asyncHandler(async (req, res) => {
   const products = await prisma.product.findMany({
-    where: { isArchived: false, countInStock: { gt: 0 } },
-    orderBy: { countInStock: 'desc' },
-    take: 5,
+    where: { isArchived: false },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
     select: {
       sku: true,
       name: true,
       price: true,
+      countInStock: true,
+      productType: true,
+      supplierStock: true,
+      supplierStockUnlimited: true,
+      supplierLeadTimeMinutes: true,
       media: { take: 1 },
     },
   });
+  const availableProducts = products
+    .map(decorateProductAvailability)
+    .filter((product) => {
+      const available = getProductAvailableStock(product);
+      return available === null || available > 0;
+    })
+    .sort((left, right) => {
+      if (left.availableStock === null) return -1;
+      if (right.availableStock === null) return 1;
+      return right.availableStock - left.availableStock;
+    })
+    .slice(0, 5);
 
   res.status(200).json({
     status: 'success',
-    data: { products },
+    data: { products: availableProducts },
   });
 });
 
@@ -1061,7 +1128,7 @@ const getTopProducts = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     status: 'success',
-    data: { products: topProducts },
+    data: { products: topProducts.map(decorateProductAvailability) },
   });
 });
 

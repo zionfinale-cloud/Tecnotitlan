@@ -84,7 +84,16 @@ const validateProduct = [
     .isLength({ min: 2, max: 3 }).withMessage('El prefijo SKU debe tener 2 o 3 caracteres.'),
   body('productType')
     .optional()
-    .isIn(['IN_HOUSE', 'DROPSHIPPING']).withMessage('El tipo de producto no es valido.'),
+    .isIn(['IN_HOUSE', 'DROPSHIPPING', 'SUPPLIER_ON_DEMAND']).withMessage('El tipo de producto no es valido.'),
+  body('supplierStock')
+    .optional({ checkFalsy: true })
+    .isInt({ min: 0 }).withMessage('La disponibilidad del proveedor debe ser un entero no negativo.'),
+  body('supplierStockUnlimited')
+    .optional()
+    .isBoolean().withMessage('La disponibilidad ilimitada del proveedor no es valida.'),
+  body('supplierLeadTimeMinutes')
+    .optional({ checkFalsy: true })
+    .isInt({ min: 0 }).withMessage('El tiempo de surtido del proveedor debe ser un entero no negativo.'),
   body('shippingPayer')
     .optional()
     .isIn(['CUSTOMER', 'SELLER', 'MARKETPLACE']).withMessage('La regla de envio no es valida.'),

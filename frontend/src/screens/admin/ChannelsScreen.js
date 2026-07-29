@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
+import { getAvailabilityText, getItemAvailableStock } from '../../utils/productAvailability';
 import styles from './ProductListScreen.module.css';
 
 const currency = new Intl.NumberFormat('es-MX', {
@@ -38,6 +39,8 @@ const ChannelsScreen = () => {
     publishedStock: '',
     stockBuffer: 0,
     commissionRate: '',
+    fixedFee: '',
+    autoPrice: true,
     shippingCostEstimate: '',
     status: 'DRAFT',
     notes: '',
@@ -85,7 +88,13 @@ const ChannelsScreen = () => {
       externalSku: product?.sku || '',
       title: product?.name || '',
       price: product?.price || '',
-      publishedStock: product ? Math.max(product.countInStock - Number(current.stockBuffer || 0), 0) : '',
+      publishedStock: product
+        ? (() => {
+          const availableStock = getItemAvailableStock(product);
+          const buffer = Number(current.stockBuffer || 0);
+          return availableStock === null ? Math.max(10 - buffer, 0) : Math.max(availableStock - buffer, 0);
+        })()
+        : '',
     }));
   };
 
@@ -101,6 +110,8 @@ const ChannelsScreen = () => {
         publishedStock: form.publishedStock === '' ? undefined : Number(form.publishedStock),
         stockBuffer: Number(form.stockBuffer || 0),
         commissionRate: form.commissionRate === '' ? undefined : Number(form.commissionRate),
+        fixedFee: form.fixedFee === '' ? undefined : Number(form.fixedFee),
+        autoPrice: Boolean(form.autoPrice),
         shippingCostEstimate: form.shippingCostEstimate === '' ? undefined : Number(form.shippingCostEstimate),
       });
 
@@ -115,6 +126,8 @@ const ChannelsScreen = () => {
         publishedStock: '',
         stockBuffer: 0,
         commissionRate: '',
+        fixedFee: '',
+        autoPrice: true,
         shippingCostEstimate: '',
         status: 'DRAFT',
         notes: '',
@@ -168,7 +181,7 @@ const ChannelsScreen = () => {
                 <option value="">Selecciona producto</option>
                 {activeProducts.map((product) => (
                   <option key={product.id} value={product.id}>
-                    {product.sku} - {product.name} ({product.countInStock} disponibles)
+                    {product.sku} - {product.name} ({getAvailabilityText(product)})
                   </option>
                 ))}
               </select>
@@ -225,6 +238,18 @@ const ChannelsScreen = () => {
               </select>
             </div>
             <div className={styles.field}>
+              <label className={styles.label} htmlFor="channel-auto-price">
+                <input
+                  id="channel-auto-price"
+                  type="checkbox"
+                  checked={form.autoPrice}
+                  onChange={(event) => setForm({ ...form, autoPrice: event.target.checked })}
+                />{' '}
+                Calcular precio automaticamente
+              </label>
+              <small className={styles.muted}>Incluye utilidad objetivo, comisión, cuota fija y envío absorbido.</small>
+            </div>
+            <div className={styles.field}>
               <label className={styles.label}>Precio por canal</label>
               <input
                 className={styles.input}
@@ -233,7 +258,8 @@ const ChannelsScreen = () => {
                 step="0.01"
                 value={form.price}
                 onChange={(event) => setForm({ ...form, price: event.target.value })}
-                placeholder="349"
+                placeholder={form.autoPrice ? 'Se calcula al guardar' : '349'}
+                disabled={form.autoPrice}
               />
             </div>
             <div className={styles.field}>
@@ -259,15 +285,27 @@ const ChannelsScreen = () => {
               />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Comision estimada</label>
+              <label className={styles.label}>Comision estimada (%)</label>
               <input
                 className={styles.input}
                 type="number"
                 min="0"
-                step="0.001"
+                step="0.01"
                 value={form.commissionRate}
                 onChange={(event) => setForm({ ...form, commissionRate: event.target.value })}
-                placeholder="0.16"
+                placeholder="16"
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label}>Cuota fija por venta</label>
+              <input
+                className={styles.input}
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.fixedFee}
+                onChange={(event) => setForm({ ...form, fixedFee: event.target.value })}
+                placeholder="Ej. 20"
               />
             </div>
             <div className={styles.field}>
@@ -339,7 +377,7 @@ const ChannelsScreen = () => {
                   <td>{listing.title || listing.product?.name}</td>
                   <td>{currency.format(listing.price || 0)}</td>
                   <td>{listing.publishedStock ?? '-'}</td>
-                  <td>{listing.product?.countInStock ?? '-'}</td>
+                  <td>{getAvailabilityText(listing.product)}</td>
                   <td>{listing.status}</td>
                   <td>{listing.syncStatus || '-'}</td>
                   <td>

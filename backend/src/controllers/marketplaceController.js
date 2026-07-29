@@ -1,6 +1,8 @@
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js';
 import { BadRequestError, NotFoundError } from '../utils/errorUtils.js';
+import { getDefaultMarketplaceOfferStock } from '../utils/productAvailability.js';
+import { resolveMarketplacePrice } from '../services/channelPricingService.js';
 
 const VALID_CHANNELS = ['WEB', 'MERCADOLIBRE', 'TIKTOK_SHOP', 'AMAZON'];
 const VALID_LISTING_STATUSES = ['DRAFT', 'READY', 'ACTIVE', 'PAUSED', 'ERROR', 'ARCHIVED'];
@@ -9,6 +11,12 @@ const parseOptionalNumber = (value) => {
   if (value === undefined || value === null || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseOptionalBoolean = (value, fallback = true) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return Boolean(value);
 };
 
 const assertChannel = (channel) => {
@@ -60,6 +68,9 @@ const getMarketplaceListings = asyncHandler(async (req, res) => {
           price: true,
           costPrice: true,
           countInStock: true,
+          productType: true,
+          supplierStock: true,
+          supplierStockUnlimited: true,
           isArchived: true,
         },
       },
@@ -67,7 +78,15 @@ const getMarketplaceListings = asyncHandler(async (req, res) => {
     orderBy: [{ channel: 'asc' }, { updatedAt: 'desc' }],
   });
 
-  res.status(200).json({ status: 'success', data: { listings } });
+  res.status(200).json({
+    status: 'success',
+    data: {
+      listings: listings.map((listing) => ({
+        ...listing,
+        pricing: resolveMarketplacePrice({ product: listing.product, listing }),
+      })),
+    },
+  });
 });
 
 const upsertMarketplaceListing = asyncHandler(async (req, res, next) => {
@@ -81,6 +100,8 @@ const upsertMarketplaceListing = asyncHandler(async (req, res, next) => {
     publishedStock,
     stockBuffer,
     commissionRate,
+    fixedFee,
+    autoPrice,
     shippingCostEstimate,
     status,
     notes,
@@ -105,7 +126,7 @@ const upsertMarketplaceListing = asyncHandler(async (req, res, next) => {
     const parsedStockBuffer = Number(stockBuffer || 0);
     const parsedPublishedStock =
       publishedStock === undefined || publishedStock === ''
-        ? Math.max(product.countInStock - parsedStockBuffer, 0)
+        ? getDefaultMarketplaceOfferStock(product, parsedStockBuffer)
         : Number(publishedStock);
 
     if (!Number.isInteger(parsedPublishedStock) || parsedPublishedStock < 0) {
@@ -115,6 +136,24 @@ const upsertMarketplaceListing = asyncHandler(async (req, res, next) => {
     if (!Number.isInteger(parsedStockBuffer) || parsedStockBuffer < 0) {
       throw new BadRequestError('Buffer de stock invalido.');
     }
+
+    const parsedCommissionRate =
+      parseOptionalNumber(commissionRate) ?? (channel === 'MERCADOLIBRE' ? 0.17 : 0);
+    const parsedFixedFee = parseOptionalNumber(fixedFee) ?? 0;
+    const parsedShippingCost =
+      parseOptionalNumber(shippingCostEstimate) ??
+      Number(product.shippingCostEstimate || 0);
+    const automaticPrice = parseOptionalBoolean(autoPrice, true);
+    const pricing = resolveMarketplacePrice({
+      product,
+      listing: {
+        price: parseOptionalNumber(price),
+        commissionRate: parsedCommissionRate,
+        fixedFee: parsedFixedFee,
+        shippingCostEstimate: parsedShippingCost,
+        autoPrice: automaticPrice,
+      },
+    });
 
     const listing = await prisma.marketplaceListing.upsert({
       where: {
@@ -129,11 +168,13 @@ const upsertMarketplaceListing = asyncHandler(async (req, res, next) => {
         externalProductId: externalProductId || null,
         externalSku: externalSku || product.sku,
         title: title || product.name,
-        price: parseOptionalNumber(price) ?? product.price,
+        price: pricing.price,
         publishedStock: parsedPublishedStock,
         stockBuffer: parsedStockBuffer,
-        commissionRate: parseOptionalNumber(commissionRate),
-        shippingCostEstimate: parseOptionalNumber(shippingCostEstimate),
+        commissionRate: parsedCommissionRate,
+        fixedFee: parsedFixedFee,
+        autoPrice: automaticPrice,
+        shippingCostEstimate: parsedShippingCost,
         status: status || 'DRAFT',
         syncStatus: 'PENDING_SETUP',
         notes,
@@ -142,21 +183,34 @@ const upsertMarketplaceListing = asyncHandler(async (req, res, next) => {
         externalProductId: externalProductId || null,
         externalSku: externalSku || product.sku,
         title: title || product.name,
-        price: parseOptionalNumber(price) ?? product.price,
+        price: pricing.price,
         publishedStock: parsedPublishedStock,
         stockBuffer: parsedStockBuffer,
-        commissionRate: parseOptionalNumber(commissionRate),
-        shippingCostEstimate: parseOptionalNumber(shippingCostEstimate),
+        commissionRate: parsedCommissionRate,
+        fixedFee: parsedFixedFee,
+        autoPrice: automaticPrice,
+        shippingCostEstimate: parsedShippingCost,
         status: status || 'DRAFT',
         syncStatus: 'PENDING_SYNC',
         notes,
       },
       include: {
-        product: { select: { id: true, sku: true, name: true, countInStock: true } },
+        product: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            price: true,
+            countInStock: true,
+            productType: true,
+            supplierStock: true,
+            supplierStockUnlimited: true,
+          },
+        },
       },
     });
 
-    res.status(200).json({ status: 'success', data: { listing } });
+    res.status(200).json({ status: 'success', data: { listing, pricing } });
   } catch (error) {
     next(error);
   }
@@ -172,6 +226,8 @@ const updateMarketplaceListing = asyncHandler(async (req, res, next) => {
     publishedStock,
     stockBuffer,
     commissionRate,
+    fixedFee,
+    autoPrice,
     shippingCostEstimate,
     status,
     syncStatus,
@@ -183,19 +239,45 @@ const updateMarketplaceListing = asyncHandler(async (req, res, next) => {
       throw new BadRequestError('Estado de publicacion invalido.');
     }
 
-    const current = await prisma.marketplaceListing.findUnique({ where: { id } });
+    const current = await prisma.marketplaceListing.findUnique({
+      where: { id },
+      include: { product: true },
+    });
     if (!current) {
       throw new NotFoundError('Publicacion no encontrada.');
     }
+
+    const mergedListing = {
+      ...current,
+      ...(price !== undefined ? { price: parseOptionalNumber(price) } : {}),
+      ...(commissionRate !== undefined
+        ? { commissionRate: parseOptionalNumber(commissionRate) }
+        : {}),
+      ...(fixedFee !== undefined ? { fixedFee: parseOptionalNumber(fixedFee) ?? 0 } : {}),
+      ...(autoPrice !== undefined
+        ? { autoPrice: parseOptionalBoolean(autoPrice, current.autoPrice) }
+        : {}),
+      ...(shippingCostEstimate !== undefined
+        ? { shippingCostEstimate: parseOptionalNumber(shippingCostEstimate) }
+        : {}),
+    };
+    const pricing = resolveMarketplacePrice({
+      product: current.product,
+      listing: mergedListing,
+    });
 
     const data = {
       ...(externalProductId !== undefined ? { externalProductId: externalProductId || null } : {}),
       ...(externalSku !== undefined ? { externalSku: externalSku || null } : {}),
       ...(title !== undefined ? { title } : {}),
-      ...(price !== undefined ? { price: parseOptionalNumber(price) } : {}),
+      price: pricing.price,
       ...(publishedStock !== undefined ? { publishedStock: Number(publishedStock) } : {}),
       ...(stockBuffer !== undefined ? { stockBuffer: Number(stockBuffer) } : {}),
       ...(commissionRate !== undefined ? { commissionRate: parseOptionalNumber(commissionRate) } : {}),
+      ...(fixedFee !== undefined ? { fixedFee: parseOptionalNumber(fixedFee) ?? 0 } : {}),
+      ...(autoPrice !== undefined
+        ? { autoPrice: parseOptionalBoolean(autoPrice, current.autoPrice) }
+        : {}),
       ...(shippingCostEstimate !== undefined ? { shippingCostEstimate: parseOptionalNumber(shippingCostEstimate) } : {}),
       ...(status !== undefined ? { status } : {}),
       ...(syncStatus !== undefined ? { syncStatus } : {}),
@@ -206,11 +288,22 @@ const updateMarketplaceListing = asyncHandler(async (req, res, next) => {
       where: { id },
       data,
       include: {
-        product: { select: { id: true, sku: true, name: true, countInStock: true } },
+        product: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            price: true,
+            countInStock: true,
+            productType: true,
+            supplierStock: true,
+            supplierStockUnlimited: true,
+          },
+        },
       },
     });
 
-    res.status(200).json({ status: 'success', data: { listing } });
+    res.status(200).json({ status: 'success', data: { listing, pricing } });
   } catch (error) {
     next(error);
   }

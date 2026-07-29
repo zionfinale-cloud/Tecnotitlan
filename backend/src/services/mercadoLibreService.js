@@ -8,6 +8,7 @@ import prisma from '../config/prisma.js';
 import { listNotificationLogs, writeNotificationLog } from './notificationLogService.js';
 import { applyPaidOrderInventoryMovements } from './orderInventoryService.js';
 import { notifyStaffOrderPaid } from './staffNotificationService.js';
+import { getProductAvailableStock, hasProductAvailability } from '../utils/productAvailability.js';
 
 const MELI_API_BASE_URL = 'https://api.mercadolibre.com';
 const MELI_CHANNEL = 'MERCADOLIBRE';
@@ -26,6 +27,9 @@ const ORDER_INCLUDE = {
           costPrice: true,
           price: true,
           countInStock: true,
+          supplierStock: true,
+          supplierStockUnlimited: true,
+          supplierLeadTimeMinutes: true,
         },
       },
     },
@@ -353,6 +357,17 @@ const validateMeliAssignedStock = async (tx, items = []) => {
   const shortages = [];
 
   for (const item of items) {
+    if (item.product?.productType === 'SUPPLIER_ON_DEMAND') {
+      if (!hasProductAvailability(item.product, item.qty)) {
+        shortages.push({
+          sku: item.product?.sku,
+          name: item.name,
+          required: item.qty,
+          available: getProductAvailableStock(item.product),
+        });
+      }
+      continue;
+    }
     if (item.product?.productType !== 'IN_HOUSE') continue;
     const available = await getAssignedMeliStock(tx, item.productId);
     if (available < item.qty) {

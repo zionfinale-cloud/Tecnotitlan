@@ -85,6 +85,9 @@ const emptyProduct = {
   skuPrefix: '',
   countInStock: 0,
   productType: 'IN_HOUSE',
+  supplierStock: 0,
+  supplierStockUnlimited: false,
+  supplierLeadTimeMinutes: 60,
   supplierInfo: '',
   youtubeUrl: '',
   shippingPayer: 'CUSTOMER',
@@ -175,6 +178,9 @@ const ProductEditScreen = () => {
             skuPrefix: loadedSkuPrefix,
             countInStock: product.countInStock ?? 0,
             productType: product.productType || 'IN_HOUSE',
+            supplierStock: product.supplierStock ?? 0,
+            supplierStockUnlimited: Boolean(product.supplierStockUnlimited),
+            supplierLeadTimeMinutes: product.supplierLeadTimeMinutes ?? 60,
             supplierInfo: product.supplierInfo || '',
             youtubeUrl: product.youtubeUrl || '',
             shippingPayer: product.shippingPayer || 'CUSTOMER',
@@ -550,12 +556,17 @@ const ProductEditScreen = () => {
       ...form,
       price: Number(form.price),
       countInStock: Number(form.countInStock || 0),
+      supplierStock: form.productType === 'SUPPLIER_ON_DEMAND' ? Number(form.supplierStock || 0) : 0,
+      supplierStockUnlimited: form.productType === 'SUPPLIER_ON_DEMAND' && Boolean(form.supplierStockUnlimited),
+      supplierLeadTimeMinutes: form.productType === 'SUPPLIER_ON_DEMAND'
+        ? Number(form.supplierLeadTimeMinutes || 60)
+        : 60,
       shippingCostEstimate: form.shippingCostEstimate === '' ? undefined : Number(form.shippingCostEstimate),
       weightKg: form.weightKg === '' ? undefined : Number(form.weightKg),
       lengthCm: form.lengthCm === '' ? undefined : Number(form.lengthCm),
       widthCm: form.widthCm === '' ? undefined : Number(form.widthCm),
       heightCm: form.heightCm === '' ? undefined : Number(form.heightCm),
-      supplierInfo: form.productType === 'DROPSHIPPING' ? form.supplierInfo : '',
+      supplierInfo: ['DROPSHIPPING', 'SUPPLIER_ON_DEMAND'].includes(form.productType) ? form.supplierInfo : '',
       media: form.media.map(({ type, url, altText }) => ({ type, url, altText })),
       characteristics: form.characteristics.filter((item) => item.key && item.value),
     };
@@ -663,6 +674,7 @@ const ProductEditScreen = () => {
               <label className={styles.label} htmlFor="product-type">Tipo</label>
               <select id="product-type" className={styles.select} value={form.productType} onChange={(event) => updateField('productType', event.target.value)}>
                 <option value="IN_HOUSE">Inventario propio</option>
+                <option value="SUPPLIER_ON_DEMAND">Proveedor local / bajo pedido</option>
                 <option value="DROPSHIPPING">Dropshipping</option>
               </select>
             </div>
@@ -677,10 +689,39 @@ const ProductEditScreen = () => {
               </div>
             )}
             <div className={styles.field}>
-              <label className={styles.label} htmlFor="product-stock">Stock inicial</label>
+              <label className={styles.label} htmlFor="product-stock">Stock inicial propio</label>
               <input id="product-stock" className={styles.input} type="number" min="0" value={form.countInStock} onChange={(event) => updateField('countInStock', event.target.value)} />
-              <small className={styles.muted}>Recomendado: 0. Usa Inventario para registrar entradas reales.</small>
+              <small className={styles.muted}>Solo piezas que ya compraste. Usa Inventario para registrar entradas reales.</small>
             </div>
+            {form.productType === 'SUPPLIER_ON_DEMAND' && (
+              <>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="supplier-unlimited">Disponibilidad del proveedor</label>
+                  <label className={styles.checkboxLabel} htmlFor="supplier-unlimited">
+                    <input
+                      id="supplier-unlimited"
+                      type="checkbox"
+                      checked={form.supplierStockUnlimited}
+                      onChange={(event) => updateField('supplierStockUnlimited', event.target.checked)}
+                    />
+                    El proveedor lo surte de forma constante
+                  </label>
+                  <small className={styles.muted}>No afecta tu inversión hasta que exista una venta.</small>
+                </div>
+                {!form.supplierStockUnlimited && (
+                  <div className={styles.field}>
+                    <label className={styles.label} htmlFor="supplier-stock">Stock confirmado con proveedor</label>
+                    <input id="supplier-stock" className={styles.input} type="number" min="0" value={form.supplierStock} onChange={(event) => updateField('supplierStock', event.target.value)} />
+                    <small className={styles.muted}>Se suma a lo disponible, pero no se cuenta como bodega propia.</small>
+                  </div>
+                )}
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="supplier-lead-time">Tiempo de abastecimiento (minutos)</label>
+                  <input id="supplier-lead-time" className={styles.input} type="number" min="0" value={form.supplierLeadTimeMinutes} onChange={(event) => updateField('supplierLeadTimeMinutes', event.target.value)} />
+                  <small className={styles.muted}>Ejemplo: 60 si tu proveedor lo entrega en una hora.</small>
+                </div>
+              </>
+            )}
             <div className={styles.field}>
               <label className={styles.label} htmlFor="product-youtube">Video YouTube / TikTok / Reel</label>
               <input id="product-youtube" className={styles.input} value={form.youtubeUrl} onChange={(event) => updateField('youtubeUrl', event.target.value)} placeholder="Pega el link del video promocional" />
@@ -989,7 +1030,7 @@ const ProductEditScreen = () => {
               <button className={styles.secondaryButton} type="button" onClick={addCharacteristic}>+ Agregar especificacion</button>
             </div>
 
-            {form.productType === 'DROPSHIPPING' && (
+            {['DROPSHIPPING', 'SUPPLIER_ON_DEMAND'].includes(form.productType) && (
               <div className={`${styles.field} ${styles.fieldFull}`}>
                 <label className={styles.label} htmlFor="product-supplier">Informacion del proveedor</label>
                 <textarea id="product-supplier" className={styles.textarea} value={form.supplierInfo} onChange={(event) => updateField('supplierInfo', event.target.value)} required />
