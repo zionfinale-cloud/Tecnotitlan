@@ -165,14 +165,22 @@ const getMeliItemDetails = asyncHandler(async (req, res) => {
 
 const getPublicationRequirements = asyncHandler(async (req, res) => {
   const title = String(req.query.title || '').trim();
-  const productId = String(req.query.productId || '').trim();
+  // El editor admin navega con el SKU, mientras que algunas llamadas internas
+  // usan el UUID. Aceptamos ambos para que preparar una publicacion no dependa
+  // de como se abrio la ficha del producto.
+  const productReference = String(req.query.productId || '').trim();
   let categoryId = String(req.query.categoryId || '').trim();
   let prediction = null;
   let inventory = null;
 
-  if (productId) {
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
+  if (productReference) {
+    const product = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { id: productReference },
+          { sku: productReference.toUpperCase() },
+        ],
+      },
       select: {
         id: true,
         countInStock: true,

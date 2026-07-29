@@ -869,8 +869,17 @@ const toPublicProductImageUrl = (url) => {
 };
 
 const publishProductToMeli = asyncHandler(async (req, res, next) => {
-  const product = await prisma.product.findUnique({
-    where: { id: req.params.id },
+  // La ruta historicamente se llamo :id, pero la ficha administrativa usa el
+  // SKU maestro en la URL. Resolver ambos evita publicar el producto equivocado
+  // y mantiene compatibilidad con llamadas que ya mandan el UUID.
+  const productReference = String(req.params.id || '').trim();
+  const product = await prisma.product.findFirst({
+    where: {
+      OR: [
+        { id: productReference },
+        { sku: productReference.toUpperCase() },
+      ],
+    },
     include: {
       media: true,
       characteristics: true,
@@ -882,7 +891,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   });
 
   if (!product) {
-    return next(new NotFoundError('Producto no encontrado'));
+    return next(new NotFoundError('Producto local no encontrado.'));
   }
   if (product.meliItemId) {
     return next(new BadRequestError(

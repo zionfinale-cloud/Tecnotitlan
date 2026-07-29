@@ -920,15 +920,16 @@ Backend disponible:
 - `GET /api/mercadolibre/webhook-events`: muestra la bitacora reciente de webhooks recibidos en el endpoint de Mercado Libre.
 - `GET /api/mercadolibre/items/:meliItemId`: revisa una publicacion vinculada.
 - `PUT /api/products/:sku/link-meli`: vincula un producto local con una publicacion real de Mercado Libre. Tambien acepta el ID interno del producto para compatibilidad.
+- `GET /api/mercadolibre/publication-requirements` y `POST /api/products/:referencia/publish-meli`: preparan y publican desde la ficha de Tecnotitlan. La referencia puede ser el SKU maestro o el ID interno; el panel usa normalmente el SKU (`AUR-002`, por ejemplo).
 - `PUT /api/mercadolibre/products/:sku/sync`: actualiza stock en la publicacion vinculada.
 
 Flujo operativo actual:
 
 1. Crear o revisar el producto maestro en Tecnotitlan con SKU interno, imagenes, costo, precio y stock.
-2. Publicar o crear el articulo en Mercado Libre desde Seller Center cuando sea necesario.
-3. Copiar el ID de publicacion (`MLM...`) y pegarlo en el editor del producto en Tecnotitlan.
-4. Validar la publicacion desde Tecnotitlan para confirmar que existe y pertenece a la cuenta autorizada.
-5. Guardar el vinculo y sincronizar stock solo cuando el inventario por canal este correcto.
+2. En la ficha del producto, abrir la seccion `Mercado Libre`, preparar la publicacion, completar categoria, atributos e imagenes y publicar. Como alternativa, se puede crear el articulo desde Seller Center.
+3. Si ya existe una publicacion, copiar el ID (`MLM...`) y pegarlo en el editor del producto en Tecnotitlan.
+4. Validar y guardar el vinculo para confirmar que pertenece a la cuenta autorizada.
+5. Sincronizar stock solo cuando el inventario por canal este correcto.
 
 Regla de seguridad: Mercado Libre no inventa pedidos ni inventario. Cuando `Leer pedidos` o un webhook real de Mercado Libre encuentra una orden pagada, Tecnotitlan intenta convertirla en un pedido interno con folio `MELI-{id}`. Para poder importarla, cada producto de la orden debe empatar con un producto local mediante `meliItemId`, vinculacion de `MarketplaceListing`, SKU o coincidencia clara de titulo. Si no se puede empatar, la orden queda como `Requiere revision` en la pantalla de Mercado Libre y en la bitacora, sin crear pedido fantasma ni tocar inventario.
 
