@@ -276,6 +276,14 @@ const normalizeCharacteristicsPayload = (characteristics = []) =>
         }))
     : [];
 
+const normalizeShortDescription = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+
+  const normalized = String(value).trim();
+  return normalized ? normalized.slice(0, 280) : null;
+};
+
 // @desc    Crear un nuevo producto
 // @route   POST /api/products
 // @access  Private/Admin (now wrapped with asyncHandler)
@@ -283,6 +291,7 @@ const createProduct = asyncHandler(async (req, res, next) => {
   logger.info('[ProductCtrl] Intentando crear un nuevo producto');
   const {
     name,
+    shortDescription,
     description,
     price,
     brand,
@@ -337,6 +346,7 @@ const createProduct = asyncHandler(async (req, res, next) => {
         userId: req.user.id,
         sku: generatedSku,
         name,
+        shortDescription: normalizeShortDescription(shortDescription),
         description,
         price: parseFloat(price), // Convertir a número
         costPrice: parsedCostPrice,
@@ -498,7 +508,10 @@ const getProductById = asyncHandler(async (req, res, next) => {
   const product = await prisma.product.findFirst({
     where: query,
     include: {
-      reviews: { include: { user: { select: { firstName: true, lastName: true } } } },
+      reviews: {
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { firstName: true, lastName: true } } },
+      },
       category: { select: { id: true, name: true } },
       media: true,
       characteristics: true,
@@ -526,6 +539,7 @@ const updateProduct = asyncHandler(async (req, res, next) => {
   logger.info(`[ProductCtrl] Actualizando producto con SKU: ${req.params.sku}`);
   const {
     name,
+    shortDescription,
     description,
     price,
     countInStock,
@@ -567,6 +581,9 @@ const updateProduct = asyncHandler(async (req, res, next) => {
         where: { sku: req.params.sku.toUpperCase() },
         data: {
           name,
+          ...(shortDescription !== undefined
+            ? { shortDescription: normalizeShortDescription(shortDescription) }
+            : {}),
           description,
           price: parseFloat(price),
           countInStock: parseInt(countInStock, 10) || 0,
@@ -1087,6 +1104,17 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
 
 const createProductReview = asyncHandler(async (req, res, next) => {
   const { rating, comment } = req.body;
+  const normalizedRating = Number(rating);
+  const normalizedComment = String(comment || '').trim();
+
+  if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
+    return next(new BadRequestError('La calificacion debe ser un numero entero entre 1 y 5.'));
+  }
+
+  if (normalizedComment.length < 3 || normalizedComment.length > 1000) {
+    return next(new BadRequestError('La opinion debe tener entre 3 y 1000 caracteres.'));
+  }
+
   const product = await prisma.product.findUnique({ where: { sku: req.params.sku.toUpperCase() } });
 
   if (!product) {
@@ -1112,15 +1140,23 @@ const createProductReview = asyncHandler(async (req, res, next) => {
   //   return next(new BadRequestError('Solo los clientes que compraron este producto pueden dejar una reseña.'));
   // }
 
-  const review = await prisma.review.create({
-    data: {
-      name: req.user.name, // Esto ahora funcionará gracias al cambio en authMiddleware
-      rating: Number(rating),
-      comment,
-      userId: req.user.id,
-      productId: product.id,
-    },
-  });
+  let review;
+  try {
+    review = await prisma.review.create({
+      data: {
+        name: req.user.name,
+        rating: normalizedRating,
+        comment: normalizedComment,
+        userId: req.user.id,
+        productId: product.id,
+      },
+    });
+  } catch (error) {
+    if (error?.code === 'P2002') {
+      return next(new BadRequestError('Ya has calificado este producto.'));
+    }
+    throw error;
+  }
 
   // Recalcular el rating promedio y el número de reseñas del producto
   const stats = await prisma.review.aggregate({

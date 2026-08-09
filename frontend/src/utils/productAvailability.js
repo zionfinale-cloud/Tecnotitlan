@@ -26,15 +26,9 @@ export const hasItemAvailability = (product, quantity = 1) => {
 export const getAvailabilityText = (product = {}) => {
   const availableStock = getItemAvailableStock(product);
 
-  if (availableStock === null) {
-    const leadTime = toNonNegativeInteger(product?.supplierLeadTimeMinutes);
-    return leadTime > 0
-      ? `Disponible bajo pedido (${leadTime} min.)`
-      : 'Disponible bajo pedido';
-  }
+  if (availableStock === null) return 'Disponible';
 
   if (availableStock <= 0) return 'Agotado temporalmente';
 
-  const suffix = product?.productType === 'SUPPLIER_ON_DEMAND' ? ' (proveedor local)' : '';
-  return `${availableStock} disponible${availableStock === 1 ? '' : 's'}${suffix}`;
+  return `${availableStock} disponible${availableStock === 1 ? '' : 's'}`;
 };

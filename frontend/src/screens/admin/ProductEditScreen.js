@@ -77,6 +77,7 @@ const normalizeSkuPrefix = (value) => String(value || '')
 const emptyProduct = {
   sku: '',
   name: '',
+  shortDescription: '',
   description: '',
   price: '',
   costPrice: '',
@@ -170,6 +171,7 @@ const ProductEditScreen = () => {
             ...emptyProduct,
             sku: product.sku || '',
             name: product.name || '',
+            shortDescription: product.shortDescription || '',
             description: product.description || '',
             price: product.price ?? '',
             costPrice: product.costPrice ?? '',
@@ -947,6 +949,18 @@ const ProductEditScreen = () => {
                 </div>
               </div>
             )}
+
+            <div className={`${styles.field} ${styles.fieldFull}`}>
+              <label className={styles.label} htmlFor="product-short-description">Descripcion corta</label>
+              <input
+                id="product-short-description"
+                className={styles.input}
+                value={form.shortDescription}
+                onChange={(event) => updateField('shortDescription', event.target.value)}
+                maxLength={280}
+                placeholder="Resumen breve que aparecera debajo del nombre del producto"
+              />
+            </div>
 
             <div className={`${styles.field} ${styles.fieldFull}`}>
               <label className={styles.label} htmlFor="product-description">Descripcion comercial</label>

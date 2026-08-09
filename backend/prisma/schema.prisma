@@ -131,6 +131,7 @@ model Product {
   id                   String               @id @default(cuid())
   sku                  String               @unique
   name                 String
+  shortDescription     String?              @map("short_description") @db.VarChar(280)
   description          String               @db.Text
   price                Float
   costPrice            Float?               @default(0)
@@ -454,6 +455,7 @@ model Review {
   product   Product  @relation(fields: [productId], references: [id])
   productId String
 
+  @@unique([userId, productId])
   @@map("reviews")
 }
 

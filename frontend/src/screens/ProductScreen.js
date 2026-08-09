@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Message from '../components/Message';
 import Rating from '../components/Rating';
+import { AuthContext } from '../context/AuthContext';
 import { CartContext } from '../context/CartContext';
 import { SettingsContext } from '../context/SettingsContext';
 import { ToastContext } from '../context/ToastContext';
@@ -57,7 +58,13 @@ const ProductScreen = () => {
   const [showVideo, setShowVideo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [reviewError, setReviewError] = useState('');
 
+  const { userInfo } = useContext(AuthContext);
   const { addToCart } = useContext(CartContext);
   const { showToast } = useContext(ToastContext);
   const { settings } = useContext(SettingsContext);
@@ -94,6 +101,10 @@ const ProductScreen = () => {
   const availableStock = getItemAvailableStock(product);
   const hasStock = hasItemAvailability(product);
   const maxQuantity = availableStock === null ? 10 : Math.min(availableStock, 10);
+  const reviews = product?.reviews || [];
+  const userHasReviewed = Boolean(
+    userInfo?.id && reviews.some((review) => review.userId === userInfo.id)
+  );
 
   const addToCartHandler = () => {
     if (!product || !hasStock) return;
@@ -121,6 +132,29 @@ const ProductScreen = () => {
   const selectImage = (url) => {
     setShowVideo(false);
     setActiveImage(resolveAssetUrl(url));
+  };
+
+  const submitReviewHandler = async (event) => {
+    event.preventDefault();
+    setReviewMessage('');
+    setReviewError('');
+    setReviewSubmitting(true);
+
+    try {
+      await api.post(`/products/${sku}/reviews`, {
+        rating: Number(reviewRating),
+        comment: reviewComment.trim(),
+      });
+      const { data } = await api.get(`/products/${sku}`);
+      setProduct(data.data.product);
+      setReviewRating(5);
+      setReviewComment('');
+      setReviewMessage('Gracias. Tu opinion ya aparece en el producto.');
+    } catch (err) {
+      setReviewError(err.response?.data?.message || 'No pudimos guardar tu opinion.');
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   return (
@@ -198,6 +232,9 @@ const ProductScreen = () => {
             <article className={styles.summaryPanel}>
               <span className={styles.category}>{product.category?.name || product.sku}</span>
               <h1 className={styles.title}>{product.name}</h1>
+              {product.shortDescription && (
+                <p className={styles.shortDescription}>{product.shortDescription}</p>
+              )}
               <div className={styles.ratingRow}>
                 <Rating value={product.rating || 0} text={`${product.numReviews || 0} resenas`} color="var(--cta-color)" />
               </div>
@@ -265,6 +302,89 @@ const ProductScreen = () => {
                 </dl>
               </article>
             )}
+
+            <article className={styles.detailsPanel}>
+              <div className={styles.reviewHeading}>
+                <div>
+                  <h2>Opiniones de clientes</h2>
+                  <p>Experiencias reales de quienes ya compraron este producto.</p>
+                </div>
+                <Rating
+                  value={product.rating || 0}
+                  text={`${product.numReviews || 0} resenas`}
+                  color="var(--cta-color)"
+                />
+              </div>
+
+              {reviews.length > 0 ? (
+                <div className={styles.reviewList}>
+                  {reviews.map((review) => {
+                    const reviewerName = review.name
+                      || [review.user?.firstName, review.user?.lastName].filter(Boolean).join(' ')
+                      || 'Cliente Tecnotitlan';
+                    const reviewDate = review.createdAt
+                      ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium' }).format(new Date(review.createdAt))
+                      : '';
+
+                    return (
+                      <div className={styles.reviewCard} key={review.id}>
+                        <div className={styles.reviewCardHeader}>
+                          <strong>{reviewerName}</strong>
+                          <Rating value={review.rating} color="var(--cta-color)" />
+                        </div>
+                        <p className={styles.reviewComment}>{review.comment}</p>
+                        {reviewDate && <span className={styles.reviewMeta}>{reviewDate}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className={styles.emptyReviews}>Aun no hay opiniones. Se el primero en compartir tu experiencia.</p>
+              )}
+
+              {userInfo ? (
+                userHasReviewed ? (
+                  <p className={styles.reviewFeedback}>Ya compartiste una opinion sobre este producto.</p>
+                ) : (
+                  <form className={styles.reviewForm} onSubmit={submitReviewHandler}>
+                    <h3>Califica tu compra</h3>
+                    <div className={styles.reviewFields}>
+                      <label className={styles.reviewField}>
+                        Calificacion
+                        <select value={reviewRating} onChange={(event) => setReviewRating(event.target.value)}>
+                          <option value="5">5 - Excelente</option>
+                          <option value="4">4 - Muy bueno</option>
+                          <option value="3">3 - Bueno</option>
+                          <option value="2">2 - Regular</option>
+                          <option value="1">1 - Malo</option>
+                        </select>
+                      </label>
+                      <label className={styles.reviewField}>
+                        Tu opinion
+                        <textarea
+                          className={styles.reviewTextarea}
+                          value={reviewComment}
+                          onChange={(event) => setReviewComment(event.target.value)}
+                          minLength="3"
+                          maxLength="1000"
+                          placeholder="Cuentanos como te fue con el producto"
+                          required
+                        />
+                      </label>
+                    </div>
+                    {reviewError && <p className={`${styles.reviewFeedback} ${styles.reviewError}`}>{reviewError}</p>}
+                    {reviewMessage && <p className={styles.reviewFeedback}>{reviewMessage}</p>}
+                    <button className={styles.reviewSubmit} type="submit" disabled={reviewSubmitting}>
+                      {reviewSubmitting ? 'Publicando...' : 'Publicar opinion'}
+                    </button>
+                  </form>
+                )
+              ) : (
+                <p className={styles.reviewLogin}>
+                  <Link to="/login">Inicia sesion</Link> para calificar este producto.
+                </p>
+              )}
+            </article>
           </section>
         </div>
       )}

@@ -1225,6 +1225,24 @@ Esta modalidad permite operar con proveedor local sin mezclar promesas de sumini
 
 La publicacion automatica remota depende todavia de que cada articulo tenga categoria, atributos obligatorios e imagenes aceptadas por Mercado Libre. Esa validacion es necesaria antes de convertir un traspaso en una publicacion real; no es una segunda fuente de inventario.
 
+## Ficha de producto, disponibilidad y resenas (2026-08-09)
+
+- Se conserva una sola ficha publica (`ProductScreen`), una sola ruta por SKU y un solo endpoint de resenas. No se agregaron pantallas ni servicios duplicados.
+- `Product.shortDescription` guarda un resumen comercial opcional de hasta 280 caracteres y se muestra debajo del titulo. La descripcion extensa y las especificaciones se mantienen en secciones inferiores para evitar una columna de compra demasiado larga.
+- La disponibilidad publica ya no revela tiempos ni condiciones internas del proveedor. Solo muestra `Disponible`, el numero de piezas disponibles o `Agotado temporalmente`.
+- Las etiquetas de Tecatl siguen siendo internas: ayudan a buscar y recomendar, pero se filtran de las especificaciones visibles para el cliente.
+- El video se reproduce dentro de la galeria del producto. Se admiten enlaces embebibles de YouTube y TikTok, ademas de archivos MP4, WebM u OGG accesibles publicamente.
+- Un usuario autenticado puede publicar una calificacion de 1 a 5 y una opinion de 3 a 1000 caracteres. Solo se permite una resena por usuario y producto; esta regla se valida en la aplicacion y con un indice unico en PostgreSQL.
+- Migraciones nuevas: `20260809120000_add_product_short_description` y `20260809120500_prevent_duplicate_product_reviews`.
+
+## Diagnostico de WhatsApp y Baileys (2026-08-09)
+
+- Baileys es una integracion no oficial y no esta afiliada, autorizada ni respaldada por WhatsApp. No se encontro una regla publica de Meta que afirme que un numero se bloquea automaticamente por enviar un solo mensaje mediante Baileys.
+- Una restriccion despues de un solo mensaje puede estar relacionada con confianza o historial del numero, sesiones no oficiales, vinculaciones repetidas por QR, reconexiones, cambios de huella del dispositivo o reportes previos. Esta causa es una inferencia operativa; solo Meta puede confirmar el motivo de una cuenta especifica.
+- Los terminos y politicas de WhatsApp permiten limitar o suspender cuentas por uso no autorizado, retroalimentacion negativa, incumplimiento de calidad o mensajes sin consentimiento. La automatizacion debe conservar consentimiento verificable, identificacion clara del negocio y salida sencilla de las notificaciones.
+- No se modifico el ciclo de conexion, QR, sesion ni reconexion de WhatsApp durante este cierre. Tampoco se debe desplegar este commit solo para validar la ficha de producto, porque reiniciar el API puede provocar actividad innecesaria de la sesion.
+- Ruta recomendada para operacion estable: WhatsApp Cloud API oficial o un proveedor autorizado, numero dedicado de Tecnotitlan, plantillas aprobadas fuera de la ventana de atencion y correo como respaldo. n8n puede orquestar eventos, pero no convierte una sesion Baileys en una integracion oficial.
+
 # Aviso de Privacidad Integral
 
 **Última actualización:** Diciembre 2025
