@@ -1232,7 +1232,7 @@ La publicacion automatica remota depende todavia de que cada articulo tenga cate
 - La disponibilidad publica ya no revela tiempos ni condiciones internas del proveedor. Solo muestra `Disponible`, el numero de piezas disponibles o `Agotado temporalmente`.
 - Las etiquetas de Tecatl siguen siendo internas: ayudan a buscar y recomendar, pero se filtran de las especificaciones visibles para el cliente.
 - El video se reproduce dentro de la galeria del producto. Se admiten enlaces embebibles de YouTube y TikTok, ademas de archivos MP4, WebM u OGG accesibles publicamente.
-- Un usuario autenticado puede publicar una calificacion de 1 a 5 y una opinion de 3 a 1000 caracteres. Solo se permite una resena por usuario y producto; esta regla se valida en la aplicacion y con un indice unico en PostgreSQL.
+- Solo un cliente autenticado con una compra pagada y no cancelada que incluya el producto puede publicar una calificacion de 1 a 5 y una opinion de 3 a 1000 caracteres. Solo se permite una resena por usuario y producto; ambas reglas se validan en la aplicacion y la unicidad tambien se protege con un indice unico en PostgreSQL.
 - Migraciones nuevas: `20260809120000_add_product_short_description` y `20260809120500_prevent_duplicate_product_reviews`.
 
 ## Diagnostico de WhatsApp y Baileys (2026-08-09)

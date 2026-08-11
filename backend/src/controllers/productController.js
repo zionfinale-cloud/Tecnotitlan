@@ -15,6 +15,7 @@ import {
   getProductAvailableStock,
 } from '../utils/productAvailability.js';
 import { resolveMarketplacePrice } from '../services/channelPricingService.js';
+import { hasEligiblePurchaseForReview } from '../services/productReviewService.js';
 import logger from '../utils/logger.js';
 
 const SKU_PREFIX_BY_CATEGORY = {
@@ -1128,17 +1129,16 @@ const createProductReview = asyncHandler(async (req, res, next) => {
     return next(new BadRequestError('Ya has calificado este producto.'));
   }
 
-  // Opcional: Verificar si el usuario compró el producto.
-  // const order = await prisma.order.findFirst({
-  //   where: {
-  //     userId: req.user.id,
-  //     isPaid: true,
-  //     orderItems: { some: { productId: product.id } },
-  //   },
-  // });
-  // if (!order) {
-  //   return next(new BadRequestError('Solo los clientes que compraron este producto pueden dejar una reseña.'));
-  // }
+  const hasEligiblePurchase = await hasEligiblePurchaseForReview({
+    prismaClient: prisma,
+    userId: req.user.id,
+    productId: product.id,
+  });
+  if (!hasEligiblePurchase) {
+    return next(new BadRequestError(
+      'Solo los clientes con una compra pagada de este producto pueden dejar una resena.',
+    ));
+  }
 
   let review;
   try {
