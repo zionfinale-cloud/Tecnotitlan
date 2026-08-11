@@ -23,6 +23,16 @@ test('treats code 405 Connection Failure as transient', () => {
     assert.equal(isTransientWhatsAppDisconnect(disconnect), true);
 });
 
+test('pauses immediately for WhatsApp rate-limit code 463', () => {
+    const disconnect = {
+        statusCode: 463,
+        message: 'Connection Failure',
+    };
+
+    assert.equal(isProtectedWhatsAppDisconnect(disconnect), true);
+    assert.equal(isTransientWhatsAppDisconnect(disconnect), false);
+});
+
 test('does not downgrade a protected code because of a generic message', () => {
     const disconnect = {
         statusCode: 401,

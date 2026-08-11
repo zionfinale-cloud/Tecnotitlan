@@ -7,7 +7,7 @@ export const isProtectedWhatsAppDisconnect = ({ statusCode, message = '' } = {})
     const code = normalizeCode(statusCode);
     const lowerMessage = String(message || '').toLowerCase();
 
-    return [401, 403, 411, 500].includes(code)
+    return [401, 403, 411, 463, 500].includes(code)
         || lowerMessage.includes('logged out')
         || lowerMessage.includes('bad session')
         || lowerMessage.includes('multidevice mismatch')
@@ -21,7 +21,7 @@ export const isTransientWhatsAppDisconnect = ({ statusCode, message = '' } = {})
     const code = normalizeCode(statusCode);
     const lowerMessage = String(message || '').toLowerCase();
 
-    if ([401, 403, 411, 500].includes(code)) return false;
+    if ([401, 403, 411, 463, 500].includes(code)) return false;
 
     return [405, 408, 428, 503].includes(code)
         || lowerMessage.includes('connection failure')

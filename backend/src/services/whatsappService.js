@@ -686,69 +686,39 @@ const getJidForPhone = (value = '') => {
     return toJid(value);
 };
 
-const uniqueValues = (values = []) => [...new Set(values.filter(Boolean))];
+const resolveTargetOnWhatsApp = async (target) => {
+    if (isLidJid(target) || !sock?.onWhatsApp) return target;
 
-const getMexicanMobileLegacyJid = (phone = '') => {
-    const normalizedPhone = normalizeMexicanPhone(phone);
-    if (!normalizedPhone || normalizedPhone.length !== 12 || !normalizedPhone.startsWith('52')) return null;
-    return `521${normalizedPhone.slice(-10)}@s.whatsapp.net`;
-};
-
-const getJidCandidates = (value = '') => {
-    const requestedJid = toJid(String(value || ''));
-    const phone = normalizeMexicanPhone(getJidUser(requestedJid));
-    return {
-        requestedJid,
-        phone,
-        candidates: uniqueValues([
-            getMexicanMobileLegacyJid(phone),
-            requestedJid,
-        ]),
-    };
-};
-
-const resolveTargetsOnWhatsApp = async (targets = []) => {
-    const resolvedTargets = [];
-
-    for (const target of targets) {
-        try {
-            if (sock?.onWhatsApp) {
-                const availability = await sock.onWhatsApp(target);
-                const foundJids = (availability || [])
-                    .filter((item) => item?.exists && item?.jid)
-                    .map((item) => item.jid);
-                resolvedTargets.push(...foundJids);
-            }
-        } catch (error) {
-            logger.warn(`[WhatsApp] No se pudo validar destino ${target}: ${error.message}`);
-        }
-        resolvedTargets.push(target);
+    try {
+        const availability = await sock.onWhatsApp(target);
+        return (availability || []).find((item) => item?.exists && item?.jid)?.jid || target;
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo validar destino ${target}: ${error.message}`);
+        return target;
     }
-
-    return uniqueValues(resolvedTargets);
 };
 
 const getOutgoingTargets = async (value = '') => {
-    const { requestedJid, phone, candidates } = getJidCandidates(value);
-    const targets = [...candidates];
+    const requestedJid = toJid(String(value || ''));
+    let phone = getPhoneFromJid(requestedJid);
 
-    try {
-        const chat = await prisma.whatsAppChat.findUnique({
-            where: { jid: requestedJid },
-            select: { phone: true },
-        });
-        if (chat?.phone) {
-            const alternate = getJidCandidates(chat.phone);
-            targets.push(...alternate.candidates);
+    if (isLidJid(requestedJid)) {
+        try {
+            const chat = await prisma.whatsAppChat.findUnique({
+                where: { jid: requestedJid },
+                select: { phone: true },
+            });
+            phone = normalizePhone(chat?.phone) || null;
+        } catch (error) {
+            logger.warn(`[WhatsApp] No se pudo resolver telefono para ${requestedJid}: ${error.message}`);
         }
-    } catch (error) {
-        logger.warn(`[WhatsApp] No se pudo resolver telefono alterno para ${requestedJid}: ${error.message}`);
     }
 
+    const target = await resolveTargetOnWhatsApp(requestedJid);
     return {
         requestedJid,
         phone,
-        targets: await resolveTargetsOnWhatsApp(uniqueValues(targets)),
+        targets: [target],
     };
 };
 
@@ -890,18 +860,6 @@ const waitForReady = async (timeoutMs = 12000) => {
     return isSocketReady();
 };
 
-const closeCurrentSocketForRetry = async (reason = 'retry') => {
-    try {
-        sock?.ws?.close?.();
-        sock?.end?.();
-    } catch (error) {
-        logger.warn(`[WhatsApp] No se pudo cerrar socket para ${reason}: ${error.message}`);
-    }
-    sock = undefined;
-    isInitializing = false;
-    await releaseSessionLock();
-};
-
 const canReconnectWithSavedSession = async () => {
     if (isWhatsAppDisabledProvider()) return false;
     if (connectionStatus === 'QR_RECEIVED') return false;
@@ -951,21 +909,11 @@ const ensureReadyForSend = async (reason = 'send') => {
         logger.warn(`[WhatsApp] Envio omitido (${reason}): pausa protegida activa hasta ${formatPauseUntil()}.`);
         return false;
     }
-    if (await ensureReadyForNotification()) return true;
-    if (!await canReconnectWithSavedSession()) return false;
-
-    try {
-        reconnectAttempt = 0;
-        pausedAt = null;
-        connectionStatus = 'RECONNECTING';
-        lastError = `Levantando sesion guardada para ${reason}.`;
-        emitStatus();
-        await initialize({ allowQr: false, reason });
-        return waitForReady(20000);
-    } catch (error) {
-        logger.warn(`[WhatsApp] No se pudo levantar sesion guardada para ${reason}: ${error.message}`);
-        return false;
+    const ready = await ensureReadyForNotification();
+    if (!ready) {
+        logger.warn(`[WhatsApp] Envio omitido (${reason}): la sesion no quedo lista en el unico intento permitido.`);
     }
+    return ready;
 };
 
 const getDisconnectStatusCode = (lastDisconnect) => lastDisconnect?.error?.output?.statusCode
@@ -2098,20 +2046,16 @@ export const sendMessage = async (number, message, sentBy = null) => {
             } catch (error) {
                 lastSendError = error;
                 logger.warn(`[WhatsApp] No se pudo enviar a ${targetJid}: ${error.message}`);
+                const statusCode = getDisconnectStatusCode({ error });
+                if (isProtectedWhatsAppDisconnect({ statusCode, message: error.message })) {
+                    pauseBaileysForManualReview(`Fallo protegido enviando mensaje: ${error.message}`, statusCode);
+                }
             }
         }
         return null;
     };
 
     result = await attemptSend();
-
-    if (!result && await canReconnectWithSavedSession()) {
-        logger.warn(`[WhatsApp] Reintentando envio tras reconectar sesion guardada: ${lastSendError?.message || 'sin detalle'}`);
-        await closeCurrentSocketForRetry('reintento de envio');
-        if (await ensureReadyForSend('reintento de envio')) {
-            result = await attemptSend();
-        }
-    }
 
     if (!result) {
         throw new BadRequestError(`No se pudo enviar el mensaje por WhatsApp: ${lastSendError?.message || 'destino no disponible'}`);
@@ -2209,20 +2153,16 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
             } catch (error) {
                 lastSendError = error;
                 logger.warn(`[WhatsApp] No se pudo enviar adjunto a ${targetJid}: ${error.message}`);
+                const statusCode = getDisconnectStatusCode({ error });
+                if (isProtectedWhatsAppDisconnect({ statusCode, message: error.message })) {
+                    pauseBaileysForManualReview(`Fallo protegido enviando adjunto: ${error.message}`, statusCode);
+                }
             }
         }
         return null;
     };
 
     result = await attemptSend();
-
-    if (!result && await canReconnectWithSavedSession()) {
-        logger.warn(`[WhatsApp] Reintentando adjunto tras reconectar sesion guardada: ${lastSendError?.message || 'sin detalle'}`);
-        await closeCurrentSocketForRetry('reintento de adjunto');
-        if (await ensureReadyForSend('reintento de adjunto')) {
-            result = await attemptSend();
-        }
-    }
 
     if (!result) {
         throw new BadRequestError(`No se pudo enviar el adjunto por WhatsApp: ${lastSendError?.message || 'destino no disponible'}`);

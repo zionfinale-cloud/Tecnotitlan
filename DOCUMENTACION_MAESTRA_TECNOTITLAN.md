@@ -251,6 +251,14 @@ EXPOSE 5000
 CMD [ "node", "backend/src/index.js" ]
 ```
 
+### 2026-08-11 - Endurecimiento de WhatsApp/Baileys
+
+- Se confirmo que existe un solo servicio de WhatsApp y un solo arranque automatico.
+- Cada envio usa un unico destinatario validado; se retiro el fallback mexicano `521` y los intentos sobre multiples JID.
+- Un envio fallido ya no cierra, reconecta ni reenvia dentro de la misma operacion.
+- El codigo `463` se considera sensible: pausa la integracion para proteger el numero y exige revision manual.
+- Los chats `@lid` se conservan y los numeros normales se resuelven una sola vez mediante Baileys.
+
 ## Media Por SKU Y Ficha De Producto (2026-07-29)
 
 - Los archivos se cargan primero de forma temporal y, al guardar el producto, se organizan con su SKU definitivo en `/app/uploads/<PREFIJO>/<SKU>/`.
