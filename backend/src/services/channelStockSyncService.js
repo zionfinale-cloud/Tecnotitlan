@@ -3,8 +3,13 @@ import logger from '../utils/logger.js';
 import * as mercadoLibreService from './mercadoLibreService.js';
 
 const getPublishableStock = (listing) => {
-  const assignedStock = Number(listing?.publishedStock || 0);
-  const stockBuffer = Number(listing?.stockBuffer || 0);
+  const normalizeStock = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+
+  const assignedStock = normalizeStock(listing?.publishedStock);
+  const stockBuffer = normalizeStock(listing?.stockBuffer);
   return Math.max(assignedStock - stockBuffer, 0);
 };
 

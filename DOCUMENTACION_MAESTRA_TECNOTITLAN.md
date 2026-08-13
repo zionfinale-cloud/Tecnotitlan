@@ -1164,6 +1164,8 @@ Tecnotitlan es la fuente de verdad del inventario. Las cantidades tienen signifi
 - **Asignado a Mercado Libre:** piezas que salieron de Bodega/Web y quedaron reservadas para ese canal.
 - **Publicado en Mercado Libre:** cantidad remota enviada por Tecnotitlan. Se calcula como asignado menos stock de seguridad.
 
+El calculo publicable esta protegido contra datos faltantes, negativos o invalidos: nunca envia `NaN` ni una cantidad menor que cero a Mercado Libre. Las pruebas automatizadas cubren stock asignado, buffer mayor al stock y valores invalidos.
+
 Un traspaso de 5 piezas desde Bodega/Web a Mercado Libre deja 0 en bodega si solo habia 5, y deja 5 asignadas a Mercado Libre. No crea otras 5 piezas. Si una publicacion existente tenia 10 unidades remotas, al vincularla Tecnotitlan la concilia a las 5 realmente asignadas.
 
 ### Flujo recomendado para un producto nuevo
