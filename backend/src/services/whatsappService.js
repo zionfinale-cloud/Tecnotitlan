@@ -21,6 +21,7 @@ const {
     DisconnectReason,
     downloadMediaMessage,
     fetchLatestBaileysVersion,
+    fetchLatestWaWebVersion,
     useMultiFileAuthState,
 } = baileys;
 const makeWASocket = baileys.default || baileys.makeWASocket;
@@ -642,7 +643,10 @@ const emitQr = (qr) => {
 const onlyDigits = (value = '') => String(value || '').replace(/\D/g, '');
 
 const normalizeMexicanPhone = (value = '') => {
-    let digits = onlyDigits(value);
+    const raw = String(value || '').trim();
+    if (/@(lid|g\.us|broadcast|newsletter)$/i.test(raw) || /^status@broadcast$/i.test(raw)) return null;
+    const source = /@(s\.whatsapp\.net|c\.us)$/i.test(raw) ? raw.split('@')[0].split(':')[0] : raw;
+    let digits = onlyDigits(source);
     if (!digits) return null;
     if (digits.startsWith('00')) digits = digits.slice(2);
     if (digits.length >= 10) return `52${digits.slice(-10)}`;
@@ -691,10 +695,23 @@ const resolveTargetOnWhatsApp = async (target) => {
 
     try {
         const availability = await sock.onWhatsApp(target);
-        return (availability || []).find((item) => item?.exists && item?.jid)?.jid || target;
+        const match = (availability || []).find((item) => item?.exists && item?.jid);
+        if (!match) {
+            throw new BadRequestError(`WhatsApp no encontro el destino ${target}; no se envio el mensaje.`);
+        }
+        const confirmed = match.jid || target;
+        if (sock?.signalRepository?.lidMapping?.getLIDForPN && isPhoneJid(confirmed)) {
+            try {
+                return await sock.signalRepository.lidMapping.getLIDForPN(confirmed) || confirmed;
+            } catch (error) {
+                logger.debug(`[WhatsApp] No se pudo resolver LID para ${confirmed}: ${error.message}`);
+            }
+        }
+        return confirmed;
     } catch (error) {
+        if (error instanceof BadRequestError) throw error;
         logger.warn(`[WhatsApp] No se pudo validar destino ${target}: ${error.message}`);
-        return target;
+        throw new BadRequestError(`No se pudo validar el destino WhatsApp: ${error.message}`);
     }
 };
 
@@ -718,7 +735,7 @@ const getOutgoingTargets = async (value = '') => {
     return {
         requestedJid,
         phone,
-        targets: [target],
+        target,
     };
 };
 
@@ -1593,7 +1610,11 @@ const initializeInternal = async ({ allowQr = true, reason = 'manual' } = {}) =>
             logger.info(`[WhatsApp] Usando sesion Baileys en archivos: ${authDir}`);
         }
 
-        const { version } = await fetchLatestBaileysVersion();
+        const waVersionInfo = fetchLatestWaWebVersion
+            ? await fetchLatestWaWebVersion()
+            : await fetchLatestBaileysVersion();
+        const { version } = waVersionInfo;
+        logger.info(`[WhatsApp] Baileys ${baileys.version || 'package'}; WA Web ${version.join('.')}; latest=${waVersionInfo.isLatest ?? 'n/a'}`);
 
         const client = makeWASocket({
             version,
@@ -1785,6 +1806,27 @@ const initializeInternal = async ({ allowQr = true, reason = 'manual' } = {}) =>
                     }
                 } catch (error) {
                     logger.error(`[WhatsApp] No se pudo guardar mensaje: ${error.message}`);
+                }
+            }
+        });
+
+        client.ev.on('messages.update', async (updates = []) => {
+            for (const update of updates || []) {
+                const serialized = JSON.stringify(update || {});
+                const statusCode = getDisconnectStatusCode({ error: update?.error || update });
+                const has463 = Number(statusCode) === 463 || /\b463\b|reachout|timelock|restricted/i.test(serialized);
+                if (!has463) continue;
+                const messageId = update?.key?.id || null;
+                const remoteJid = update?.key?.remoteJid || null;
+                logger.warn(`[WhatsApp] messages.update reporto 463. MessageId=${messageId || 'n/a'} JID=${remoteJid || 'n/a'}`);
+                pauseBaileysForManualReview(`WhatsApp reporto 463 en messages.update para ${remoteJid || 'destino desconocido'}`, 463);
+                if (messageId) {
+                    await prisma.whatsAppMessage.updateMany({
+                        where: { messageId },
+                        data: { status: 'FAILED' },
+                    }).catch((error) => {
+                        logger.warn(`[WhatsApp] No se pudo marcar mensaje ${messageId} como fallido: ${error.message}`);
+                    });
                 }
             }
         });
@@ -2026,39 +2068,22 @@ export const sendMessage = async (number, message, sentBy = null) => {
     const text = String(message || '').trim();
     if (!text) throw new BadRequestError('El mensaje no puede estar vacio.');
 
-    const { requestedJid, phone, targets } = await getOutgoingTargets(number);
+    const { requestedJid, phone, target } = await getOutgoingTargets(number);
     let result;
     let sentTargetJid = null;
-    let lastSendError;
-
-    const attemptSend = async () => {
-        for (const targetJid of targets) {
-            try {
-                const sent = await enqueueOutboundSend(
-                    `mensaje a ${targetJid}`,
-                    () => sock.sendMessage(targetJid, { text }),
-                );
-                sentTargetJid = sent?.key?.remoteJid || targetJid;
-                if (targetJid !== requestedJid) {
-                    logger.info(`[WhatsApp] Mensaje enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
-                }
-                return sent;
-            } catch (error) {
-                lastSendError = error;
-                logger.warn(`[WhatsApp] No se pudo enviar a ${targetJid}: ${error.message}`);
-                const statusCode = getDisconnectStatusCode({ error });
-                if (isProtectedWhatsAppDisconnect({ statusCode, message: error.message })) {
-                    pauseBaileysForManualReview(`Fallo protegido enviando mensaje: ${error.message}`, statusCode);
-                }
-            }
+    try {
+        result = await enqueueOutboundSend(
+            `mensaje a ${target}`,
+            () => sock.sendMessage(target, { text }),
+        );
+        sentTargetJid = result?.key?.remoteJid || target;
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo enviar a ${target}: ${error.message}`);
+        const statusCode = getDisconnectStatusCode({ error });
+        if (isProtectedWhatsAppDisconnect({ statusCode, message: error.message })) {
+            pauseBaileysForManualReview(`Fallo protegido enviando mensaje: ${error.message}`, statusCode);
         }
-        return null;
-    };
-
-    result = await attemptSend();
-
-    if (!result) {
-        throw new BadRequestError(`No se pudo enviar el mensaje por WhatsApp: ${lastSendError?.message || 'destino no disponible'}`);
+        throw new BadRequestError(`No se pudo enviar el mensaje por WhatsApp: ${error.message}`);
     }
 
     const providerMessageId = result?.key?.id || null;
@@ -2126,7 +2151,7 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
 
     const cleanCaption = String(caption || '').trim();
     const { payload, type } = getOutgoingMediaPayload(file, cleanCaption);
-    const { requestedJid, phone, targets } = await getOutgoingTargets(number);
+    const { requestedJid, phone, target } = await getOutgoingTargets(number);
     const savedMedia = await saveMediaBuffer({
         buffer: file.buffer,
         jid: requestedJid,
@@ -2137,35 +2162,19 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
 
     let result;
     let sentTargetJid = null;
-    let lastSendError;
-    const attemptSend = async () => {
-        for (const targetJid of targets) {
-            try {
-                const sent = await enqueueOutboundSend(
-                    `adjunto a ${targetJid}`,
-                    () => sock.sendMessage(targetJid, payload),
-                );
-                sentTargetJid = sent?.key?.remoteJid || targetJid;
-                if (targetJid !== requestedJid) {
-                    logger.info(`[WhatsApp] Adjunto enviado usando telefono alterno para chat ${requestedJid}. Destino real: ${targetJid}`);
-                }
-                return sent;
-            } catch (error) {
-                lastSendError = error;
-                logger.warn(`[WhatsApp] No se pudo enviar adjunto a ${targetJid}: ${error.message}`);
-                const statusCode = getDisconnectStatusCode({ error });
-                if (isProtectedWhatsAppDisconnect({ statusCode, message: error.message })) {
-                    pauseBaileysForManualReview(`Fallo protegido enviando adjunto: ${error.message}`, statusCode);
-                }
-            }
+    try {
+        result = await enqueueOutboundSend(
+            `adjunto a ${target}`,
+            () => sock.sendMessage(target, payload),
+        );
+        sentTargetJid = result?.key?.remoteJid || target;
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo enviar adjunto a ${target}: ${error.message}`);
+        const statusCode = getDisconnectStatusCode({ error });
+        if (isProtectedWhatsAppDisconnect({ statusCode, message: error.message })) {
+            pauseBaileysForManualReview(`Fallo protegido enviando adjunto: ${error.message}`, statusCode);
         }
-        return null;
-    };
-
-    result = await attemptSend();
-
-    if (!result) {
-        throw new BadRequestError(`No se pudo enviar el adjunto por WhatsApp: ${lastSendError?.message || 'destino no disponible'}`);
+        throw new BadRequestError(`No se pudo enviar el adjunto por WhatsApp: ${error.message}`);
     }
 
     const providerMessageId = result?.key?.id || null;
