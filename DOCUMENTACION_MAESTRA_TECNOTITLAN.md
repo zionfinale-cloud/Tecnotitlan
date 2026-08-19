@@ -939,13 +939,18 @@ Backend disponible:
 - `GET /api/mercadolibre/publication-requirements` y `POST /api/products/:referencia/publish-meli`: preparan y publican desde la ficha de Tecnotitlan. La referencia puede ser el SKU maestro o el ID interno; el panel usa normalmente el SKU (`AUR-002`, por ejemplo).
 - `PUT /api/mercadolibre/products/:sku/sync`: actualiza stock en la publicacion vinculada.
 
-Flujo operativo actual:
+Flujo operativo actual para una publicacion nueva:
 
-1. Crear o revisar el producto maestro en Tecnotitlan con SKU interno, imagenes, costo, precio y stock.
-2. En la ficha del producto, abrir la seccion `Mercado Libre`, preparar la publicacion, completar categoria, atributos e imagenes y publicar. Como alternativa, se puede crear el articulo desde Seller Center.
-3. Si ya existe una publicacion, copiar el ID (`MLM...`) y pegarlo en el editor del producto en Tecnotitlan.
-4. Validar y guardar el vinculo para confirmar que pertenece a la cuenta autorizada.
-5. Sincronizar stock solo cuando el inventario por canal este correcto.
+1. Crear el producto maestro en Tecnotitlan con SKU interno, imagenes, costo, precio y datos comerciales.
+2. Registrar la entrada fisica en `Inventario > Entradas`; la mercancia entra primero a `Bodega/Web`.
+3. Traspasar a Mercado Libre solamente las piezas que se desean ofrecer en ese canal y definir el buffer de seguridad.
+4. En la ficha del producto, abrir `Mercado Libre`, preparar la publicacion y completar categoria, atributos obligatorios, condicion, imagenes y tipo de publicacion.
+5. Pulsar `Publicar en Mercado Libre`. Tecnotitlan crea el anuncio mediante la API.
+6. Mercado Libre devuelve el item ID (`MLM...`) y la URL; Tecnotitlan los guarda automaticamente en el producto y en su vinculacion de marketplace.
+7. Tecnotitlan publica y mantiene sincronizada la cantidad `asignado a Mercado Libre - buffer`.
+8. Los webhooks reciben ventas y movimientos. `Leer pedidos` queda como herramienta manual de recuperacion o diagnostico, no como parte del trabajo diario.
+
+El campo para escribir un ID `MLM...` es una opcion avanzada y se usa exclusivamente cuando el anuncio ya fue creado fuera de Tecnotitlan, por ejemplo desde Seller Center. No se debe solicitar ese ID para una publicacion nueva creada desde Tecnotitlan.
 
 Regla de seguridad: Mercado Libre no inventa pedidos ni inventario. Cuando `Leer pedidos` o un webhook real de Mercado Libre encuentra una orden pagada, Tecnotitlan intenta convertirla en un pedido interno con folio `MELI-{id}`. Para poder importarla, cada producto de la orden debe empatar con un producto local mediante `meliItemId`, vinculacion de `MarketplaceListing`, SKU o coincidencia clara de titulo. Si no se puede empatar, la orden queda como `Requiere revision` en la pantalla de Mercado Libre y en la bitacora, sin crear pedido fantasma ni tocar inventario.
 
@@ -994,7 +999,7 @@ El traspaso desde `Inventario > Traspasos` es el acto operativo de mover piezas 
 4. La cantidad publicable es `stock asignado al canal - buffer de seguridad`, nunca el stock total de bodega/web.
 5. Si el producto no tiene `meliItemId`, el traspaso queda registrado localmente, pero la publicacion queda pendiente de crear o vincular desde el producto/canal.
 
-No se debe crear una publicacion de Mercado Libre automaticamente solo por traspasar stock. Crear una publicacion requiere validar categoria, atributos obligatorios, condicion, precio, imagenes, envio, garantia y reglas comerciales. Ese flujo debe ser un paso controlado: `Preparar publicacion` -> `Validar datos` -> `Publicar o vincular` -> `Sincronizar stock`.
+El traspaso por si solo no crea la publicacion porque antes deben confirmarse categoria, atributos obligatorios, condicion, precio, imagenes, envio, garantia y reglas comerciales. El flujo controlado es: `Traspasar stock` -> `Preparar publicacion` -> `Confirmar datos` -> `Publicar desde Tecnotitlan` -> `Guardar MLM automaticamente` -> `Sincronizar stock`. `Vincular publicacion existente` solo aplica a anuncios creados previamente fuera de Tecnotitlan.
 
 Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues algo como "es tipo C?", "sirve para viaje?" o "es bluetooth?", Tecatl debe usar el contexto reciente de la conversacion y las caracteristicas/etiquetas internas del producto. Si la ficha no trae ese dato, entonces si debe pedir confirmacion humana para no inventar informacion.
 

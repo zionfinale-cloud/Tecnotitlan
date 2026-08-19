@@ -130,6 +130,7 @@ const ProductEditScreen = () => {
   const [meliMessage, setMeliMessage] = useState('');
   const [meliError, setMeliError] = useState('');
   const [meliRequirements, setMeliRequirements] = useState(null);
+  const [meliExistingItemId, setMeliExistingItemId] = useState('');
   const [meliPublishForm, setMeliPublishForm] = useState({
     categoryId: '',
     listingTypeId: 'gold_special',
@@ -367,9 +368,9 @@ const ProductEditScreen = () => {
   };
 
   const validateMeliPublication = async () => {
-    const itemId = String(form.meliItemId || '').trim();
+    const itemId = String(meliExistingItemId || '').trim().toUpperCase();
     if (!itemId) {
-      setMeliError('Escribe el ID de la publicacion de Mercado Libre, por ejemplo MLM123456789.');
+      setMeliError('Escribe el ID de una publicacion que ya exista en Mercado Libre, por ejemplo MLM123456789.');
       setMeliMessage('');
       return;
     }
@@ -495,7 +496,7 @@ const ProductEditScreen = () => {
   };
 
   const linkMeliPublication = async () => {
-    const itemId = String(form.meliItemId || '').trim();
+    const itemId = String(meliExistingItemId || '').trim().toUpperCase();
     if (!isEditing || !itemId) {
       setMeliError('Guarda primero el producto y escribe el ID de publicacion de Mercado Libre.');
       setMeliMessage('');
@@ -520,6 +521,7 @@ const ProductEditScreen = () => {
       setMeliMessage(
         `Publicacion vinculada. Mercado Libre tenia ${remoteStock} pieza(s) y Tecnotitlan la concilio a ${assignedStock} pieza(s) asignadas.`
       );
+      setMeliExistingItemId('');
     } catch (err) {
       setMeliError(err.response?.data?.message || 'No se pudo vincular el producto con Mercado Libre.');
     } finally {
@@ -757,6 +759,12 @@ const ProductEditScreen = () => {
               <div className={`${styles.field} ${styles.fieldFull}`}>
                 <label className={styles.label}>Mercado Libre</label>
                 <div className={styles.assistBox}>
+                  <strong>Flujo recomendado</strong>
+                  <div className={styles.meliFlowSteps}>
+                    <span className={styles.meliFlowStep}><b>1</b> Asigna piezas a Mercado Libre desde Inventario.</span>
+                    <span className={styles.meliFlowStep}><b>2</b> Prepara y publica el producto desde aqui.</span>
+                    <span className={styles.meliFlowStep}><b>3</b> Tecnotitlan guarda el ID y sincroniza el stock.</span>
+                  </div>
                   {!form.meliItemId && (
                     <>
                       <strong>Publicar desde Tecnotitlan</strong>
@@ -897,39 +905,45 @@ const ProductEditScreen = () => {
                       )}
                     </>
                   )}
-                  <strong>{form.meliItemId ? 'Publicacion vinculada' : 'Vincular una publicacion existente'}</strong>
-                  <small>
-                    Si la publicacion ya existe, pega su ID. Al vincularla, el stock remoto se reemplazara
-                    por las piezas realmente asignadas desde Inventario.
-                  </small>
-                  {!form.meliItemId && (
-                    <small>
-                      Primero realiza el traspaso Bodega/Web → Mercado Libre. Sin stock asignado,
-                      Tecnotitlan no permitira guardar el vinculo ni modificar la publicacion remota.
-                    </small>
+                  {form.meliItemId && (
+                    <div className={styles.meliLinkedBox}>
+                      <span>
+                        <strong>Publicacion conectada</strong>
+                        <small>ID guardado automaticamente: {form.meliItemId}</small>
+                      </span>
+                      <button className={styles.button} type="button" onClick={syncMeliStock} disabled={meliLoading}>
+                        Sincronizar stock
+                      </button>
+                    </div>
                   )}
-                  <div className={styles.inlineForm}>
-                    <input
-                      className={styles.input}
-                      value={form.meliItemId}
-                      onChange={(event) => {
-                        updateField('meliItemId', event.target.value.trim());
-                        setMeliPreview(null);
-                        setMeliError('');
-                        setMeliMessage('');
-                      }}
-                      placeholder="Ej. MLM123456789"
-                    />
-                    <button className={styles.secondaryButton} type="button" onClick={validateMeliPublication} disabled={meliLoading}>
-                      Validar
-                    </button>
-                    <button className={styles.secondaryButton} type="button" onClick={linkMeliPublication} disabled={meliLoading}>
-                      Guardar vinculo
-                    </button>
-                    <button className={styles.button} type="button" onClick={syncMeliStock} disabled={meliLoading || !form.meliItemId}>
-                      Sincronizar stock
-                    </button>
-                  </div>
+                  {!form.meliItemId && (
+                    <details className={styles.meliAdvanced}>
+                      <summary>Opcion avanzada: vincular una publicacion que ya existe en Mercado Libre</summary>
+                      <small>
+                        Usa este campo solo si el anuncio fue creado directamente en Mercado Libre. Para una
+                        publicacion nueva, no necesitas escribir ningun ID: Tecnotitlan lo recibe y lo guarda.
+                      </small>
+                      <div className={styles.inlineForm}>
+                        <input
+                          className={styles.input}
+                          value={meliExistingItemId}
+                          onChange={(event) => {
+                            setMeliExistingItemId(event.target.value);
+                            setMeliPreview(null);
+                            setMeliError('');
+                            setMeliMessage('');
+                          }}
+                          placeholder="Ej. MLM123456789"
+                        />
+                        <button className={styles.secondaryButton} type="button" onClick={validateMeliPublication} disabled={meliLoading}>
+                          Validar existente
+                        </button>
+                        <button className={styles.secondaryButton} type="button" onClick={linkMeliPublication} disabled={meliLoading}>
+                          Guardar vinculo
+                        </button>
+                      </div>
+                    </details>
+                  )}
                   {form.meliPublicationUrl && (
                     <a href={form.meliPublicationUrl} target="_blank" rel="noreferrer">
                       Abrir publicacion en Mercado Libre
