@@ -8,7 +8,7 @@ const TermsOfService = () => {
   const [content, setContent] = useState('');
 
   useEffect(() => {
-    request('get', '/api/settings/public');
+    request('get', '/settings/public');
   }, [request]);
 
   useEffect(() => {

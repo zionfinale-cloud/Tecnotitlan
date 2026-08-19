@@ -230,7 +230,7 @@ const MercadoLibreSettingsScreen = () => {
         </div>
       )}
 
-      {!status?.isConfigured && (
+      {status?.isConfigured === false && (
         <div className={`${styles.notice} ${styles.error}`}>
           Primero configura MERCADOLIBRE_APP_ID, MERCADOLIBRE_CLIENT_SECRET y MERCADOLIBRE_REDIRECT_URI en Sistema.
         </div>

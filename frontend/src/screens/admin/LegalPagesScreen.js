@@ -15,7 +15,7 @@ const LegalPagesScreen = () => {
   // Cargar el contenido inicial de las páginas
   useEffect(() => {
     // Hacemos una sola llamada que traiga todas las configuraciones
-    request('get', '/api/settings');
+    request('get', '/settings');
   }, [request]);
 
   // Cuando los datos de configuración se cargan, actualizamos los estados locales
@@ -35,8 +35,7 @@ const LegalPagesScreen = () => {
       { key: 'page_privacy_policy', value: privacyPolicy },
       { key: 'page_terms_of_service', value: termsOfService },
     ];
-    // La ruta PUT /api/settings debe estar preparada para recibir un array de configuraciones
-    await request('put', '/api/settings', { settings: settingsToUpdate }, 'Configuración guardada con éxito.');
+    await request('put', '/settings', { settings: settingsToUpdate }, 'Configuración guardada con éxito.');
   };
 
   // Módulos para la barra de herramientas del editor
