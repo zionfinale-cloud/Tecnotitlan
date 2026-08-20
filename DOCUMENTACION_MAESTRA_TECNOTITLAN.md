@@ -1309,3 +1309,20 @@ Nuestra política tiene una duración de **30 días** a partir de la recepción 
 Estos Términos del Servicio se regirán e interpretarán de acuerdo con las leyes de **México**.
 
 ```
+
+## Actualizacion 2026-08-20 - Publicacion de productos en Mercado Libre
+
+El flujo recomendado queda definido asi:
+
+1. Asignar existencias a Mercado Libre desde Inventario.
+2. Abrir el producto, pulsar **Actualizar preparacion** y completar categoria, tipo de publicacion, condicion, marca y modelo.
+3. Pulsar **Publicar en Mercado Libre**. No se escribe ningun ID de publicacion para un anuncio nuevo.
+4. Tecnotitlan crea el anuncio, guarda inmediatamente el ID remoto devuelto por Mercado Libre y sincroniza el stock publicable.
+5. La seccion **Vincular una publicacion existente** es avanzada y solo acepta IDs de anuncios ya creados, por ejemplo `MLM1234567890`. Un ID corto como `MLM126793` corresponde a una categoria y no debe colocarse ahi.
+
+Protecciones implementadas:
+
+- Los errores de publicacion y de vinculacion existente se muestran por separado.
+- Si una categoria fue guardada accidentalmente como ID de publicacion, el backend limpia ese vinculo antes de crear el anuncio.
+- El ID remoto se guarda antes de intentar actualizar la descripcion, evitando duplicar anuncios si Mercado Libre rechaza solo la descripcion.
+- La interfaz muestra el motivo detallado devuelto por Mercado Libre para corregir atributos obligatorios sin adivinar.

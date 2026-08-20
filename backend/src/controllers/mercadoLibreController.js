@@ -8,6 +8,10 @@ import {
   getPublishableStock,
   syncMercadoLibreListingStock,
 } from '../services/channelStockSyncService.js';
+import {
+  normalizeMercadoLibreId,
+  isMercadoLibreItemId,
+} from '../utils/mercadoLibreIdentifiers.js';
 
 const oauthStates = new Map();
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -153,7 +157,15 @@ const getWebhookEvents = asyncHandler(async (req, res) => {
 
 const getMeliItemDetails = asyncHandler(async (req, res) => {
   const { meliItemId } = req.params;
-  const itemDetails = await mercadoLibreService.getItem(req.user.id, meliItemId);
+  const normalizedMeliItemId = normalizeMercadoLibreId(meliItemId);
+  if (!isMercadoLibreItemId(normalizedMeliItemId)) {
+    res.status(400);
+    throw new Error(
+      `${normalizedMeliItemId || 'El valor recibido'} no es un ID de publicacion. Las categorias como MLM126793 no se validan como anuncios.`,
+    );
+  }
+
+  const itemDetails = await mercadoLibreService.getItem(req.user.id, normalizedMeliItemId);
 
   if (!itemDetails) {
     res.status(404);

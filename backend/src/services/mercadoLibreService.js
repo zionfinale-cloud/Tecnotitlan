@@ -915,11 +915,16 @@ const getItem = async (userId, meliItemId) => {
 const getMeliErrorMessage = (error, fallback) => {
   const apiMessage = error?.response?.data?.message;
   const apiCause = error?.response?.data?.cause;
-  const causeMessage = Array.isArray(apiCause)
-    ? apiCause.map((cause) => cause?.message || cause?.code).filter(Boolean).join('; ')
-    : '';
+  const causeMessages = Array.isArray(apiCause)
+    ? apiCause.map((cause) => [cause?.code, cause?.message].filter(Boolean).join(': '))
+    : [];
+  const details = [apiMessage, ...causeMessages].filter(Boolean);
 
-  return [apiMessage, causeMessage, error?.message, fallback].find(Boolean);
+  if (details.length > 0) {
+    return [...new Set(details)].join('; ');
+  }
+
+  return error?.message || fallback;
 };
 
 const predictCategory = async (userId, title) => {

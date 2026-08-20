@@ -17,6 +17,11 @@ import {
 import { resolveMarketplacePrice } from '../services/channelPricingService.js';
 import { hasEligiblePurchaseForReview } from '../services/productReviewService.js';
 import logger from '../utils/logger.js';
+import {
+  normalizeMercadoLibreId,
+  isMercadoLibreItemId,
+  isSameMercadoLibreIdentifier,
+} from '../utils/mercadoLibreIdentifiers.js';
 
 const SKU_PREFIX_BY_CATEGORY = {
   auriculares: 'AUR',
@@ -794,10 +799,15 @@ const linkProductToMeli = asyncHandler(async (req, res, next) => {
   const { meliItemId } = req.body;
   const { id: productIdentifier } = req.params;
   const userId = req.user.id;
-  const normalizedMeliItemId = String(meliItemId || '').trim().toUpperCase();
+  const normalizedMeliItemId = normalizeMercadoLibreId(meliItemId);
 
   if (!normalizedMeliItemId) {
     return next(new BadRequestError('Se requiere el ID del artículo de Mercado Libre (meliItemId).'));
+  }
+  if (!isMercadoLibreItemId(normalizedMeliItemId)) {
+    return next(new BadRequestError(
+      `${normalizedMeliItemId} no es un ID de publicacion de Mercado Libre. Si es una categoria, dejala en "Categoria Meli"; para crear un anuncio nuevo usa "Publicar en Mercado Libre".`,
+    ));
   }
 
   const normalizedIdentifier = String(productIdentifier || '').toUpperCase();
@@ -987,10 +997,43 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   if (!product) {
     return next(new NotFoundError('Producto local no encontrado.'));
   }
-  if (product.meliItemId) {
+  const categoryId = normalizeMercadoLibreId(req.body.categoryId);
+  if (!categoryId) {
+    return next(new BadRequestError('Selecciona una categoria valida de Mercado Libre.'));
+  }
+
+  const currentMeliItemId = normalizeMercadoLibreId(product.meliItemId);
+  if (currentMeliItemId && !isSameMercadoLibreIdentifier(currentMeliItemId, categoryId)) {
     return next(new BadRequestError(
       'Este producto ya tiene una publicacion de Mercado Libre vinculada.'
     ));
+  }
+
+  if (isSameMercadoLibreIdentifier(currentMeliItemId, categoryId)) {
+    logger.warn(
+      `[Meli Publish] Limpiando vinculo invalido ${currentMeliItemId} del producto ${product.sku}: coincide con la categoria.`
+    );
+    await prisma.$transaction([
+      prisma.product.update({
+        where: { id: product.id },
+        data: {
+          meliItemId: null,
+          meliPublicationUrl: null,
+          lastMeliSync: null,
+        },
+      }),
+      prisma.marketplaceListing.updateMany({
+        where: {
+          productId: product.id,
+          channel: 'MERCADOLIBRE',
+          externalProductId: currentMeliItemId,
+        },
+        data: {
+          externalProductId: null,
+          syncStatus: 'PENDING_PUBLICATION',
+        },
+      }),
+    ]);
   }
 
   const listing = product.marketplaceListings[0];
@@ -998,11 +1041,6 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     return next(new BadRequestError(
       'Configura una oferta de stock mayor a cero para Mercado Libre desde Canales.'
     ));
-  }
-
-  const categoryId = String(req.body.categoryId || '').trim();
-  if (!categoryId) {
-    return next(new BadRequestError('Selecciona una categoria valida de Mercado Libre.'));
   }
 
   const pictures = product.media
@@ -1047,7 +1085,6 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   };
 
   const meliItem = await meliService.createItem(req.user.id, payload);
-  await meliService.createItemDescription(req.user.id, meliItem.id, product.description);
 
   const now = new Date();
   const rawData = {
@@ -1064,32 +1101,50 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     },
   };
 
-  const updatedProduct = await prisma.$transaction(async (tx) => {
-    const savedProduct = await tx.product.update({
-      where: { id: product.id },
-      data: {
-        meliItemId: meliItem.id,
-        meliPublicationUrl: meliItem.permalink || null,
-        lastMeliSync: now,
-      },
-    });
+  let updatedProduct;
+  try {
+    updatedProduct = await prisma.$transaction(async (tx) => {
+      const savedProduct = await tx.product.update({
+        where: { id: product.id },
+        data: {
+          meliItemId: meliItem.id,
+          meliPublicationUrl: meliItem.permalink || null,
+          lastMeliSync: now,
+        },
+      });
 
-    await tx.marketplaceListing.update({
-      where: { id: listing.id },
-      data: {
-        externalProductId: meliItem.id,
-        externalSku: product.sku,
-        title: meliItem.title || payload.title,
-        price: Number(meliItem.price ?? pricing.price),
-        status: 'ACTIVE',
-        syncStatus: 'SYNCED_TO_MELI',
-        lastSyncedAt: now,
-        rawData,
-      },
-    });
+      await tx.marketplaceListing.update({
+        where: { id: listing.id },
+        data: {
+          externalProductId: meliItem.id,
+          externalSku: product.sku,
+          title: meliItem.title || payload.title,
+          price: Number(meliItem.price ?? pricing.price),
+          status: 'ACTIVE',
+          syncStatus: 'SYNCED_TO_MELI',
+          lastSyncedAt: now,
+          rawData,
+        },
+      });
 
-    return savedProduct;
-  });
+      return savedProduct;
+    });
+  } catch (error) {
+    logger.error(
+      `[Meli Publish] Mercado Libre creo ${meliItem.id}, pero no se pudo guardar el vinculo local: ${error.message}`
+    );
+    throw new BadRequestError(
+      `Mercado Libre creo la publicacion ${meliItem.id}, pero Tecnotitlan no pudo guardar el vinculo. No vuelvas a publicar: usa la opcion avanzada para vincular ese ID.`
+    );
+  }
+
+  let warning = null;
+  try {
+    await meliService.createItemDescription(req.user.id, meliItem.id, product.description);
+  } catch (error) {
+    warning = `La publicacion ${meliItem.id} fue creada y vinculada, pero Mercado Libre rechazo la descripcion: ${error.message}`;
+    logger.warn(`[Meli Publish] ${warning}`);
+  }
 
   res.status(201).json({
     status: 'success',
@@ -1099,6 +1154,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
       item: meliItem,
       assignedStock: Number(listing.publishedStock || 0),
       publishedStock: stockToPublish,
+      warning,
     },
   });
 });

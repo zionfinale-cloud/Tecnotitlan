@@ -131,6 +131,9 @@ const ProductEditScreen = () => {
   const [meliError, setMeliError] = useState('');
   const [meliRequirements, setMeliRequirements] = useState(null);
   const [meliExistingItemId, setMeliExistingItemId] = useState('');
+  const [meliLinkPreview, setMeliLinkPreview] = useState(null);
+  const [meliLinkMessage, setMeliLinkMessage] = useState('');
+  const [meliLinkError, setMeliLinkError] = useState('');
   const [meliPublishForm, setMeliPublishForm] = useState({
     categoryId: '',
     listingTypeId: 'gold_special',
@@ -367,26 +370,48 @@ const ProductEditScreen = () => {
     }));
   };
 
+  const getPreparedMeliCategoryId = () => String(
+    meliPublishForm.categoryId
+      || meliRequirements?.category?.id
+      || meliRequirements?.categoryId
+      || ''
+  ).trim().toUpperCase();
+
+  const getExistingMeliItemError = (itemId) => {
+    if (!itemId) {
+      return 'Escribe el ID de una publicacion existente, por ejemplo MLM1234567890.';
+    }
+    if (itemId === getPreparedMeliCategoryId()) {
+      return `${itemId} es el ID de la categoria, no el de una publicacion. Deja este campo vacio y usa "Publicar en Mercado Libre".`;
+    }
+    if (!/^MLM\d{7,}$/.test(itemId)) {
+      return 'El ID de una publicacion debe verse como MLM1234567890.';
+    }
+    return '';
+  };
+
   const validateMeliPublication = async () => {
     const itemId = String(meliExistingItemId || '').trim().toUpperCase();
-    if (!itemId) {
-      setMeliError('Escribe el ID de una publicacion que ya exista en Mercado Libre, por ejemplo MLM123456789.');
-      setMeliMessage('');
+    const validationError = getExistingMeliItemError(itemId);
+    if (validationError) {
+      setMeliLinkError(validationError);
+      setMeliLinkMessage('');
+      setMeliLinkPreview(null);
       return;
     }
 
     setMeliLoading(true);
-    setMeliError('');
-    setMeliMessage('');
+    setMeliLinkError('');
+    setMeliLinkMessage('');
 
     try {
       const { data } = await api.get(`/mercadolibre/items/${encodeURIComponent(itemId)}`);
       const item = data.data || {};
-      setMeliPreview(item);
-      setMeliMessage(`Publicacion encontrada: ${item.title || item.id}. Stock Meli: ${item.available_quantity ?? 'sin dato'}.`);
+      setMeliLinkPreview(item);
+      setMeliLinkMessage(`Publicacion encontrada: ${item.title || item.id}. Stock Meli: ${item.available_quantity ?? 'sin dato'}.`);
     } catch (err) {
-      setMeliPreview(null);
-      setMeliError(err.response?.data?.message || 'No se pudo validar la publicacion de Mercado Libre.');
+      setMeliLinkPreview(null);
+      setMeliLinkError(err.response?.data?.message || 'No se pudo validar la publicacion de Mercado Libre.');
     } finally {
       setMeliLoading(false);
     }
@@ -412,6 +437,15 @@ const ProductEditScreen = () => {
       });
       const requirements = data.data || {};
       setMeliRequirements(requirements);
+      const preparedCategoryId = String(
+        requirements.categoryId || requirements.category?.id || ''
+      ).trim().toUpperCase();
+      if (preparedCategoryId && String(meliExistingItemId || '').trim().toUpperCase() === preparedCategoryId) {
+        setMeliExistingItemId('');
+        setMeliLinkPreview(null);
+        setMeliLinkMessage('');
+        setMeliLinkError('');
+      }
       setMeliPublishForm((current) => ({
         ...current,
         categoryId: requirements.categoryId || current.categoryId,
@@ -487,7 +521,12 @@ const ProductEditScreen = () => {
         lastMeliSync: product.lastMeliSync || new Date().toISOString(),
       }));
       setMeliPreview(item);
-      setMeliMessage(data.message || 'Producto publicado correctamente en Mercado Libre.');
+      setMeliMessage([
+        data.message || 'Producto publicado correctamente en Mercado Libre.',
+        data.data?.warning,
+      ].filter(Boolean).join(' '));
+      setMeliLinkError('');
+      setMeliLinkMessage('');
     } catch (err) {
       setMeliError(err.response?.data?.message || 'No se pudo publicar el producto en Mercado Libre.');
     } finally {
@@ -497,15 +536,18 @@ const ProductEditScreen = () => {
 
   const linkMeliPublication = async () => {
     const itemId = String(meliExistingItemId || '').trim().toUpperCase();
-    if (!isEditing || !itemId) {
-      setMeliError('Guarda primero el producto y escribe el ID de publicacion de Mercado Libre.');
-      setMeliMessage('');
+    const validationError = !isEditing
+      ? 'Guarda primero el producto antes de vincular una publicacion.'
+      : getExistingMeliItemError(itemId);
+    if (validationError) {
+      setMeliLinkError(validationError);
+      setMeliLinkMessage('');
       return;
     }
 
     setMeliLoading(true);
-    setMeliError('');
-    setMeliMessage('');
+    setMeliLinkError('');
+    setMeliLinkMessage('');
 
     try {
       const { data } = await api.put(`/products/${encodeURIComponent(id)}/link-meli`, { meliItemId: itemId });
@@ -518,12 +560,12 @@ const ProductEditScreen = () => {
       }));
       const assignedStock = Number(data.data?.assignedStock || 0);
       const remoteStock = Number(data.data?.remoteStockBeforeLink || 0);
-      setMeliMessage(
+      setMeliLinkMessage(
         `Publicacion vinculada. Mercado Libre tenia ${remoteStock} pieza(s) y Tecnotitlan la concilio a ${assignedStock} pieza(s) asignadas.`
       );
       setMeliExistingItemId('');
     } catch (err) {
-      setMeliError(err.response?.data?.message || 'No se pudo vincular el producto con Mercado Libre.');
+      setMeliLinkError(err.response?.data?.message || 'No se pudo vincular el producto con Mercado Libre.');
     } finally {
       setMeliLoading(false);
     }
@@ -899,12 +941,14 @@ const ProductEditScreen = () => {
                             onClick={publishMeliProduct}
                             disabled={meliLoading || Number(meliRequirements.inventory?.publishableStock || 0) <= 0}
                           >
-                            Publicar en Mercado Libre
-                          </button>
-                        </>
-                      )}
-                    </>
-                  )}
+                           Publicar en Mercado Libre
+                         </button>
+                       </>
+                     )}
+                   </>
+                 )}
+                  {meliMessage && <div className={styles.success}>{meliMessage}</div>}
+                  {meliError && <div className={styles.error}>{meliError}</div>}
                   {form.meliItemId && (
                     <div className={styles.meliLinkedBox}>
                       <span>
@@ -926,13 +970,13 @@ const ProductEditScreen = () => {
                       <div className={styles.inlineForm}>
                         <input
                           className={styles.input}
-                          value={meliExistingItemId}
-                          onChange={(event) => {
-                            setMeliExistingItemId(event.target.value);
-                            setMeliPreview(null);
-                            setMeliError('');
-                            setMeliMessage('');
-                          }}
+                           value={meliExistingItemId}
+                           onChange={(event) => {
+                             setMeliExistingItemId(event.target.value);
+                             setMeliLinkPreview(null);
+                             setMeliLinkError('');
+                             setMeliLinkMessage('');
+                           }}
                           placeholder="Ej. MLM123456789"
                         />
                         <button className={styles.secondaryButton} type="button" onClick={validateMeliPublication} disabled={meliLoading}>
@@ -940,10 +984,18 @@ const ProductEditScreen = () => {
                         </button>
                         <button className={styles.secondaryButton} type="button" onClick={linkMeliPublication} disabled={meliLoading}>
                           Guardar vinculo
-                        </button>
-                      </div>
-                    </details>
-                  )}
+                         </button>
+                       </div>
+                       {meliLinkPreview && (
+                         <small>
+                           Meli: <strong>{meliLinkPreview.title || meliLinkPreview.id}</strong>
+                           {meliLinkPreview.status ? ` / Estado: ${meliLinkPreview.status}` : ''}
+                         </small>
+                       )}
+                       {meliLinkMessage && <div className={styles.success}>{meliLinkMessage}</div>}
+                       {meliLinkError && <div className={styles.error}>{meliLinkError}</div>}
+                     </details>
+                   )}
                   {form.meliPublicationUrl && (
                     <a href={form.meliPublicationUrl} target="_blank" rel="noreferrer">
                       Abrir publicacion en Mercado Libre
@@ -952,14 +1004,12 @@ const ProductEditScreen = () => {
                   {form.lastMeliSync && (
                     <small>Ultima sincronizacion: {new Date(form.lastMeliSync).toLocaleString()}</small>
                   )}
-                  {meliPreview && (
+                  {meliPreview && form.meliItemId && (
                     <small>
                       Meli: <strong>{meliPreview.title || meliPreview.id}</strong>
                       {meliPreview.status ? ` / Estado: ${meliPreview.status}` : ''}
                     </small>
                   )}
-                  {meliMessage && <div className={styles.success}>{meliMessage}</div>}
-                  {meliError && <div className={styles.error}>{meliError}</div>}
                 </div>
               </div>
             )}
