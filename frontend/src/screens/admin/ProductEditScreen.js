@@ -390,6 +390,10 @@ const ProductEditScreen = () => {
     return '';
   };
 
+  const normalizedMeliItemId = String(form.meliItemId || '').trim().toUpperCase();
+  const hasLinkedMeliPublication = /^MLM\d{7,}$/.test(normalizedMeliItemId);
+  const hasInvalidStoredMeliItemId = Boolean(normalizedMeliItemId && !hasLinkedMeliPublication);
+
   const validateMeliPublication = async () => {
     const itemId = String(meliExistingItemId || '').trim().toUpperCase();
     const validationError = getExistingMeliItemError(itemId);
@@ -807,7 +811,7 @@ const ProductEditScreen = () => {
                     <span className={styles.meliFlowStep}><b>2</b> Prepara y publica el producto desde aqui.</span>
                     <span className={styles.meliFlowStep}><b>3</b> Tecnotitlan guarda el ID y sincroniza el stock.</span>
                   </div>
-                  {!form.meliItemId && (
+                  {!hasLinkedMeliPublication && (
                     <>
                       <strong>Publicar desde Tecnotitlan</strong>
                       <small>
@@ -949,18 +953,24 @@ const ProductEditScreen = () => {
                  )}
                   {meliMessage && <div className={styles.success}>{meliMessage}</div>}
                   {meliError && <div className={styles.error}>{meliError}</div>}
-                  {form.meliItemId && (
+                  {hasInvalidStoredMeliItemId && (
+                    <div className={styles.error}>
+                      Se ignoro el valor heredado {normalizedMeliItemId} porque no es un ID valido de publicacion.
+                      Usa "Preparar publicacion" y despues "Publicar en Mercado Libre".
+                    </div>
+                  )}
+                  {hasLinkedMeliPublication && (
                     <div className={styles.meliLinkedBox}>
                       <span>
                         <strong>Publicacion conectada</strong>
-                        <small>ID guardado automaticamente: {form.meliItemId}</small>
+                        <small>ID guardado automaticamente: {normalizedMeliItemId}</small>
                       </span>
                       <button className={styles.button} type="button" onClick={syncMeliStock} disabled={meliLoading}>
                         Sincronizar stock
                       </button>
                     </div>
                   )}
-                  {!form.meliItemId && (
+                  {!hasLinkedMeliPublication && (
                     <details className={styles.meliAdvanced}>
                       <summary>Opcion avanzada: vincular una publicacion que ya existe en Mercado Libre</summary>
                       <small>
@@ -1004,7 +1014,7 @@ const ProductEditScreen = () => {
                   {form.lastMeliSync && (
                     <small>Ultima sincronizacion: {new Date(form.lastMeliSync).toLocaleString()}</small>
                   )}
-                  {meliPreview && form.meliItemId && (
+                  {meliPreview && hasLinkedMeliPublication && (
                     <small>
                       Meli: <strong>{meliPreview.title || meliPreview.id}</strong>
                       {meliPreview.status ? ` / Estado: ${meliPreview.status}` : ''}

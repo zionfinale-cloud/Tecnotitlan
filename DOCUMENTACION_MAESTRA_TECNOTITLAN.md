@@ -1324,5 +1324,6 @@ Protecciones implementadas:
 
 - Los errores de publicacion y de vinculacion existente se muestran por separado.
 - Si una categoria fue guardada accidentalmente como ID de publicacion, el backend limpia ese vinculo antes de crear el anuncio.
+- La interfaz solo oculta **Publicar en Mercado Libre** cuando existe un ID remoto valido (`MLM` seguido de al menos siete digitos); una categoria heredada ya no puede ocultar la accion.
 - El ID remoto se guarda antes de intentar actualizar la descripcion, evitando duplicar anuncios si Mercado Libre rechaza solo la descripcion.
 - La interfaz muestra el motivo detallado devuelto por Mercado Libre para corregir atributos obligatorios sin adivinar.
