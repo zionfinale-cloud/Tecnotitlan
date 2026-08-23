@@ -1327,3 +1327,6 @@ Protecciones implementadas:
 - La interfaz solo oculta **Publicar en Mercado Libre** cuando existe un ID remoto valido (`MLM` seguido de al menos siete digitos); una categoria heredada ya no puede ocultar la accion.
 - El ID remoto se guarda antes de intentar actualizar la descripcion, evitando duplicar anuncios si Mercado Libre rechaza solo la descripcion.
 - La interfaz muestra el motivo detallado devuelto por Mercado Libre para corregir atributos obligatorios sin adivinar.
+- Despues de publicar, el boton **Publicar en Mercado Libre** se reemplaza por una tarjeta **Publicado en Mercado Libre**. Esta tarjeta muestra el item ID, el enlace directo, una accion para copiarlo, el stock publicable, el estado remoto y la ultima sincronizacion.
+- La accion de publicar no vuelve a mostrarse mientras exista un item ID remoto valido, para evitar anuncios duplicados. La tarjeta conserva la accion **Sincronizar stock**.
+- Una publicacion creada con un vendedor de prueba solo aparece en la cuenta `TESTUSER` que autorizo Tecnotitlan. No aparece en la cuenta real de Mercado Libre hasta reconectar esa cuenta y publicar desde ella.

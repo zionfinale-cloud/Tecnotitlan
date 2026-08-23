@@ -597,6 +597,25 @@ const ProductEditScreen = () => {
     }
   };
 
+  const copyMeliPublicationUrl = async () => {
+    const publicationUrl = String(form.meliPublicationUrl || '').trim();
+
+    if (!publicationUrl) {
+      setMeliError('La publicacion no tiene un enlace guardado todavia.');
+      setMeliMessage('');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(publicationUrl);
+      setMeliError('');
+      setMeliMessage('Enlace de Mercado Libre copiado.');
+    } catch (error) {
+      setMeliError('No se pudo copiar el enlace. Abre la publicacion y copialo desde el navegador.');
+      setMeliMessage('');
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -959,17 +978,53 @@ const ProductEditScreen = () => {
                       Usa "Preparar publicacion" y despues "Publicar en Mercado Libre".
                     </div>
                   )}
-                  {hasLinkedMeliPublication && (
-                    <div className={styles.meliLinkedBox}>
-                      <span>
-                        <strong>Publicacion conectada</strong>
-                        <small>ID guardado automaticamente: {normalizedMeliItemId}</small>
-                      </span>
-                      <button className={styles.button} type="button" onClick={syncMeliStock} disabled={meliLoading}>
-                        Sincronizar stock
-                      </button>
-                    </div>
-                  )}
+                   {hasLinkedMeliPublication && (
+                     <section className={styles.meliPublishedCard}>
+                       <div className={styles.meliPublishedHeader}>
+                         <span>
+                           <strong>Publicado en Mercado Libre</strong>
+                           <small>El anuncio ya fue creado. No vuelvas a publicarlo para evitar duplicados.</small>
+                         </span>
+                         <span className={styles.meliPublishedBadge}>Conectado</span>
+                       </div>
+                       <div className={styles.meliPublishedDetails}>
+                         <span>
+                           <small>ID de publicacion</small>
+                           <strong>{normalizedMeliItemId}</strong>
+                         </span>
+                         <span>
+                           <small>Stock publicable</small>
+                           <strong>{meliRequirements?.inventory?.publishableStock ?? 0}</strong>
+                         </span>
+                       </div>
+                       <div className={styles.meliPublishedActions}>
+                         {form.meliPublicationUrl ? (
+                           <a className={styles.button} href={form.meliPublicationUrl} target="_blank" rel="noreferrer">
+                             Abrir publicacion
+                           </a>
+                         ) : (
+                           <small>Mercado Libre aun no devolvio un enlace publico.</small>
+                         )}
+                         {form.meliPublicationUrl && (
+                           <button className={styles.secondaryButton} type="button" onClick={copyMeliPublicationUrl}>
+                             Copiar enlace
+                           </button>
+                         )}
+                         <button className={styles.secondaryButton} type="button" onClick={syncMeliStock} disabled={meliLoading}>
+                           Sincronizar stock
+                         </button>
+                       </div>
+                       {form.lastMeliSync && (
+                         <small>Ultima sincronizacion: {new Date(form.lastMeliSync).toLocaleString()}</small>
+                       )}
+                       {meliPreview && (
+                         <small>
+                           Estado remoto: <strong>{meliPreview.title || meliPreview.id}</strong>
+                           {meliPreview.status ? ` / ${meliPreview.status}` : ''}
+                         </small>
+                       )}
+                     </section>
+                   )}
                   {!hasLinkedMeliPublication && (
                     <details className={styles.meliAdvanced}>
                       <summary>Opcion avanzada: vincular una publicacion que ya existe en Mercado Libre</summary>
@@ -1006,20 +1061,6 @@ const ProductEditScreen = () => {
                        {meliLinkError && <div className={styles.error}>{meliLinkError}</div>}
                      </details>
                    )}
-                  {form.meliPublicationUrl && (
-                    <a href={form.meliPublicationUrl} target="_blank" rel="noreferrer">
-                      Abrir publicacion en Mercado Libre
-                    </a>
-                  )}
-                  {form.lastMeliSync && (
-                    <small>Ultima sincronizacion: {new Date(form.lastMeliSync).toLocaleString()}</small>
-                  )}
-                  {meliPreview && hasLinkedMeliPublication && (
-                    <small>
-                      Meli: <strong>{meliPreview.title || meliPreview.id}</strong>
-                      {meliPreview.status ? ` / Estado: ${meliPreview.status}` : ''}
-                    </small>
-                  )}
                 </div>
               </div>
             )}

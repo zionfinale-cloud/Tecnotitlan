@@ -367,6 +367,63 @@
     gap: 0.2rem;
 }
 
+.meliPublishedCard {
+    background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+    border: 1px solid #86efac;
+    border-radius: 1rem;
+    display: grid;
+    gap: 0.9rem;
+    padding: 1rem;
+}
+
+.meliPublishedHeader {
+    align-items: flex-start;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.meliPublishedHeader > span:first-child {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.meliPublishedBadge {
+    background: #15803d;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 0.35rem 0.65rem;
+    text-transform: uppercase;
+}
+
+.meliPublishedDetails {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.meliPublishedDetails > span {
+    background: #fff;
+    border: 1px solid #bbf7d0;
+    border-radius: 0.75rem;
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.75rem;
+}
+
+.meliPublishedDetails small {
+    color: #64748b;
+}
+
+.meliPublishedActions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
 .meliAdvanced {
     border-top: 1px solid #bbf7d0;
     display: grid;
@@ -596,6 +653,20 @@
     .meliLinkedBox {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .meliPublishedHeader {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .meliPublishedDetails {
+        grid-template-columns: 1fr;
+    }
+
+    .meliPublishedActions > * {
+        justify-content: center;
+        width: 100%;
     }
 
     .inventorySummary,
