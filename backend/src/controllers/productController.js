@@ -1002,16 +1002,27 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     return next(new BadRequestError('Selecciona una categoria valida de Mercado Libre.'));
   }
 
-  const currentMeliItemId = normalizeMercadoLibreId(product.meliItemId);
-  if (currentMeliItemId && !isSameMercadoLibreIdentifier(currentMeliItemId, categoryId)) {
-    return next(new BadRequestError(
-      'Este producto ya tiene una publicacion de Mercado Libre vinculada.'
-    ));
-  }
+  const normalizeSku = (value) => String(value || '').trim().toUpperCase();
+  const extractRemoteSku = (item) => {
+    const attributeSku = (item?.attributes || []).find(
+      (attribute) => normalizeSku(attribute?.id) === 'SELLER_SKU'
+    );
+    const variationSku = (item?.variations || []).flatMap((variation) => {
+      const variationAttribute = (variation?.attributes || []).find(
+        (attribute) => normalizeSku(attribute?.id) === 'SELLER_SKU'
+      );
+      return [variation?.seller_custom_field, variationAttribute?.value_name];
+    });
 
-  if (isSameMercadoLibreIdentifier(currentMeliItemId, categoryId)) {
+    return [
+      item?.seller_custom_field,
+      attributeSku?.value_name,
+      ...variationSku,
+    ].map(normalizeSku).find(Boolean) || '';
+  };
+  const clearInvalidMeliLink = async (itemId, reason) => {
     logger.warn(
-      `[Meli Publish] Limpiando vinculo invalido ${currentMeliItemId} del producto ${product.sku}: coincide con la categoria.`
+      `[Meli Publish] Limpiando vinculo invalido ${itemId} del producto ${product.sku}: ${reason}.`
     );
     await prisma.$transaction([
       prisma.product.update({
@@ -1026,7 +1037,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
         where: {
           productId: product.id,
           channel: 'MERCADOLIBRE',
-          externalProductId: currentMeliItemId,
+          externalProductId: itemId,
         },
         data: {
           externalProductId: null,
@@ -1034,6 +1045,38 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
         },
       }),
     ]);
+  };
+
+  const currentMeliItemId = normalizeMercadoLibreId(product.meliItemId);
+  if (currentMeliItemId) {
+    if (isSameMercadoLibreIdentifier(currentMeliItemId, categoryId)) {
+      await clearInvalidMeliLink(currentMeliItemId, 'el ID guardado coincide con la categoria');
+    } else {
+      let remoteItem = null;
+      try {
+        remoteItem = await meliService.getItem(req.user.id, currentMeliItemId);
+      } catch (error) {
+        const status = Number(error?.response?.status || error?.statusCode || 0);
+        if (![403, 404].includes(status)) {
+          throw error;
+        }
+      }
+
+      const remoteSku = extractRemoteSku(remoteItem);
+      const localSku = normalizeSku(product.sku);
+      if (remoteItem && remoteSku === localSku) {
+        return next(new BadRequestError(
+          `Este producto ya esta vinculado a ${currentMeliItemId} con el SKU ${product.sku}.`
+        ));
+      }
+
+      await clearInvalidMeliLink(
+        currentMeliItemId,
+        remoteItem
+          ? `el SKU remoto ${remoteSku || 'sin SKU'} no coincide con ${localSku}`
+          : 'la publicacion ya no existe o no es accesible'
+      );
+    }
   }
 
   const listing = product.marketplaceListings[0];

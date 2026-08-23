@@ -1330,3 +1330,9 @@ Protecciones implementadas:
 - Despues de publicar, el boton **Publicar en Mercado Libre** se reemplaza por una tarjeta **Publicado en Mercado Libre**. Esta tarjeta muestra el item ID, el enlace directo, una accion para copiarlo, el stock publicable, el estado remoto y la ultima sincronizacion.
 - La accion de publicar no vuelve a mostrarse mientras exista un item ID remoto valido, para evitar anuncios duplicados. La tarjeta conserva la accion **Sincronizar stock**.
 - Una publicacion creada con un vendedor de prueba solo aparece en la cuenta `TESTUSER` que autorizo Tecnotitlan. No aparece en la cuenta real de Mercado Libre hasta reconectar esa cuenta y publicar desde ella.
+# Mercado Libre: vinculacion estricta por SKU local (2026-08-23)
+
+- Cada producto de Tecnotitlan mantiene una publicacion independiente en Mercado Libre con el mismo SKU local.
+- Una publicacion remota solo puede reutilizarse cuando su `seller_custom_field` o atributo `SELLER_SKU` coincide exactamente con el SKU local.
+- Si un producto guarda por error el ID de otra publicacion o el ID de una categoria, Tecnotitlan limpia solamente ese vinculo local y crea una publicacion nueva para el SKU correcto.
+- La autocorreccion nunca elimina ni modifica la publicacion remota ajena. Por ejemplo, `AUR-002` permanece separado de cualquier reloj `WTC-*`.
