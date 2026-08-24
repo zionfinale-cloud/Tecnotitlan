@@ -1342,3 +1342,5 @@ Protecciones implementadas:
 - La creacion de publicaciones envia `family_name` en la raiz del payload, como exige Mercado Libre.
 - El valor se construye con marca y modelo, por ejemplo `G-Tide R9 Pro`, sin duplicar la marca.
 - Si el formulario envia una familia explicita, ese valor tiene prioridad. Como respaldo se usa modelo, marca, nombre del producto o SKU.
+- Cuando se usa `family_name`, Tecnotitlan no envia `title` en la misma solicitud porque Mercado Libre rechaza esa combinacion con `body.invalid_fields`.
+- Los errores de Mercado Libre ahora decodifican entidades HTML y muestran causas, referencias y atributos invalidos cuando la API los proporciona.

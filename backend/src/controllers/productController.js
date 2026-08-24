@@ -1127,7 +1127,6 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   const stockToPublish = getPublishableStock(listing);
   const pricing = resolveMarketplacePrice({ product, listing });
   const payload = {
-    title: String(product.name || product.sku).trim().slice(0, 60),
     category_id: categoryId,
     price: pricing.price,
     currency_id: 'MXN',
@@ -1175,7 +1174,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
         data: {
           externalProductId: meliItem.id,
           externalSku: product.sku,
-          title: meliItem.title || payload.title,
+          title: meliItem.title || familyName || product.name || product.sku,
           price: Number(meliItem.price ?? pricing.price),
           status: 'ACTIVE',
           syncStatus: 'SYNCED_TO_MELI',

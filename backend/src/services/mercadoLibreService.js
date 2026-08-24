@@ -912,19 +912,54 @@ const getItem = async (userId, meliItemId) => {
   }
 };
 
-const getMeliErrorMessage = (error, fallback) => {
-  const apiMessage = error?.response?.data?.message;
-  const apiCause = error?.response?.data?.cause;
-  const causeMessages = Array.isArray(apiCause)
-    ? apiCause.map((cause) => [cause?.code, cause?.message].filter(Boolean).join(': '))
-    : [];
-  const details = [apiMessage, ...causeMessages].filter(Boolean);
+const decodeMeliText = (value) => String(value ?? '')
+  .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+  .replace(/&#(\d+);/g, (_, decimal) => String.fromCodePoint(Number.parseInt(decimal, 10)))
+  .replace(/&nbsp;/gi, ' ')
+  .trim();
 
-  if (details.length > 0) {
-    return [...new Set(details)].join('; ');
+const getMeliDetailMessages = (value) => {
+  if (value === null || value === undefined || value === '') return [];
+  if (Array.isArray(value)) return value.flatMap(getMeliDetailMessages);
+
+  if (typeof value !== 'object') {
+    const text = decodeMeliText(value);
+    return text ? [text] : [];
   }
 
-  return error?.message || fallback;
+  const primary = [value.code || value.error, value.message || value.detail || value.description]
+    .map(decodeMeliText)
+    .filter(Boolean)
+    .join(': ');
+
+  return [
+    primary,
+    ...getMeliDetailMessages(value.references),
+    ...getMeliDetailMessages(value.fields),
+    ...getMeliDetailMessages(value.field),
+    ...getMeliDetailMessages(value.path),
+  ].filter(Boolean);
+};
+
+const getMeliErrorMessage = (error, fallback) => {
+  const data = error?.response?.data;
+  const details = [
+    ...getMeliDetailMessages(data?.message),
+    ...getMeliDetailMessages(data?.error),
+    ...getMeliDetailMessages(data?.cause),
+    ...getMeliDetailMessages(data?.details),
+    ...getMeliDetailMessages(data?.invalid_fields),
+  ];
+
+  if (details.length > 0) {
+    const uniqueDetails = [...new Set(details)];
+    if (uniqueDetails.length === 1 && uniqueDetails[0] === 'body.invalid_fields') {
+      uniqueDetails.push('Mercado Libre no indico el campo invalido; revisa la categoria y sus atributos obligatorios.');
+    }
+    return uniqueDetails.join('; ');
+  }
+
+  return decodeMeliText(error?.message) || fallback;
 };
 
 const predictCategory = async (userId, title) => {
