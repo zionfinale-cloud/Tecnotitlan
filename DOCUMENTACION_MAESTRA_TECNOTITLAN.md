@@ -1336,3 +1336,9 @@ Protecciones implementadas:
 - Una publicacion remota solo puede reutilizarse cuando su `seller_custom_field` o atributo `SELLER_SKU` coincide exactamente con el SKU local.
 - Si un producto guarda por error el ID de otra publicacion o el ID de una categoria, Tecnotitlan limpia solamente ese vinculo local y crea una publicacion nueva para el SKU correcto.
 - La autocorreccion nunca elimina ni modifica la publicacion remota ajena. Por ejemplo, `AUR-002` permanece separado de cualquier reloj `WTC-*`.
+
+## Actualizacion 2026-08-23 - Familia obligatoria de Mercado Libre
+
+- La creacion de publicaciones envia `family_name` en la raiz del payload, como exige Mercado Libre.
+- El valor se construye con marca y modelo, por ejemplo `G-Tide R9 Pro`, sin duplicar la marca.
+- Si el formulario envia una familia explicita, ese valor tiene prioridad. Como respaldo se usa modelo, marca, nombre del producto o SKU.

@@ -21,6 +21,7 @@ import {
   normalizeMercadoLibreId,
   isMercadoLibreItemId,
   isSameMercadoLibreIdentifier,
+  buildMercadoLibreFamilyName,
 } from '../utils/mercadoLibreIdentifiers.js';
 
 const SKU_PREFIX_BY_CATEGORY = {
@@ -1111,6 +1112,18 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     attributes.push({ id: 'BRAND', value_name: product.brand });
   }
 
+  const getAttributeValue = (attributeId) =>
+    attributes.find(
+      (attribute) => String(attribute.id).trim().toUpperCase() === attributeId,
+    )?.value_name || '';
+  const familyName = buildMercadoLibreFamilyName({
+    requestedFamilyName: req.body.familyName ?? req.body.family_name,
+    brand: getAttributeValue('BRAND') || req.body.brand || product.brand,
+    model: getAttributeValue('MODEL') || req.body.model,
+    productName: product.name,
+    sku: product.sku,
+  });
+
   const stockToPublish = getPublishableStock(listing);
   const pricing = resolveMarketplacePrice({ product, listing });
   const payload = {
@@ -1124,6 +1137,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     condition: String(req.body.condition || 'new'),
     pictures,
     attributes,
+    family_name: familyName,
     seller_custom_field: product.sku,
   };
 
