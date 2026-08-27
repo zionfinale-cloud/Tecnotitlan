@@ -1122,6 +1122,9 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   const submittedGtin = attributes.find(
     (attribute) => String(attribute.id).trim().toUpperCase() === 'GTIN',
   )?.value_name;
+  const emptyGtinReason = attributes.find(
+    (attribute) => String(attribute.id).trim().toUpperCase() === 'EMPTY_GTIN_REASON',
+  )?.value_name;
   const publishGtin = normalizeGtin(req.body.gtin ?? submittedGtin ?? product.gtin);
   if (publishGtin) {
     const existingGtin = attributes.findIndex(
@@ -1134,13 +1137,17 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     } else {
       attributes.push(gtinAttribute);
     }
+    const emptyReasonIndex = attributes.findIndex(
+      (attribute) => String(attribute.id).trim().toUpperCase() === 'EMPTY_GTIN_REASON',
+    );
+    if (emptyReasonIndex >= 0) attributes.splice(emptyReasonIndex, 1);
   }
 
-  if (categoryId === 'MLM126793' && !publishGtin) {
+  if (categoryId === 'MLM126793' && !publishGtin && !emptyGtinReason) {
     return res.status(400).json({
       status: 'error',
       message:
-        'Mercado Libre exige el codigo universal GTIN/EAN/UPC para esta categoria. Capturalo en el producto antes de publicar.',
+        'Mercado Libre exige el GTIN/EAN/UPC o un motivo valido por el que el producto no tiene codigo registrado.',
       code: 'MELI_GTIN_REQUIRED',
       field: 'gtin',
     });

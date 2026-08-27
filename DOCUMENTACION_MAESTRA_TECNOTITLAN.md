@@ -1357,5 +1357,5 @@ Protecciones implementadas:
 - `Preparar publicacion` consulta el predictor oficial de Mercado Libre con el nombre del producto y muestra las tres mejores categorias sugeridas.
 - Cada opcion muestra la ruta completa del arbol y su ID `MLM`; el operador selecciona una categoria sin memorizar ni escribir identificadores.
 - Al cambiar de categoria, Tecnotitlan vuelve a importar sus atributos obligatorios y recomendados.
-- Los atributos con `conditional_required`, como GTIN en Smartwatches, se muestran antes de publicar para evitar que el backend los solicite solamente al final.
+- Los atributos con `conditional_required`, como GTIN en Smartwatches, se muestran antes de publicar. Cuando Mercado Libre ofrece `EMPTY_GTIN_REASON`, el operador captura el codigo real o selecciona un motivo valido; nunca se inventa un GTIN ni se exigen ambas alternativas.
 - Las categorias no se duplican en la base de datos local: se consultan en vivo para evitar trabajar con un arbol obsoleto de Mercado Libre.

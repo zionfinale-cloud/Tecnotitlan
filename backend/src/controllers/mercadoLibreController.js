@@ -12,6 +12,7 @@ import {
   normalizeMercadoLibreId,
   isMercadoLibreItemId,
   isRequiredMercadoLibreAttribute,
+  isConditionalMercadoLibreAttribute,
 } from '../utils/mercadoLibreIdentifiers.js';
 
 const oauthStates = new Map();
@@ -257,14 +258,18 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
   const editableAttributes = attributes
     .filter((attribute) => {
       const tags = attribute?.tags || {};
-      return Boolean(isRequiredMercadoLibreAttribute(attribute) || tags.recommended);
+      return Boolean(
+        isRequiredMercadoLibreAttribute(attribute)
+        || isConditionalMercadoLibreAttribute(attribute)
+        || tags.recommended
+      );
     })
     .map((attribute) => ({
       id: attribute.id,
       name: attribute.name,
       valueType: attribute.value_type,
       required: isRequiredMercadoLibreAttribute(attribute),
-      conditionalRequired: Boolean(attribute?.tags?.conditional_required),
+      conditionalRequired: isConditionalMercadoLibreAttribute(attribute),
       allowCustomValue: attribute.id === 'BRAND' && attribute.value_type === 'string',
       hint: attribute.hint || '',
       valueMaxLength: Number(attribute.value_max_length) || null,

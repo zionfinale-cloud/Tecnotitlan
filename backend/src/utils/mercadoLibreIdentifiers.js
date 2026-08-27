@@ -33,8 +33,11 @@ const normalizeGtin = (value) => {
 
 const isRequiredMercadoLibreAttribute = (attribute) => {
   const tags = attribute?.tags || {};
-  return Boolean(tags.required || tags.catalog_required || tags.conditional_required);
+  return Boolean(tags.required || tags.catalog_required);
 };
+
+const isConditionalMercadoLibreAttribute = (attribute) =>
+  Boolean(attribute?.tags?.conditional_required);
 
 const buildMercadoLibreFamilyName = ({
   requestedFamilyName,
@@ -76,4 +79,5 @@ export {
   buildMercadoLibreFamilyName,
   normalizeGtin,
   isRequiredMercadoLibreAttribute,
+  isConditionalMercadoLibreAttribute,
 };

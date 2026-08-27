@@ -7,6 +7,7 @@ import {
   buildMercadoLibreFamilyName,
   normalizeGtin,
   isRequiredMercadoLibreAttribute,
+  isConditionalMercadoLibreAttribute,
 } from '../src/utils/mercadoLibreIdentifiers.js';
 
 test('normaliza identificadores de Mercado Libre', () => {
@@ -68,9 +69,11 @@ test('rechaza codigos universales con longitud invalida', () => {
   );
 });
 
-test('incluye atributos condicionalmente obligatorios de Mercado Libre', () => {
+test('distingue atributos obligatorios y condicionales de Mercado Libre', () => {
   assert.equal(isRequiredMercadoLibreAttribute({ tags: { required: true } }), true);
   assert.equal(isRequiredMercadoLibreAttribute({ tags: { catalog_required: true } }), true);
-  assert.equal(isRequiredMercadoLibreAttribute({ tags: { conditional_required: true } }), true);
+  assert.equal(isRequiredMercadoLibreAttribute({ tags: { conditional_required: true } }), false);
   assert.equal(isRequiredMercadoLibreAttribute({ tags: { recommended: true } }), false);
+  assert.equal(isConditionalMercadoLibreAttribute({ tags: { conditional_required: true } }), true);
+  assert.equal(isConditionalMercadoLibreAttribute({ tags: { required: true } }), false);
 });

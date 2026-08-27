@@ -482,15 +482,20 @@ const ProductEditScreen = () => {
   };
 
   const updateMeliAttribute = (attributeId, value) => {
+    const normalizedAttributeId = String(attributeId).toUpperCase();
     setMeliPublishForm((current) => ({
       ...current,
       attributes: {
         ...current.attributes,
         [attributeId]: value,
+        ...(normalizedAttributeId === 'GTIN' && value ? { EMPTY_GTIN_REASON: '' } : {}),
+        ...(normalizedAttributeId === 'EMPTY_GTIN_REASON' && value ? { GTIN: '' } : {}),
       },
     }));
-    if (String(attributeId).toUpperCase() === 'GTIN') {
+    if (normalizedAttributeId === 'GTIN') {
       updateField('gtin', String(value || '').replace(/[^0-9]/g, '').slice(0, 14));
+    } else if (normalizedAttributeId === 'EMPTY_GTIN_REASON' && value) {
+      updateField('gtin', '');
     }
   };
 
@@ -507,6 +512,23 @@ const ProductEditScreen = () => {
     );
     if (missingAttribute) {
       setMeliError(`Completa el atributo obligatorio: ${missingAttribute.name}.`);
+      return;
+    }
+
+    const requirements = meliRequirements.attributes || [];
+    const hasConditionalGtin = requirements.some(
+      (attribute) => attribute.id === 'GTIN' && attribute.conditionalRequired
+    );
+    const hasEmptyGtinReason = requirements.some(
+      (attribute) => attribute.id === 'EMPTY_GTIN_REASON'
+    );
+    if (
+      hasConditionalGtin
+      && hasEmptyGtinReason
+      && !String(meliPublishForm.attributes.GTIN || form.gtin || '').trim()
+      && !String(meliPublishForm.attributes.EMPTY_GTIN_REASON || '').trim()
+    ) {
+      setMeliError('Captura el GTIN/EAN/UPC o selecciona el motivo por el que el producto no tiene codigo.');
       return;
     }
 
@@ -946,7 +968,8 @@ const ProductEditScreen = () => {
                               {(meliRequirements.attributes || []).map((attribute) => (
                                 <div className={styles.field} key={attribute.id}>
                                   <label className={styles.label} htmlFor={`meli-${attribute.id}`}>
-                                    {attribute.name}{attribute.required ? ' *' : ''}
+                                    {attribute.name}
+                                    {attribute.required ? ' *' : attribute.conditionalRequired ? ' (segun aplique)' : ''}
                                   </label>
                                   {attribute.allowCustomValue ? (
                                     <>
