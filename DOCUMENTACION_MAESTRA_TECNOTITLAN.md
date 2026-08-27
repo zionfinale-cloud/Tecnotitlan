@@ -1361,4 +1361,5 @@ Protecciones implementadas:
 - Las categorias no se duplican en la base de datos local: se consultan en vivo para evitar trabajar con un arbol obsoleto de Mercado Libre.
 - Antes de crear un anuncio, Tecnotitlan consulta las publicaciones de la cuenta por `seller_custom_field`/`SELLER_SKU`. Si el SKU ya existe, bloquea el alta duplicada y permite vincular el item encontrado.
 - Tecnotitlan tambien consulta `/products/search`: primero por GTIN y, cuando no existe, por marca y nombre dentro del dominio sugerido. Una ficha de catalogo no es una categoria ni una publicacion; solo se asocia cuando el operador confirma que modelo y variante coinciden exactamente.
+- La mejor ficha queda seleccionada automaticamente: un GTIN unico obtiene coincidencia exacta; sin GTIN se ordenan las sugerencias por marca, modelo, nombre y atributos. El operador conserva un selector para cambiar la ficha o publicar sin asociarla cuando ninguna variante sea correcta.
 - El payload se comprueba con `/items/validate` antes de ejecutar `POST /items`. Los atributos enumerados conservan tanto `value_id` como `value_name`, incluido `EMPTY_GTIN_REASON`.

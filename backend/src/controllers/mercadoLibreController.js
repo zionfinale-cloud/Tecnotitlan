@@ -202,6 +202,9 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
         name: true,
         brand: true,
         gtin: true,
+        characteristics: {
+          select: { key: true, value: true },
+        },
         countInStock: true,
         marketplaceListings: {
           where: { channel: 'MERCADOLIBRE' },
@@ -284,16 +287,54 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
     permalink: item.permalink || null,
     availableQuantity: Number(item.available_quantity || 0),
   }));
-  const catalogProducts = catalogResults.map((catalogProduct) => ({
-    id: catalogProduct.id,
-    name: catalogProduct.name || catalogProduct.title || catalogProduct.id,
-    status: catalogProduct.status || null,
-    domainId: catalogProduct.domain_id || null,
-    categoryId: catalogProduct.category_id || null,
-    childrenIds: Array.isArray(catalogProduct.children_ids) ? catalogProduct.children_ids : [],
-    picture: catalogProduct.pictures?.[0]?.url || catalogProduct.thumbnail || null,
-    matchedBy: localProduct?.gtin ? 'GTIN' : 'TITLE',
-  }));
+  const normalizeCatalogText = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  const localCatalogText = normalizeCatalogText([
+    localProduct?.brand,
+    localProduct?.name,
+    ...(localProduct?.characteristics || [])
+      .filter((item) => /modelo|model|color|linea|version|variante/i.test(item.key || ''))
+      .flatMap((item) => [item.key, item.value]),
+  ].filter(Boolean).join(' '));
+  const localTokens = new Set(localCatalogText.split(' ').filter((token) => token.length > 1));
+  const catalogProducts = catalogResults
+    .map((catalogProduct, originalIndex) => {
+      const name = catalogProduct.name || catalogProduct.title || catalogProduct.id;
+      const candidateText = normalizeCatalogText([
+        name,
+        ...(catalogProduct.attributes || []).flatMap((attribute) => [
+          attribute.name,
+          attribute.value_name,
+        ]),
+      ].filter(Boolean).join(' '));
+      const matchingTokens = [...localTokens].filter((token) => candidateText.includes(token));
+      const textConfidence = localTokens.size > 0
+        ? Math.round((matchingTokens.length / localTokens.size) * 100)
+        : 0;
+      const brandMatch = localProduct?.brand
+        && candidateText.includes(normalizeCatalogText(localProduct.brand));
+      return {
+        id: catalogProduct.id,
+        name,
+        status: catalogProduct.status || null,
+        domainId: catalogProduct.domain_id || null,
+        categoryId: catalogProduct.category_id || null,
+        childrenIds: Array.isArray(catalogProduct.children_ids) ? catalogProduct.children_ids : [],
+        picture: catalogProduct.pictures?.[0]?.url || catalogProduct.thumbnail || null,
+        matchedBy: localProduct?.gtin ? 'GTIN' : 'TITLE',
+        confidence: localProduct?.gtin ? 100 : Math.min(textConfidence + (brandMatch ? 10 : 0), 99),
+        originalIndex,
+      };
+    })
+    .sort((left, right) => right.confidence - left.confidence || left.originalIndex - right.originalIndex)
+    .map(({ originalIndex, ...catalogProduct }, index) => ({
+      ...catalogProduct,
+      recommended: index === 0,
+    }));
   const editableAttributes = attributes
     .filter((attribute) => {
       const tags = attribute?.tags || {};
@@ -334,6 +375,7 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
       categorySuggestions,
       existingListings,
       catalogProducts,
+      catalogRecommendedId: catalogProducts[0]?.id || null,
       catalogMatchExact: Boolean(localProduct?.gtin && catalogProducts.length === 1),
       attributes: editableAttributes,
       inventory,

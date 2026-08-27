@@ -458,11 +458,11 @@ const ProductEditScreen = () => {
       setMeliPublishForm((current) => ({
         ...current,
         categoryId: requirements.categoryId || current.categoryId,
-        catalogProductId: requirements.catalogMatchExact
-          ? requirements.catalogProducts?.[0]?.id || ''
-          : (requirements.catalogProducts || []).some(
-            (catalogProduct) => catalogProduct.id === current.catalogProductId
-          ) ? current.catalogProductId : '',
+        catalogProductId: (requirements.catalogProducts || []).some(
+          (catalogProduct) => catalogProduct.id === current.catalogProductId
+        )
+          ? current.catalogProductId
+          : requirements.catalogRecommendedId || '',
         attributes: (requirements.attributes || []).reduce((result, attribute) => ({
           ...result,
           [attribute.id]: current.attributes[attribute.id] || (
@@ -996,13 +996,17 @@ const ProductEditScreen = () => {
                                 <option value="">No asociar sin confirmar</option>
                                 {(meliRequirements.catalogProducts || []).map((catalogProduct) => (
                                   <option key={catalogProduct.id} value={catalogProduct.id}>
+                                    {catalogProduct.recommended ? 'Recomendada: ' : ''}
                                     {catalogProduct.name} ({catalogProduct.id})
+                                    {Number.isFinite(catalogProduct.confidence)
+                                      ? ` - coincidencia ${catalogProduct.confidence}%`
+                                      : ''}
                                   </option>
                                 ))}
                               </select>
                               <small className={styles.fieldHint}>
                                 {(meliRequirements.catalogProducts || []).length > 0
-                                  ? `Mercado Libre encontro ${(meliRequirements.catalogProducts || []).length} ficha(s) por ${meliRequirements.catalogProducts[0]?.matchedBy === 'GTIN' ? 'GTIN' : 'nombre'}. Confirma que modelo y variante sean exactos.`
+                                  ? `Seleccion automatica basada en ${(meliRequirements.catalogProducts || [])[0]?.matchedBy === 'GTIN' ? 'GTIN exacto' : 'la relevancia devuelta por Mercado Libre y la coincidencia de marca/modelo'}. Puedes cambiarla o elegir no asociar. Confirma que modelo y variante sean exactos.`
                                   : 'No se encontro una ficha de catalogo activa; esto no crea una categoria nueva.'}
                               </small>
                             </div>
