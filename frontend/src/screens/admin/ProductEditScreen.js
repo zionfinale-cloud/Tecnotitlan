@@ -137,6 +137,7 @@ const ProductEditScreen = () => {
   const [meliLinkError, setMeliLinkError] = useState('');
   const [meliPublishForm, setMeliPublishForm] = useState({
     categoryId: '',
+    catalogProductId: '',
     listingTypeId: 'gold_special',
     condition: 'new',
     attributes: {},
@@ -457,6 +458,11 @@ const ProductEditScreen = () => {
       setMeliPublishForm((current) => ({
         ...current,
         categoryId: requirements.categoryId || current.categoryId,
+        catalogProductId: requirements.catalogMatchExact
+          ? requirements.catalogProducts?.[0]?.id || ''
+          : (requirements.catalogProducts || []).some(
+            (catalogProduct) => catalogProduct.id === current.catalogProductId
+          ) ? current.catalogProductId : '',
         attributes: (requirements.attributes || []).reduce((result, attribute) => ({
           ...result,
           [attribute.id]: current.attributes[attribute.id] || (
@@ -538,13 +544,22 @@ const ProductEditScreen = () => {
 
     try {
       const attributes = Object.entries(meliPublishForm.attributes)
-        .map(([attributeId, value]) => ({
-          id: attributeId,
-          value_name: String(value || '').trim(),
-        }))
-        .filter((attribute) => attribute.value_name);
+        .map(([attributeId, value]) => {
+          const normalizedValue = String(value || '').trim();
+          const requirement = requirements.find((attribute) => attribute.id === attributeId);
+          const selectedValue = requirement?.values?.find(
+            (option) => String(option.id) === normalizedValue || option.name === normalizedValue
+          );
+          return {
+            id: attributeId,
+            ...(selectedValue ? { value_id: selectedValue.id } : {}),
+            value_name: selectedValue?.name || normalizedValue,
+          };
+        })
+        .filter((attribute) => attribute.value_id || attribute.value_name);
       const { data } = await api.post(`/products/${encodeURIComponent(id)}/publish-meli`, {
         categoryId: meliPublishForm.categoryId,
+        catalogProductId: meliPublishForm.catalogProductId || undefined,
         listingTypeId: meliPublishForm.listingTypeId,
         condition: meliPublishForm.condition,
         gtin: form.gtin || undefined,
@@ -572,8 +587,10 @@ const ProductEditScreen = () => {
     }
   };
 
-  const linkMeliPublication = async () => {
-    const itemId = String(meliExistingItemId || '').trim().toUpperCase();
+  const linkMeliPublication = async (itemIdOverride = '') => {
+    const itemId = String(
+      typeof itemIdOverride === 'string' && itemIdOverride ? itemIdOverride : meliExistingItemId
+    ).trim().toUpperCase();
     const validationError = !isEditing
       ? 'Guarda primero el producto antes de vincular una publicacion.'
       : getExistingMeliItemError(itemId);
@@ -869,8 +886,8 @@ const ProductEditScreen = () => {
                     <>
                       <strong>Publicar desde Tecnotitlan</strong>
                       <small>
-                        Tecnotitlan creara la publicacion, guardara el item ID y enviara solamente el stock
-                        que hayas traspasado a Mercado Libre.
+                        Tecnotitlan primero comprobara el SKU en tu cuenta y el producto en el catalogo.
+                        Solo creara una publicacion cuando no exista otra para este SKU.
                       </small>
                       <div className={styles.inlineForm}>
                         <button
@@ -889,8 +906,26 @@ const ProductEditScreen = () => {
                             <span>Asignado a Meli <strong>{meliRequirements.inventory?.assignedStock ?? 0}</strong></span>
                             <span>Publicable <strong>{meliRequirements.inventory?.publishableStock ?? 0}</strong></span>
                           </div>
+                          {(meliRequirements.existingListings || []).length > 0 && (
+                            <div className={styles.error}>
+                              <strong>Ya existe una publicacion de este SKU en tu cuenta.</strong>
+                              {(meliRequirements.existingListings || []).map((item) => (
+                                <div className={styles.inlineForm} key={item.id}>
+                                  <span>{item.id} - {item.title} ({item.status})</span>
+                                  <button
+                                    className={styles.secondaryButton}
+                                    type="button"
+                                    onClick={() => linkMeliPublication(item.id)}
+                                    disabled={meliLoading}
+                                  >
+                                    Vincular existente
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           <small>
-                            Categoria seleccionada: <strong>
+                            Categoria existente seleccionada: <strong>
                               {(meliRequirements.categoryPath || []).join(' > ')
                                 || meliRequirements.categoryName
                                 || meliRequirements.categoryId}
@@ -948,6 +983,30 @@ const ProductEditScreen = () => {
                               </select>
                             </div>
                             <div className={styles.field}>
+                              <label className={styles.label} htmlFor="meli-catalog-product">Ficha del catalogo</label>
+                              <select
+                                id="meli-catalog-product"
+                                className={styles.select}
+                                value={meliPublishForm.catalogProductId}
+                                onChange={(event) => setMeliPublishForm((current) => ({
+                                  ...current,
+                                  catalogProductId: event.target.value,
+                                }))}
+                              >
+                                <option value="">No asociar sin confirmar</option>
+                                {(meliRequirements.catalogProducts || []).map((catalogProduct) => (
+                                  <option key={catalogProduct.id} value={catalogProduct.id}>
+                                    {catalogProduct.name} ({catalogProduct.id})
+                                  </option>
+                                ))}
+                              </select>
+                              <small className={styles.fieldHint}>
+                                {(meliRequirements.catalogProducts || []).length > 0
+                                  ? `Mercado Libre encontro ${(meliRequirements.catalogProducts || []).length} ficha(s) por ${meliRequirements.catalogProducts[0]?.matchedBy === 'GTIN' ? 'GTIN' : 'nombre'}. Confirma que modelo y variante sean exactos.`
+                                  : 'No se encontro una ficha de catalogo activa; esto no crea una categoria nueva.'}
+                              </small>
+                            </div>
+                            <div className={styles.field}>
                               <label className={styles.label} htmlFor="meli-condition">Condicion</label>
                               <select
                                 id="meli-condition"
@@ -1000,7 +1059,7 @@ const ProductEditScreen = () => {
                                     >
                                       <option value="">Selecciona</option>
                                       {attribute.values.map((value) => (
-                                        <option key={value.id || value.name} value={value.name}>
+                                        <option key={value.id || value.name} value={value.id || value.name}>
                                           {value.name}
                                         </option>
                                       ))}
@@ -1022,7 +1081,11 @@ const ProductEditScreen = () => {
                             className={styles.button}
                             type="button"
                             onClick={publishMeliProduct}
-                            disabled={meliLoading || Number(meliRequirements.inventory?.publishableStock || 0) <= 0}
+                            disabled={
+                              meliLoading
+                              || Number(meliRequirements.inventory?.publishableStock || 0) <= 0
+                              || (meliRequirements.existingListings || []).length > 0
+                            }
                           >
                            Publicar en Mercado Libre
                          </button>

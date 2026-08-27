@@ -186,6 +186,7 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
   let categoryId = String(req.query.categoryId || '').trim();
   let predictions = [];
   let inventory = null;
+  let localProduct = null;
 
   if (productReference) {
     const product = await prisma.product.findFirst({
@@ -197,6 +198,10 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
       },
       select: {
         id: true,
+        sku: true,
+        name: true,
+        brand: true,
+        gtin: true,
         countInStock: true,
         marketplaceListings: {
           where: { channel: 'MERCADOLIBRE' },
@@ -215,6 +220,7 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
     }
 
     const listing = product.marketplaceListings[0] || null;
+    localProduct = product;
     inventory = {
       warehouseStock: Number(product.countInStock || 0),
       assignedStock: Number(listing?.publishedStock || 0),
@@ -255,6 +261,39 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
       isLeaf: !Array.isArray(detail?.children_categories) || detail.children_categories.length === 0,
     };
   }));
+  const selectedDomainId = predictions.find(
+    (item) => item.category_id === categoryId
+  )?.domain_id || null;
+  const [existingSellerItems, catalogResults] = localProduct
+    ? await Promise.all([
+      mercadoLibreService.searchSellerItemsBySku(req.user.id, localProduct.sku),
+      mercadoLibreService.searchCatalogProducts(req.user.id, {
+        gtin: localProduct.gtin,
+        query: [localProduct.brand, localProduct.name].filter(Boolean).join(' '),
+        domainId: selectedDomainId,
+        limit: 5,
+      }),
+    ])
+    : [[], []];
+  const existingListings = existingSellerItems.map((item) => ({
+    id: item.id,
+    title: item.title,
+    status: item.status,
+    categoryId: item.category_id,
+    catalogProductId: item.catalog_product_id || null,
+    permalink: item.permalink || null,
+    availableQuantity: Number(item.available_quantity || 0),
+  }));
+  const catalogProducts = catalogResults.map((catalogProduct) => ({
+    id: catalogProduct.id,
+    name: catalogProduct.name || catalogProduct.title || catalogProduct.id,
+    status: catalogProduct.status || null,
+    domainId: catalogProduct.domain_id || null,
+    categoryId: catalogProduct.category_id || null,
+    childrenIds: Array.isArray(catalogProduct.children_ids) ? catalogProduct.children_ids : [],
+    picture: catalogProduct.pictures?.[0]?.url || catalogProduct.thumbnail || null,
+    matchedBy: localProduct?.gtin ? 'GTIN' : 'TITLE',
+  }));
   const editableAttributes = attributes
     .filter((attribute) => {
       const tags = attribute?.tags || {};
@@ -293,6 +332,9 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
         || selectedCategory.children_categories.length === 0,
       domainName: predictions.find((item) => item.category_id === categoryId)?.domain_name || null,
       categorySuggestions,
+      existingListings,
+      catalogProducts,
+      catalogMatchExact: Boolean(localProduct?.gtin && catalogProducts.length === 1),
       attributes: editableAttributes,
       inventory,
     },

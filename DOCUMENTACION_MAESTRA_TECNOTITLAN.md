@@ -1359,3 +1359,6 @@ Protecciones implementadas:
 - Al cambiar de categoria, Tecnotitlan vuelve a importar sus atributos obligatorios y recomendados.
 - Los atributos con `conditional_required`, como GTIN en Smartwatches, se muestran antes de publicar. Cuando Mercado Libre ofrece `EMPTY_GTIN_REASON`, el operador captura el codigo real o selecciona un motivo valido; nunca se inventa un GTIN ni se exigen ambas alternativas.
 - Las categorias no se duplican en la base de datos local: se consultan en vivo para evitar trabajar con un arbol obsoleto de Mercado Libre.
+- Antes de crear un anuncio, Tecnotitlan consulta las publicaciones de la cuenta por `seller_custom_field`/`SELLER_SKU`. Si el SKU ya existe, bloquea el alta duplicada y permite vincular el item encontrado.
+- Tecnotitlan tambien consulta `/products/search`: primero por GTIN y, cuando no existe, por marca y nombre dentro del dominio sugerido. Una ficha de catalogo no es una categoria ni una publicacion; solo se asocia cuando el operador confirma que modelo y variante coinciden exactamente.
+- El payload se comprueba con `/items/validate` antes de ejecutar `POST /items`. Los atributos enumerados conservan tanto `value_id` como `value_name`, incluido `EMPTY_GTIN_REASON`.

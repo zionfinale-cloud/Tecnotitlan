@@ -912,6 +912,43 @@ const getItem = async (userId, meliItemId) => {
   }
 };
 
+const searchSellerItemsBySku = async (userId, sku) => {
+  const integration = await getIntegration(userId);
+  const sellerId = integration?.meliUserId;
+  const normalizedSku = String(sku || '').trim();
+  if (!sellerId || !normalizedSku) return [];
+
+  const accessToken = await getValidAccessToken(integration.userId || userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const searches = await Promise.all(['sku', 'seller_sku'].map((parameter) => axios.get(
+      `${MELI_API_BASE_URL}/users/${sellerId}/items/search`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params: { [parameter]: normalizedSku, limit: 50 },
+      }
+    )));
+    const itemIds = uniqueTruthy(searches.flatMap(({ data }) => data?.results || []));
+    const items = await Promise.all(itemIds.map(async (itemId) => {
+      try {
+        const { data } = await axios.get(`${MELI_API_BASE_URL}/items/${itemId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        return data || null;
+      } catch {
+        return null;
+      }
+    }));
+    return items.filter(Boolean);
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudieron buscar publicaciones por SKU ${normalizedSku}: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudieron comprobar las publicaciones existentes.'));
+  }
+};
+
 const decodeMeliText = (value) => String(value ?? '')
   .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
   .replace(/&#(\d+);/g, (_, decimal) => String.fromCodePoint(Number.parseInt(decimal, 10)))
@@ -1021,6 +1058,78 @@ const getCategoryAttributes = async (userId, categoryId) => {
   } catch (error) {
     logger.error(`[MercadoLibre] No se pudieron leer atributos de ${categoryId}: ${error.message}`);
     throw new Error(getMeliErrorMessage(error, 'No se pudieron leer los atributos de la categoria.'));
+  }
+};
+
+const searchCatalogProducts = async (
+  userId,
+  { gtin, query, domainId, limit = 5 } = {}
+) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  const normalizedGtin = String(gtin || '').replace(/\D/g, '');
+  const normalizedQuery = String(query || '').trim();
+  if (!normalizedGtin && !normalizedQuery) return [];
+
+  try {
+    const { data } = await axios.get(`${MELI_API_BASE_URL}/products/search`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      params: {
+        site_id: 'MLM',
+        status: 'active',
+        ...(normalizedGtin
+          ? { product_identifier: normalizedGtin }
+          : { q: normalizedQuery }),
+        ...(domainId ? { domain_id: domainId } : {}),
+        limit: Math.min(Math.max(Number(limit) || 5, 1), 20),
+      },
+    });
+    return Array.isArray(data?.results) ? data.results : [];
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudo buscar el producto de catalogo: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudo comprobar el catalogo de Mercado Libre.'));
+  }
+};
+
+const getCatalogProduct = async (userId, catalogProductId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.get(`${MELI_API_BASE_URL}/products/${catalogProductId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return data || null;
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudo leer producto de catalogo ${catalogProductId}: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudo validar el producto de catalogo.'));
+  }
+};
+
+const validateItem = async (userId, payload) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    await axios.post(`${MELI_API_BASE_URL}/items/validate`, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return true;
+  } catch (error) {
+    logger.error(
+      `[MercadoLibre] La validacion previa rechazo el payload: ${JSON.stringify(error?.response?.data || error.message)}`
+    );
+    throw new Error(getMeliErrorMessage(error, 'Mercado Libre rechazo la validacion previa.'));
   }
 };
 
@@ -1221,10 +1330,14 @@ export {
   importMeliOrder,
   getOrder,
   getItem,
+  searchSellerItemsBySku,
   predictCategory,
   predictCategories,
   getCategory,
   getCategoryAttributes,
+  searchCatalogProducts,
+  getCatalogProduct,
+  validateItem,
   createItem,
   createItemDescription,
   updateStock,

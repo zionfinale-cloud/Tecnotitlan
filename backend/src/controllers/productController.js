@@ -1107,11 +1107,17 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
 
   const submittedAttributes = Array.isArray(req.body.attributes) ? req.body.attributes : [];
   const attributes = submittedAttributes
-    .map((attribute) => ({
-      id: String(attribute?.id || '').trim(),
-      value_name: String(attribute?.value_name ?? attribute?.valueName ?? '').trim(),
-    }))
-    .filter((attribute) => attribute.id && attribute.value_name);
+    .map((attribute) => {
+      const id = String(attribute?.id || '').trim();
+      const valueId = String(attribute?.value_id ?? attribute?.valueId ?? '').trim();
+      const valueName = String(attribute?.value_name ?? attribute?.valueName ?? '').trim();
+      return {
+        id,
+        ...(valueId ? { value_id: valueId } : {}),
+        ...(valueName ? { value_name: valueName } : {}),
+      };
+    })
+    .filter((attribute) => attribute.id && (attribute.value_id || attribute.value_name));
 
   if (product.brand && !attributes.some(
     (attribute) => String(attribute.id).trim().toUpperCase() === 'BRAND'
@@ -1124,7 +1130,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   )?.value_name;
   const emptyGtinReason = attributes.find(
     (attribute) => String(attribute.id).trim().toUpperCase() === 'EMPTY_GTIN_REASON',
-  )?.value_name;
+  );
   const publishGtin = normalizeGtin(req.body.gtin ?? submittedGtin ?? product.gtin);
   if (publishGtin) {
     const existingGtin = attributes.findIndex(
@@ -1143,14 +1149,37 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     if (emptyReasonIndex >= 0) attributes.splice(emptyReasonIndex, 1);
   }
 
-  if (categoryId === 'MLM126793' && !publishGtin && !emptyGtinReason) {
+  const categoryAttributes = await meliService.getCategoryAttributes(req.user.id, categoryId);
+  const categoryGtin = categoryAttributes.find(
+    (attribute) => String(attribute?.id || '').trim().toUpperCase() === 'GTIN'
+  );
+  const categoryEmptyGtinReason = categoryAttributes.find(
+    (attribute) => String(attribute?.id || '').trim().toUpperCase() === 'EMPTY_GTIN_REASON'
+  );
+  const isGtinRequired = Boolean(categoryGtin?.tags?.required);
+  const isGtinConditional = Boolean(categoryGtin?.tags?.conditional_required);
+  if ((isGtinRequired && !publishGtin)
+    || (isGtinConditional && !publishGtin && !emptyGtinReason)) {
     return res.status(400).json({
       status: 'error',
       message:
-        'Mercado Libre exige el GTIN/EAN/UPC o un motivo valido por el que el producto no tiene codigo registrado.',
+        isGtinRequired
+          ? 'Mercado Libre exige el GTIN/EAN/UPC real para esta categoria.'
+          : 'Mercado Libre exige el GTIN/EAN/UPC o un motivo valido por el que el producto no tiene codigo registrado.',
       code: 'MELI_GTIN_REQUIRED',
       field: 'gtin',
     });
+  }
+  if (!publishGtin && emptyGtinReason && categoryEmptyGtinReason?.values?.length) {
+    const validReason = categoryEmptyGtinReason.values.find((value) =>
+      String(value.id) === String(emptyGtinReason.value_id || '')
+      || String(value.name).toLowerCase() === String(emptyGtinReason.value_name || '').toLowerCase()
+    );
+    if (!validReason) {
+      return next(new BadRequestError('Selecciona un motivo de GTIN vacio valido para esta categoria.'));
+    }
+    emptyGtinReason.value_id = String(validReason.id);
+    emptyGtinReason.value_name = validReason.name;
   }
 
   const getAttributeValue = (attributeId) =>
@@ -1180,6 +1209,30 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     family_name: familyName,
     seller_custom_field: product.sku,
   };
+
+  const requestedCatalogProductId = normalizeMercadoLibreId(req.body.catalogProductId);
+  if (requestedCatalogProductId) {
+    const catalogProduct = await meliService.getCatalogProduct(req.user.id, requestedCatalogProductId);
+    if (!catalogProduct || catalogProduct.status !== 'active') {
+      return next(new BadRequestError('El producto de catalogo seleccionado no esta activo en Mercado Libre.'));
+    }
+    if (Array.isArray(catalogProduct.children_ids) && catalogProduct.children_ids.length > 0) {
+      return next(new BadRequestError(
+        'Seleccionaste una ficha padre del catalogo. Elige la variante especifica del producto.'
+      ));
+    }
+    payload.catalog_product_id = requestedCatalogProductId;
+  }
+
+  const existingSellerItems = await meliService.searchSellerItemsBySku(req.user.id, product.sku);
+  if (existingSellerItems.length > 0) {
+    const existingItem = existingSellerItems[0];
+    return next(new BadRequestError(
+      `Ya existe la publicacion ${existingItem.id} para el SKU ${product.sku}. Vinculala en lugar de crear otra.`
+    ));
+  }
+
+  await meliService.validateItem(req.user.id, payload);
 
   const meliItem = await meliService.createItem(req.user.id, payload);
 
