@@ -1344,3 +1344,10 @@ Protecciones implementadas:
 - Si el formulario envia una familia explicita, ese valor tiene prioridad. Como respaldo se usa modelo, marca, nombre del producto o SKU.
 - Cuando se usa `family_name`, Tecnotitlan no envia `title` en la misma solicitud porque Mercado Libre rechaza esa combinacion con `body.invalid_fields`.
 - Los errores de Mercado Libre ahora decodifican entidades HTML y muestran causas, referencias y atributos invalidos cuando la API los proporciona.
+
+## Actualizacion 2026-08-27 - Codigo universal GTIN/EAN/UPC
+
+- Los productos pueden guardar un codigo universal `gtin` opcional de 8, 12, 13 o 14 digitos.
+- El formulario administrativo permite capturarlo una sola vez y lo reutiliza al preparar y publicar en Mercado Libre.
+- Si la categoria de Mercado Libre exige `GTIN`, Tecnotitlan lo envia como atributo de la publicacion y bloquea el envio con un mensaje claro cuando falta.
+- La migracion `20260823000000_add_product_gtin` agrega la columna sin modificar productos existentes.

@@ -1,4 +1,12 @@
-const normalizeMercadoLibreId = (value = '') => String(value).trim().toUpperCase();
+const normalizeMercadoLibreId = (value = '') => {
+  const normalized = String(value ?? '').trim().toUpperCase();
+
+  if (!normalized || ['NULL', 'UNDEFINED', 'N/A'].includes(normalized)) {
+    return null;
+  }
+
+  return normalized;
+};
 
 const isMercadoLibreItemId = (value) => /^MLM\d{7,}$/.test(normalizeMercadoLibreId(value));
 
@@ -7,6 +15,20 @@ const isSameMercadoLibreIdentifier = (left, right) => {
   const normalizedRight = normalizeMercadoLibreId(right);
 
   return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+};
+
+const normalizeGtin = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || String(value).trim() === '') return null;
+
+  const normalized = String(value).replace(/[^0-9]/g, '');
+  if (![8, 12, 13, 14].includes(normalized.length)) {
+    const error = new Error('El GTIN/EAN/UPC debe tener 8, 12, 13 o 14 digitos.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return normalized;
 };
 
 const buildMercadoLibreFamilyName = ({
@@ -47,4 +69,5 @@ export {
   isMercadoLibreItemId,
   isSameMercadoLibreIdentifier,
   buildMercadoLibreFamilyName,
+  normalizeGtin,
 };

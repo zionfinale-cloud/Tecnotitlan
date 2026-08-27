@@ -78,6 +78,7 @@ const emptyProduct = {
   sku: '',
   name: '',
   shortDescription: '',
+  gtin: '',
   description: '',
   price: '',
   costPrice: '',
@@ -176,6 +177,7 @@ const ProductEditScreen = () => {
             sku: product.sku || '',
             name: product.name || '',
             shortDescription: product.shortDescription || '',
+            gtin: product.gtin || '',
             description: product.description || '',
             price: product.price ?? '',
             costPrice: product.costPrice ?? '',
@@ -456,7 +458,11 @@ const ProductEditScreen = () => {
         attributes: (requirements.attributes || []).reduce((result, attribute) => ({
           ...result,
           [attribute.id]: current.attributes[attribute.id] || (
-            attribute.id === 'BRAND' ? form.brand : ''
+            attribute.id === 'BRAND'
+              ? form.brand
+              : attribute.id === 'GTIN'
+                ? form.gtin
+                : ''
           ),
         }), {}),
       }));
@@ -514,6 +520,7 @@ const ProductEditScreen = () => {
         categoryId: meliPublishForm.categoryId,
         listingTypeId: meliPublishForm.listingTypeId,
         condition: meliPublishForm.condition,
+        gtin: form.gtin || undefined,
         attributes,
       });
       const product = data.data?.product || {};
@@ -623,6 +630,7 @@ const ProductEditScreen = () => {
 
     const payload = {
       ...form,
+      gtin: String(form.gtin || '').replace(/[^0-9]/g, ''),
       price: Number(form.price),
       countInStock: Number(form.countInStock || 0),
       supplierStock: form.productType === 'SUPPLIER_ON_DEMAND' ? Number(form.supplierStock || 0) : 0,
@@ -1075,6 +1083,20 @@ const ProductEditScreen = () => {
                 maxLength={280}
                 placeholder="Resumen breve que aparecera debajo del nombre del producto"
               />
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="product-gtin">Codigo universal (GTIN/EAN/UPC)</label>
+              <input
+                id="product-gtin"
+                className={styles.input}
+                value={form.gtin}
+                onChange={(event) => updateField('gtin', event.target.value.replace(/[^0-9]/g, '').slice(0, 14))}
+                inputMode="numeric"
+                pattern="(?:[0-9]{8}|[0-9]{12}|[0-9]{13}|[0-9]{14})"
+                placeholder="Ej. 7501234567893"
+              />
+              <small className={styles.muted}>Opcional en la tienda; algunas categorias de Mercado Libre lo exigen.</small>
             </div>
 
             <div className={`${styles.field} ${styles.fieldFull}`}>

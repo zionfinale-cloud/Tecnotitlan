@@ -22,6 +22,7 @@ import {
   isMercadoLibreItemId,
   isSameMercadoLibreIdentifier,
   buildMercadoLibreFamilyName,
+  normalizeGtin,
 } from '../utils/mercadoLibreIdentifiers.js';
 
 const SKU_PREFIX_BY_CATEGORY = {
@@ -299,6 +300,7 @@ const createProduct = asyncHandler(async (req, res, next) => {
   const {
     name,
     shortDescription,
+    gtin,
     description,
     price,
     brand,
@@ -354,6 +356,7 @@ const createProduct = asyncHandler(async (req, res, next) => {
         sku: generatedSku,
         name,
         shortDescription: normalizeShortDescription(shortDescription),
+        gtin: normalizeGtin(gtin),
         description,
         price: parseFloat(price), // Convertir a número
         costPrice: parsedCostPrice,
@@ -547,6 +550,7 @@ const updateProduct = asyncHandler(async (req, res, next) => {
   const {
     name,
     shortDescription,
+    gtin,
     description,
     price,
     countInStock,
@@ -591,6 +595,7 @@ const updateProduct = asyncHandler(async (req, res, next) => {
           ...(shortDescription !== undefined
             ? { shortDescription: normalizeShortDescription(shortDescription) }
             : {}),
+          ...(gtin !== undefined ? { gtin: normalizeGtin(gtin) } : {}),
           description,
           price: parseFloat(price),
           countInStock: parseInt(countInStock, 10) || 0,
@@ -1108,8 +1113,34 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     }))
     .filter((attribute) => attribute.id && attribute.value_name);
 
-  if (product.brand && !attributes.some((attribute) => attribute.id === 'BRAND')) {
+  if (product.brand && !attributes.some(
+    (attribute) => String(attribute.id).trim().toUpperCase() === 'BRAND'
+  )) {
     attributes.push({ id: 'BRAND', value_name: product.brand });
+  }
+
+  const publishGtin = normalizeGtin(req.body.gtin ?? product.gtin);
+  if (publishGtin) {
+    const existingGtin = attributes.findIndex(
+      (attribute) => String(attribute.id).trim().toUpperCase() === 'GTIN',
+    );
+    const gtinAttribute = { id: 'GTIN', value_name: publishGtin };
+
+    if (existingGtin >= 0) {
+      attributes[existingGtin] = gtinAttribute;
+    } else {
+      attributes.push(gtinAttribute);
+    }
+  }
+
+  if (categoryId === 'MLM126793' && !publishGtin) {
+    return res.status(400).json({
+      status: 'error',
+      message:
+        'Mercado Libre exige el codigo universal GTIN/EAN/UPC para esta categoria. Capturalo en el producto antes de publicar.',
+      code: 'MELI_GTIN_REQUIRED',
+      field: 'gtin',
+    });
   }
 
   const getAttributeValue = (attributeId) =>
@@ -1141,6 +1172,13 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   };
 
   const meliItem = await meliService.createItem(req.user.id, payload);
+
+  if (publishGtin && publishGtin !== product.gtin) {
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { gtin: publishGtin },
+    });
+  }
 
   const now = new Date();
   const rawData = {

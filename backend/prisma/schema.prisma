@@ -132,6 +132,7 @@ model Product {
   sku                  String               @unique
   name                 String
   shortDescription     String?              @map("short_description") @db.VarChar(280)
+  gtin                 String?              @db.VarChar(14)
   description          String               @db.Text
   price                Float
   costPrice            Float?               @default(0)
