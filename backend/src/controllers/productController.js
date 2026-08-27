@@ -1119,7 +1119,10 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     attributes.push({ id: 'BRAND', value_name: product.brand });
   }
 
-  const publishGtin = normalizeGtin(req.body.gtin ?? product.gtin);
+  const submittedGtin = attributes.find(
+    (attribute) => String(attribute.id).trim().toUpperCase() === 'GTIN',
+  )?.value_name;
+  const publishGtin = normalizeGtin(req.body.gtin ?? submittedGtin ?? product.gtin);
   if (publishGtin) {
     const existingGtin = attributes.findIndex(
       (attribute) => String(attribute.id).trim().toUpperCase() === 'GTIN',

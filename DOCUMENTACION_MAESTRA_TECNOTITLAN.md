@@ -1351,3 +1351,11 @@ Protecciones implementadas:
 - El formulario administrativo permite capturarlo una sola vez y lo reutiliza al preparar y publicar en Mercado Libre.
 - Si la categoria de Mercado Libre exige `GTIN`, Tecnotitlan lo envia como atributo de la publicacion y bloquea el envio con un mensaje claro cuando falta.
 - La migracion `20260823000000_add_product_gtin` agrega la columna sin modificar productos existentes.
+
+## Actualizacion 2026-08-27 - Categorias de Mercado Libre importadas en vivo
+
+- `Preparar publicacion` consulta el predictor oficial de Mercado Libre con el nombre del producto y muestra las tres mejores categorias sugeridas.
+- Cada opcion muestra la ruta completa del arbol y su ID `MLM`; el operador selecciona una categoria sin memorizar ni escribir identificadores.
+- Al cambiar de categoria, Tecnotitlan vuelve a importar sus atributos obligatorios y recomendados.
+- Los atributos con `conditional_required`, como GTIN en Smartwatches, se muestran antes de publicar para evitar que el backend los solicite solamente al final.
+- Las categorias no se duplican en la base de datos local: se consultan en vivo para evitar trabajar con un arbol obsoleto de Mercado Libre.

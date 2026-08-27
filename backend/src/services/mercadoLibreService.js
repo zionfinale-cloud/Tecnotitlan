@@ -962,7 +962,7 @@ const getMeliErrorMessage = (error, fallback) => {
   return decodeMeliText(error?.message) || fallback;
 };
 
-const predictCategory = async (userId, title) => {
+const predictCategories = async (userId, title, limit = 3) => {
   const accessToken = await getValidAccessToken(userId);
   if (!accessToken) {
     throw new Error('No hay token valido de Mercado Libre.');
@@ -973,13 +973,36 @@ const predictCategory = async (userId, title) => {
       `${MELI_API_BASE_URL}/sites/MLM/domain_discovery/search`,
       {
         headers: { Authorization: `Bearer ${accessToken}` },
-        params: { q: title, limit: 1 },
+        params: { q: title, limit: Math.min(Math.max(Number(limit) || 3, 1), 8) },
       }
     );
-    return Array.isArray(data) ? data[0] || null : null;
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     logger.error(`[MercadoLibre] No se pudo predecir categoria: ${error.message}`);
     throw new Error(getMeliErrorMessage(error, 'No se pudo sugerir una categoria de Mercado Libre.'));
+  }
+};
+
+const predictCategory = async (userId, title) => {
+  const predictions = await predictCategories(userId, title, 1);
+  return predictions[0] || null;
+};
+
+const getCategory = async (userId, categoryId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.get(
+      `${MELI_API_BASE_URL}/categories/${categoryId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    return data || null;
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudo leer la categoria ${categoryId}: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudo leer la categoria de Mercado Libre.'));
   }
 };
 
@@ -1199,6 +1222,8 @@ export {
   getOrder,
   getItem,
   predictCategory,
+  predictCategories,
+  getCategory,
   getCategoryAttributes,
   createItem,
   createItemDescription,

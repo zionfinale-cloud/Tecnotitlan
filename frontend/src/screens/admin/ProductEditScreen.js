@@ -423,7 +423,7 @@ const ProductEditScreen = () => {
     }
   };
 
-  const prepareMeliPublication = async () => {
+  const prepareMeliPublication = async (categoryOverride) => {
     if (!isEditing) {
       setMeliError('Guarda primero el producto antes de preparar la publicacion.');
       return;
@@ -438,7 +438,9 @@ const ProductEditScreen = () => {
         params: {
           title: form.name,
           productId: id,
-          categoryId: meliPublishForm.categoryId || undefined,
+          categoryId: typeof categoryOverride === 'string'
+            ? categoryOverride
+            : meliPublishForm.categoryId || undefined,
         },
       });
       const requirements = data.data || {};
@@ -487,6 +489,9 @@ const ProductEditScreen = () => {
         [attributeId]: value,
       },
     }));
+    if (String(attributeId).toUpperCase() === 'GTIN') {
+      updateField('gtin', String(value || '').replace(/[^0-9]/g, '').slice(0, 14));
+    }
   };
 
   const publishMeliProduct = async () => {
@@ -863,23 +868,47 @@ const ProductEditScreen = () => {
                             <span>Publicable <strong>{meliRequirements.inventory?.publishableStock ?? 0}</strong></span>
                           </div>
                           <small>
-                            Categoria sugerida: <strong>
-                              {meliRequirements.categoryName || meliRequirements.categoryId}
-                            </strong>
+                            Categoria seleccionada: <strong>
+                              {(meliRequirements.categoryPath || []).join(' > ')
+                                || meliRequirements.categoryName
+                                || meliRequirements.categoryId}
+                            </strong> ({meliRequirements.categoryId})
                             {meliRequirements.domainName ? ` / ${meliRequirements.domainName}` : ''}
                           </small>
                           <div className={styles.formGrid}>
                             <div className={styles.field}>
                               <label className={styles.label} htmlFor="meli-category">Categoria Meli</label>
-                              <input
-                                id="meli-category"
-                                className={styles.input}
-                                value={meliPublishForm.categoryId}
-                                onChange={(event) => setMeliPublishForm((current) => ({
-                                  ...current,
-                                  categoryId: event.target.value.trim().toUpperCase(),
-                                }))}
-                              />
+                              {(meliRequirements.categorySuggestions || []).length > 0 ? (
+                                <select
+                                  id="meli-category"
+                                  className={styles.select}
+                                  value={meliPublishForm.categoryId}
+                                  onChange={(event) => {
+                                    const categoryId = event.target.value;
+                                    setMeliPublishForm((current) => ({ ...current, categoryId }));
+                                    prepareMeliPublication(categoryId);
+                                  }}
+                                >
+                                  {(meliRequirements.categorySuggestions || []).map((category) => (
+                                    <option key={category.id} value={category.id}>
+                                      {(category.path || []).join(' > ') || category.name} ({category.id})
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  id="meli-category"
+                                  className={styles.input}
+                                  value={meliPublishForm.categoryId}
+                                  onChange={(event) => setMeliPublishForm((current) => ({
+                                    ...current,
+                                    categoryId: event.target.value.trim().toUpperCase(),
+                                  }))}
+                                />
+                              )}
+                              <small className={styles.fieldHint}>
+                                Opciones importadas en vivo desde el predictor de Mercado Libre.
+                              </small>
                             </div>
                             <div className={styles.field}>
                               <label className={styles.label} htmlFor="meli-listing-type">Tipo de publicacion</label>

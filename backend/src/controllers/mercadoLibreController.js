@@ -11,6 +11,7 @@ import {
 import {
   normalizeMercadoLibreId,
   isMercadoLibreItemId,
+  isRequiredMercadoLibreAttribute,
 } from '../utils/mercadoLibreIdentifiers.js';
 
 const oauthStates = new Map();
@@ -182,7 +183,7 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
   // de como se abrio la ficha del producto.
   const productReference = String(req.query.productId || '').trim();
   let categoryId = String(req.query.categoryId || '').trim();
-  let prediction = null;
+  let predictions = [];
   let inventory = null;
 
   if (productReference) {
@@ -221,13 +222,12 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
     };
   }
 
+  if (title) {
+    predictions = await mercadoLibreService.predictCategories(req.user.id, title, 3);
+  }
+
   if (!categoryId) {
-    if (!title) {
-      res.status(400);
-      throw new Error('Indica el titulo del producto para sugerir una categoria.');
-    }
-    prediction = await mercadoLibreService.predictCategory(req.user.id, title);
-    categoryId = prediction?.category_id || '';
+    categoryId = predictions[0]?.category_id || '';
   }
 
   if (!categoryId) {
@@ -235,17 +235,36 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
     throw new Error('Mercado Libre no pudo sugerir una categoria. Capturala manualmente.');
   }
 
-  const attributes = await mercadoLibreService.getCategoryAttributes(req.user.id, categoryId);
+  const [attributes, selectedCategory] = await Promise.all([
+    mercadoLibreService.getCategoryAttributes(req.user.id, categoryId),
+    mercadoLibreService.getCategory(req.user.id, categoryId),
+  ]);
+  const categorySuggestions = await Promise.all(predictions.map(async (prediction) => {
+    const detail = prediction.category_id === categoryId
+      ? selectedCategory
+      : await mercadoLibreService.getCategory(req.user.id, prediction.category_id);
+    return {
+      id: prediction.category_id,
+      name: prediction.category_name || detail?.name || prediction.category_id,
+      domainId: prediction.domain_id || null,
+      domainName: prediction.domain_name || null,
+      path: Array.isArray(detail?.path_from_root)
+        ? detail.path_from_root.map((item) => item.name).filter(Boolean)
+        : [],
+      isLeaf: !Array.isArray(detail?.children_categories) || detail.children_categories.length === 0,
+    };
+  }));
   const editableAttributes = attributes
     .filter((attribute) => {
       const tags = attribute?.tags || {};
-      return Boolean(tags.required || tags.catalog_required || tags.recommended);
+      return Boolean(isRequiredMercadoLibreAttribute(attribute) || tags.recommended);
     })
     .map((attribute) => ({
       id: attribute.id,
       name: attribute.name,
       valueType: attribute.value_type,
-      required: Boolean(attribute?.tags?.required || attribute?.tags?.catalog_required),
+      required: isRequiredMercadoLibreAttribute(attribute),
+      conditionalRequired: Boolean(attribute?.tags?.conditional_required),
       allowCustomValue: attribute.id === 'BRAND' && attribute.value_type === 'string',
       hint: attribute.hint || '',
       valueMaxLength: Number(attribute.value_max_length) || null,
@@ -261,8 +280,14 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
     status: 'success',
     data: {
       categoryId,
-      categoryName: prediction?.category_name || null,
-      domainName: prediction?.domain_name || null,
+      categoryName: selectedCategory?.name || null,
+      categoryPath: Array.isArray(selectedCategory?.path_from_root)
+        ? selectedCategory.path_from_root.map((item) => item.name).filter(Boolean)
+        : [],
+      isLeafCategory: !Array.isArray(selectedCategory?.children_categories)
+        || selectedCategory.children_categories.length === 0,
+      domainName: predictions.find((item) => item.category_id === categoryId)?.domain_name || null,
+      categorySuggestions,
       attributes: editableAttributes,
       inventory,
     },
