@@ -1111,6 +1111,29 @@ const getCatalogProduct = async (userId, catalogProductId) => {
   }
 };
 
+const getShippingPreferences = async (userId) => {
+  const integration = await getIntegration(userId);
+  const sellerId = integration?.meliUserId;
+  if (!sellerId) {
+    throw new Error('No se encontro el vendedor conectado de Mercado Libre.');
+  }
+  const accessToken = await getValidAccessToken(integration.userId || userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.get(
+      `${MELI_API_BASE_URL}/users/${sellerId}/shipping_preferences`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    return data || {};
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudieron leer preferencias de envio: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudieron validar las modalidades de envio.'));
+  }
+};
+
 const validateItem = async (userId, payload) => {
   const accessToken = await getValidAccessToken(userId);
   if (!accessToken) {
@@ -1124,8 +1147,22 @@ const validateItem = async (userId, payload) => {
         'Content-Type': 'application/json',
       },
     });
-    return true;
+    return { valid: true, warnings: [] };
   } catch (error) {
+    const causes = Array.isArray(error?.response?.data?.cause)
+      ? error.response.data.cause
+      : [];
+    const onlyWarnings = causes.length > 0
+      && causes.every((cause) => String(cause?.type || '').toLowerCase() === 'warning');
+    if (onlyWarnings) {
+      return {
+        valid: true,
+        warnings: causes.map((cause) => ({
+          code: cause.code || null,
+          message: decodeMeliText(cause.message),
+        })),
+      };
+    }
     logger.error(
       `[MercadoLibre] La validacion previa rechazo el payload: ${JSON.stringify(error?.response?.data || error.message)}`
     );
@@ -1337,6 +1374,7 @@ export {
   getCategoryAttributes,
   searchCatalogProducts,
   getCatalogProduct,
+  getShippingPreferences,
   validateItem,
   createItem,
   createItemDescription,

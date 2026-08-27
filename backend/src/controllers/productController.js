@@ -1232,7 +1232,31 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     ));
   }
 
-  await meliService.validateItem(req.user.id, payload);
+  const shippingPreferences = await meliService.getShippingPreferences(req.user.id);
+  const shippingModes = Array.isArray(shippingPreferences?.modes)
+    ? shippingPreferences.modes.map((mode) => String(mode).toLowerCase())
+    : [];
+  if (shippingModes.includes('me2')) {
+    payload.shipping = { mode: 'me2' };
+  } else if (shippingModes.includes('me1')) {
+    payload.shipping = { mode: 'me1' };
+  }
+
+  let validation = await meliService.validateItem(req.user.id, payload);
+  const requiresFreeShipping = (validation.warnings || []).some(
+    (warningItem) => warningItem.code === 'item.shipping.mandatory_free_shipping'
+  );
+  if (requiresFreeShipping) {
+    payload.shipping = {
+      ...(payload.shipping || {}),
+      ...(shippingModes.includes('me2') ? { mode: 'me2' } : {}),
+      free_shipping: true,
+    };
+    validation = await meliService.validateItem(req.user.id, payload);
+  }
+  const validationWarnings = (validation.warnings || [])
+    .map((warningItem) => warningItem.message || warningItem.code)
+    .filter(Boolean);
 
   const meliItem = await meliService.createItem(req.user.id, payload);
 
@@ -1255,6 +1279,8 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
       stockBuffer: Number(listing.stockBuffer || 0),
       publishedStock: stockToPublish,
       pricing,
+      validationWarnings,
+      shipping: payload.shipping || null,
     },
   };
 
@@ -1295,11 +1321,16 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     );
   }
 
-  let warning = null;
+  let warning = validationWarnings.length > 0
+    ? `Mercado Libre publico con advertencias: ${validationWarnings.join('; ')}.`
+    : null;
   try {
     await meliService.createItemDescription(req.user.id, meliItem.id, product.description);
   } catch (error) {
-    warning = `La publicacion ${meliItem.id} fue creada y vinculada, pero Mercado Libre rechazo la descripcion: ${error.message}`;
+    warning = [
+      warning,
+      `La publicacion ${meliItem.id} fue creada y vinculada, pero Mercado Libre rechazo la descripcion: ${error.message}`,
+    ].filter(Boolean).join(' ');
     logger.warn(`[Meli Publish] ${warning}`);
   }
 
