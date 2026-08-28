@@ -1134,6 +1134,272 @@ const getShippingPreferences = async (userId) => {
   }
 };
 
+const getDefaultShippingContext = (preferences = {}) => {
+  const logistics = Array.isArray(preferences.logistics) ? preferences.logistics : [];
+  const activeMode = logistics.find((entry) =>
+    entry?.mode === 'me2'
+    && (entry.types || []).some((type) => type?.status === 'active')
+  ) || logistics.find((entry) => (entry.types || []).some((type) => type?.status === 'active'));
+  const activeType = (activeMode?.types || []).find(
+    (type) => type?.status === 'active' && type?.default
+  ) || (activeMode?.types || []).find((type) => type?.status === 'active');
+
+  return {
+    mode: activeMode?.mode || (preferences.modes || []).find((mode) => mode === 'me2') || 'not_specified',
+    logisticType: activeType?.type || (activeMode?.mode === 'me2' ? 'drop_off' : activeMode?.mode) || 'not_specified',
+  };
+};
+
+const getListingPriceQuote = async (
+  userId,
+  { price, categoryId, listingTypeId, shippingMode, logisticType }
+) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+
+  try {
+    const { data } = await axios.get(`${MELI_API_BASE_URL}/sites/MLM/listing_prices`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      params: {
+        price,
+        currency_id: 'MXN',
+        category_id: categoryId,
+        listing_type_id: listingTypeId,
+        shipping_mode: shippingMode,
+        logistic_type: logisticType,
+      },
+    });
+    return Array.isArray(data) ? data[0] : data;
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudo cotizar el cargo por venta: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudo cotizar la comision de Mercado Libre.'));
+  }
+};
+
+const getShippingCostQuote = async (
+  userId,
+  { price, listingTypeId, shippingMode, logisticType, condition, dimensions }
+) => {
+  const integration = await getIntegration(userId);
+  const sellerId = integration?.meliUserId;
+  if (!sellerId) throw new Error('No se encontro el vendedor conectado de Mercado Libre.');
+  const accessToken = await getValidAccessToken(integration.userId || userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+
+  try {
+    const { data } = await axios.get(
+      `${MELI_API_BASE_URL}/users/${sellerId}/shipping_options/free`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params: {
+          dimensions,
+          verbose: true,
+          item_price: price,
+          listing_type_id: listingTypeId,
+          mode: shippingMode,
+          logistic_type: logisticType,
+          condition,
+          free_shipping: true,
+        },
+      }
+    );
+    return data || {};
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudo cotizar el envio: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudo cotizar el envio de Mercado Libre.'));
+  }
+};
+
+const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+
+const quotePublicationCosts = async (
+  userId,
+  {
+    targetNet,
+    categoryId,
+    listingTypeId,
+    condition = 'new',
+    weightKg,
+    lengthCm,
+    widthCm,
+    heightCm,
+  }
+) => {
+  const numericDimensions = [heightCm, widthCm, lengthCm, weightKg].map(Number);
+  if (numericDimensions.some((value) => !Number.isFinite(value) || value <= 0)) {
+    throw new Error('Completa peso, largo, ancho y alto para cotizar el envio de Mercado Libre.');
+  }
+  const dimensions = `${Math.ceil(numericDimensions[0])}x${Math.ceil(numericDimensions[1])}x${Math.ceil(numericDimensions[2])},${Math.ceil(numericDimensions[3] * 1000)}`;
+  const preferences = await getShippingPreferences(userId);
+  const { mode: shippingMode, logisticType } = getDefaultShippingContext(preferences);
+  let recommendedPrice = money(targetNet);
+  let listingPrice = null;
+  let shippingQuote = null;
+  let quotedPrice = null;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    quotedPrice = recommendedPrice;
+    [listingPrice, shippingQuote] = await Promise.all([
+      getListingPriceQuote(userId, {
+        price: recommendedPrice,
+        categoryId,
+        listingTypeId,
+        shippingMode,
+        logisticType,
+      }),
+      getShippingCostQuote(userId, {
+        price: recommendedPrice,
+        listingTypeId,
+        shippingMode,
+        logisticType,
+        condition,
+        dimensions,
+      }),
+    ]);
+    const saleFee = Number(listingPrice?.sale_fee_amount || 0);
+    const listingFee = Number(listingPrice?.listing_fee_amount || 0);
+    const shippingCost = Number(shippingQuote?.coverage?.all_country?.list_cost || 0);
+    const nextPrice = money(Number(targetNet) + saleFee + listingFee + shippingCost);
+    if (Math.abs(nextPrice - recommendedPrice) < 0.01) break;
+    recommendedPrice = nextPrice;
+  }
+
+  if (quotedPrice !== recommendedPrice) {
+    [listingPrice, shippingQuote] = await Promise.all([
+      getListingPriceQuote(userId, {
+        price: recommendedPrice,
+        categoryId,
+        listingTypeId,
+        shippingMode,
+        logisticType,
+      }),
+      getShippingCostQuote(userId, {
+        price: recommendedPrice,
+        listingTypeId,
+        shippingMode,
+        logisticType,
+        condition,
+        dimensions,
+      }),
+    ]);
+  }
+
+  const saleFee = money(listingPrice?.sale_fee_amount || 0);
+  const listingFee = money(listingPrice?.listing_fee_amount || 0);
+  const shippingCost = money(shippingQuote?.coverage?.all_country?.list_cost || 0);
+  const totalCharges = money(saleFee + listingFee + shippingCost);
+  return {
+    listingTypeId,
+    listingTypeName: listingPrice?.listing_type_name || listingTypeId,
+    targetNet: money(targetNet),
+    recommendedPrice,
+    saleFee,
+    listingFee,
+    shippingCost,
+    totalCharges,
+    estimatedNet: money(recommendedPrice - totalCharges),
+    commissionPercentage: Number(listingPrice?.sale_fee_details?.percentage_fee || 0),
+    shippingMode,
+    logisticType,
+    billableWeightGrams: Number(
+      shippingQuote?.coverage?.all_country?.billable_weight || Math.ceil(numericDimensions[3] * 1000)
+    ),
+    currencyId: listingPrice?.currency_id || 'MXN',
+  };
+};
+
+const estimatePublicationCostsAtPrice = async (
+  userId,
+  {
+    price,
+    categoryId,
+    listingTypeId,
+    condition = 'new',
+    weightKg,
+    lengthCm,
+    widthCm,
+    heightCm,
+  }
+) => {
+  const numericDimensions = [heightCm, widthCm, lengthCm, weightKg].map(Number);
+  if (numericDimensions.some((value) => !Number.isFinite(value) || value <= 0)) return null;
+  const dimensions = `${Math.ceil(numericDimensions[0])}x${Math.ceil(numericDimensions[1])}x${Math.ceil(numericDimensions[2])},${Math.ceil(numericDimensions[3] * 1000)}`;
+  const preferences = await getShippingPreferences(userId);
+  const { mode: shippingMode, logisticType } = getDefaultShippingContext(preferences);
+  const [listingPrice, shippingQuote] = await Promise.all([
+    getListingPriceQuote(userId, {
+      price,
+      categoryId,
+      listingTypeId,
+      shippingMode,
+      logisticType,
+    }),
+    getShippingCostQuote(userId, {
+      price,
+      listingTypeId,
+      shippingMode,
+      logisticType,
+      condition,
+      dimensions,
+    }),
+  ]);
+  const saleFee = money(listingPrice?.sale_fee_amount || 0);
+  const listingFee = money(listingPrice?.listing_fee_amount || 0);
+  const shippingCost = money(shippingQuote?.coverage?.all_country?.list_cost || 0);
+  const totalCharges = money(saleFee + listingFee + shippingCost);
+  return {
+    listingTypeId,
+    listingTypeName: listingPrice?.listing_type_name || listingTypeId,
+    listedPrice: money(price),
+    saleFee,
+    listingFee,
+    shippingCost,
+    totalCharges,
+    estimatedNet: money(Number(price) - totalCharges),
+    commissionPercentage: Number(listingPrice?.sale_fee_details?.percentage_fee || 0),
+    shippingMode,
+    logisticType,
+    currencyId: listingPrice?.currency_id || 'MXN',
+  };
+};
+
+const uploadPictureFromUrl = async (userId, pictureUrl) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+
+  try {
+    const source = await axios.get(pictureUrl, { responseType: 'arraybuffer', timeout: 30000 });
+    const contentType = String(source.headers['content-type'] || 'image/jpeg').split(';')[0];
+    const extension = contentType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+    const form = new FormData();
+    form.append('file', new Blob([source.data], { type: contentType }), `product.${extension}`);
+    const { data } = await axios.post(`${MELI_API_BASE_URL}/pictures/items/upload`, form, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: 60000,
+    });
+    return data;
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudo cargar imagen ${pictureUrl}: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'Mercado Libre no pudo procesar una imagen del producto.'));
+  }
+};
+
+const updateItemPictures = async (userId, itemId, pictureIds = []) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  try {
+    const { data } = await axios.put(
+      `${MELI_API_BASE_URL}/items/${itemId}`,
+      { pictures: pictureIds.map((id) => ({ id })) },
+      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+    );
+    return data;
+  } catch (error) {
+    logger.error(`[MercadoLibre] No se pudieron actualizar imagenes de ${itemId}: ${error.message}`);
+    throw new Error(getMeliErrorMessage(error, 'No se pudieron actualizar las imagenes en Mercado Libre.'));
+  }
+};
+
 const validateItem = async (userId, payload) => {
   const accessToken = await getValidAccessToken(userId);
   if (!accessToken) {
@@ -1238,6 +1504,34 @@ const updateStock = async (userId, meliItemId, newStock) => {
   } catch (error) {
     logger.error(`[Meli Service] Error al actualizar stock ${meliItemId}:`, error.response?.data || error.message);
     throw new Error('No se pudo sincronizar el stock con Mercado Libre.');
+  }
+};
+
+const updatePriceAndStock = async (userId, meliItemId, { price, stock }) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) {
+    throw new Error('No hay token valido de Mercado Libre.');
+  }
+
+  try {
+    const { data } = await axios.put(
+      `${MELI_API_BASE_URL}/items/${meliItemId}`,
+      {
+        price: money(price),
+        available_quantity: Number(stock),
+      },
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    return data;
+  } catch (error) {
+    logger.error(
+      `[Meli Service] Error al actualizar precio y stock ${meliItemId}:`,
+      error.response?.data || error.message
+    );
+    throw new Error(getMeliErrorMessage(
+      error,
+      'No se pudieron sincronizar el precio y el stock con Mercado Libre.'
+    ));
   }
 };
 
@@ -1375,8 +1669,16 @@ export {
   searchCatalogProducts,
   getCatalogProduct,
   getShippingPreferences,
+  getDefaultShippingContext,
+  getListingPriceQuote,
+  getShippingCostQuote,
+  quotePublicationCosts,
+  estimatePublicationCostsAtPrice,
+  uploadPictureFromUrl,
+  updateItemPictures,
   validateItem,
   createItem,
   createItemDescription,
   updateStock,
+  updatePriceAndStock,
 };

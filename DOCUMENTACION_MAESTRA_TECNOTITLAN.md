@@ -1364,3 +1364,11 @@ Protecciones implementadas:
 - La mejor ficha queda seleccionada automaticamente: un GTIN unico obtiene coincidencia exacta; sin GTIN se ordenan las sugerencias por marca, modelo, nombre y atributos. El operador conserva un selector para cambiar la ficha o publicar sin asociarla cuando ninguna variante sea correcta.
 - El payload se comprueba con `/items/validate` antes de ejecutar `POST /items`. Los atributos enumerados conservan tanto `value_id` como `value_name`, incluido `EMPTY_GTIN_REASON`.
 - La publicacion consulta `/users/{seller_id}/shipping_preferences` y elige un modo habilitado, priorizando ME2. Las causas de validacion marcadas por Mercado Libre como `warning` no bloquean el alta; si exige envio gratis, se revalida con `shipping.free_shipping=true`. Las causas de tipo `error` si detienen la publicacion.
+
+## Actualizacion 2026-08-28 - Cotizacion e imagenes de Mercado Libre
+
+- Antes de publicar, Tecnotitlan consulta en vivo la comision y el costo de envio para la categoria, modalidad Clasica o Premium, precio, dimensiones y configuracion logistica de la cuenta.
+- La pantalla muestra precio base, precio sugerido, comision, envio, otros cargos y neto estimado. El operador debe confirmar expresamente el desglose; el backend vuelve a calcularlo y aplica el precio sugerido, por lo que no confia en importes enviados por el navegador.
+- En una publicacion vinculada, la sincronizacion manual confirmada aplica juntos el precio sugerido y el stock publicable. Las sincronizaciones automaticas de inventario conservan el precio remoto.
+- Clasica se identifica como la opcion de menor comision y sin meses sin intereses; Premium ofrece mayor exposicion y meses sin intereses con una comision superior. La interfaz incluye ayuda contextual junto al selector.
+- Las imagenes se cargan primero al servicio de imagenes de Mercado Libre. Solo se anexan las que Mercado Libre procesa con al menos 500 x 500 pixeles; los archivos pequenos o rechazados se omiten y se reportan como advertencia. Si ninguna imagen es valida, la publicacion se bloquea.

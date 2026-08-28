@@ -14,7 +14,6 @@ import {
   decorateProductAvailability,
   getProductAvailableStock,
 } from '../utils/productAvailability.js';
-import { resolveMarketplacePrice } from '../services/channelPricingService.js';
 import { hasEligiblePurchaseForReview } from '../services/productReviewService.js';
 import logger from '../utils/logger.js';
 import {
@@ -1003,6 +1002,11 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   if (!product) {
     return next(new NotFoundError('Producto local no encontrado.'));
   }
+  if (req.body?.confirmCosts !== true) {
+    return next(new BadRequestError(
+      'Revisa y confirma la cotizacion de Mercado Libre antes de publicar.'
+    ));
+  }
   const categoryId = normalizeMercadoLibreId(req.body.categoryId);
   if (!categoryId) {
     return next(new BadRequestError('Selecciona una categoria valida de Mercado Libre.'));
@@ -1092,14 +1096,13 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     ));
   }
 
-  const pictures = product.media
+  const pictureSources = product.media
     .filter((media) => !media.type || String(media.type).toUpperCase() === 'IMAGE')
     .map((media) => toPublicProductImageUrl(media.url))
     .filter(Boolean)
-    .slice(0, 12)
-    .map((source) => ({ source }));
+    .slice(0, 12);
 
-  if (pictures.length === 0) {
+  if (pictureSources.length === 0) {
     return next(new BadRequestError(
       'Agrega al menos una imagen publica al producto antes de publicarlo en Mercado Libre.'
     ));
@@ -1194,20 +1197,65 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     sku: product.sku,
   });
 
+  const existingSellerItems = await meliService.searchSellerItemsBySku(req.user.id, product.sku);
+  if (existingSellerItems.length > 0) {
+    const existingItem = existingSellerItems[0];
+    return next(new BadRequestError(
+      `Ya existe la publicacion ${existingItem.id} para el SKU ${product.sku}. Vinculala en lugar de crear otra.`
+    ));
+  }
+
   const stockToPublish = getPublishableStock(listing);
-  const pricing = resolveMarketplacePrice({ product, listing });
+  const listingTypeId = String(req.body.listingTypeId || 'gold_special');
+  const condition = String(req.body.condition || 'new');
+  const pricing = await meliService.quotePublicationCosts(req.user.id, {
+    targetNet: product.price,
+    categoryId,
+    listingTypeId,
+    condition,
+    weightKg: product.weightKg,
+    lengthCm: product.lengthCm,
+    widthCm: product.widthCm,
+    heightCm: product.heightCm,
+  });
+  const pictures = [];
+  const pictureWarnings = [];
+  for (const source of pictureSources) {
+    try {
+      const uploadedPicture = await meliService.uploadPictureFromUrl(req.user.id, source);
+      const [width, height] = String(uploadedPicture?.max_size || '')
+        .split('x')
+        .map(Number);
+      if (uploadedPicture?.id && width >= 500 && height >= 500) {
+        pictures.push({ id: uploadedPicture.id });
+      } else {
+        pictureWarnings.push(`${source} (${uploadedPicture?.max_size || 'resolucion desconocida'})`);
+      }
+    } catch (error) {
+      pictureWarnings.push(`${source} (${error.message})`);
+    }
+  }
+  if (pictures.length === 0) {
+    return next(new BadRequestError(
+      'Ninguna imagen cumple la resolucion minima de 500x500 para Mercado Libre.'
+    ));
+  }
   const payload = {
     category_id: categoryId,
-    price: pricing.price,
+    price: pricing.recommendedPrice,
     currency_id: 'MXN',
     available_quantity: stockToPublish,
     buying_mode: 'buy_it_now',
-    listing_type_id: String(req.body.listingTypeId || 'gold_special'),
-    condition: String(req.body.condition || 'new'),
+    listing_type_id: listingTypeId,
+    condition,
     pictures,
     attributes,
     family_name: familyName,
     seller_custom_field: product.sku,
+    shipping: {
+      mode: pricing.shippingMode,
+      free_shipping: true,
+    },
   };
 
   const requestedCatalogProductId = normalizeMercadoLibreId(req.body.catalogProductId);
@@ -1224,24 +1272,6 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     payload.catalog_product_id = requestedCatalogProductId;
   }
 
-  const existingSellerItems = await meliService.searchSellerItemsBySku(req.user.id, product.sku);
-  if (existingSellerItems.length > 0) {
-    const existingItem = existingSellerItems[0];
-    return next(new BadRequestError(
-      `Ya existe la publicacion ${existingItem.id} para el SKU ${product.sku}. Vinculala en lugar de crear otra.`
-    ));
-  }
-
-  const shippingPreferences = await meliService.getShippingPreferences(req.user.id);
-  const shippingModes = Array.isArray(shippingPreferences?.modes)
-    ? shippingPreferences.modes.map((mode) => String(mode).toLowerCase())
-    : [];
-  if (shippingModes.includes('me2')) {
-    payload.shipping = { mode: 'me2' };
-  } else if (shippingModes.includes('me1')) {
-    payload.shipping = { mode: 'me1' };
-  }
-
   let validation = await meliService.validateItem(req.user.id, payload);
   const requiresFreeShipping = (validation.warnings || []).some(
     (warningItem) => warningItem.code === 'item.shipping.mandatory_free_shipping'
@@ -1249,7 +1279,6 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
   if (requiresFreeShipping) {
     payload.shipping = {
       ...(payload.shipping || {}),
-      ...(shippingModes.includes('me2') ? { mode: 'me2' } : {}),
       free_shipping: true,
     };
     validation = await meliService.validateItem(req.user.id, payload);
@@ -1302,7 +1331,7 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
           externalProductId: meliItem.id,
           externalSku: product.sku,
           title: meliItem.title || familyName || product.name || product.sku,
-          price: Number(meliItem.price ?? pricing.price),
+          price: Number(meliItem.price ?? pricing.recommendedPrice),
           status: 'ACTIVE',
           syncStatus: 'SYNCED_TO_MELI',
           lastSyncedAt: now,
@@ -1321,9 +1350,14 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     );
   }
 
-  let warning = validationWarnings.length > 0
-    ? `Mercado Libre publico con advertencias: ${validationWarnings.join('; ')}.`
-    : null;
+  let warning = [
+    validationWarnings.length > 0
+      ? `Mercado Libre publico con advertencias: ${validationWarnings.join('; ')}.`
+      : null,
+    pictureWarnings.length > 0
+      ? `${pictureWarnings.length} imagen(es) se omitieron por resolucion insuficiente o error de carga.`
+      : null,
+  ].filter(Boolean).join(' ') || null;
   try {
     await meliService.createItemDescription(req.user.id, meliItem.id, product.description);
   } catch (error) {

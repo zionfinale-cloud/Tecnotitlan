@@ -13,7 +13,7 @@ const getPublishableStock = (listing) => {
   return Math.max(assignedStock - stockBuffer, 0);
 };
 
-const syncMercadoLibreListingStock = async ({ userId, product, listing }) => {
+const syncMercadoLibreListingStock = async ({ userId, product, listing, confirmedPrice = null }) => {
   if (!product?.meliItemId) {
     return {
       status: 'skipped',
@@ -31,7 +31,14 @@ const syncMercadoLibreListingStock = async ({ userId, product, listing }) => {
   const stockToPublish = getPublishableStock(listing);
 
   try {
-    await mercadoLibreService.updateStock(userId, product.meliItemId, stockToPublish);
+    if (confirmedPrice !== null) {
+      await mercadoLibreService.updatePriceAndStock(userId, product.meliItemId, {
+        price: confirmedPrice,
+        stock: stockToPublish,
+      });
+    } else {
+      await mercadoLibreService.updateStock(userId, product.meliItemId, stockToPublish);
+    }
 
     const now = new Date();
     await prisma.$transaction([
@@ -42,6 +49,7 @@ const syncMercadoLibreListingStock = async ({ userId, product, listing }) => {
       prisma.marketplaceListing.update({
         where: { id: listing.id },
         data: {
+          ...(confirmedPrice !== null ? { price: Number(confirmedPrice) } : {}),
           lastSyncedAt: now,
           syncStatus: 'SYNCED_TO_MELI',
           status: 'ACTIVE',
@@ -53,7 +61,10 @@ const syncMercadoLibreListingStock = async ({ userId, product, listing }) => {
     return {
       status: 'synced',
       stock: stockToPublish,
-      message: `Mercado Libre actualizado a ${stockToPublish} piezas publicables.`,
+      price: confirmedPrice !== null ? Number(confirmedPrice) : null,
+      message: confirmedPrice !== null
+        ? `Mercado Libre actualizado a $${Number(confirmedPrice).toFixed(2)} y ${stockToPublish} piezas publicables.`
+        : `Mercado Libre actualizado a ${stockToPublish} piezas publicables.`,
     };
   } catch (error) {
     await prisma.marketplaceListing.update({

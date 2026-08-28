@@ -62,6 +62,12 @@ const splitTags = (value) => String(value || '')
   .map(normalizeTag)
   .filter(Boolean);
 
+const formatMxn = (value) => new Intl.NumberFormat('es-MX', {
+  style: 'currency',
+  currency: 'MXN',
+  minimumFractionDigits: 2,
+}).format(Number(value || 0));
+
 const getTecatlTagsFromCharacteristics = (characteristics = []) => {
   const tagRow = characteristics.find(
     (item) => normalizeLabel(item.key) === normalizeLabel(TECATL_TAG_CHARACTERISTIC_KEY)
@@ -135,6 +141,8 @@ const ProductEditScreen = () => {
   const [meliLinkPreview, setMeliLinkPreview] = useState(null);
   const [meliLinkMessage, setMeliLinkMessage] = useState('');
   const [meliLinkError, setMeliLinkError] = useState('');
+  const [meliQuoteConfirmed, setMeliQuoteConfirmed] = useState(false);
+  const [meliSyncQuoteConfirmed, setMeliSyncQuoteConfirmed] = useState(false);
   const [meliPublishForm, setMeliPublishForm] = useState({
     categoryId: '',
     catalogProductId: '',
@@ -152,6 +160,12 @@ const ProductEditScreen = () => {
     return CUSTOM_SKU_PREFIX_VALUE;
   }, [customSkuMode, form.skuPrefix, predefinedSkuValues]);
   const isCustomSkuPrefix = selectedSkuPrefixMode === CUSTOM_SKU_PREFIX_VALUE;
+  const selectedMeliQuote = useMemo(
+    () => (meliRequirements?.publicationQuotes || []).find(
+      (quote) => quote.listingTypeId === meliPublishForm.listingTypeId
+    ) || null,
+    [meliRequirements, meliPublishForm.listingTypeId]
+  );
   const tecatlTags = useMemo(
     () => getTecatlTagsFromCharacteristics(form.characteristics),
     [form.characteristics]
@@ -397,6 +411,27 @@ const ProductEditScreen = () => {
   const hasLinkedMeliPublication = /^MLM\d{7,}$/.test(normalizedMeliItemId);
   const hasInvalidStoredMeliItemId = Boolean(normalizedMeliItemId && !hasLinkedMeliPublication);
 
+  useEffect(() => {
+    if (!hasLinkedMeliPublication) {
+      setMeliPreview(null);
+      setMeliSyncQuoteConfirmed(false);
+      return;
+    }
+    let cancelled = false;
+    api.get(`/mercadolibre/items/${encodeURIComponent(normalizedMeliItemId)}`)
+      .then(({ data }) => {
+        if (!cancelled) setMeliPreview(data.data || null);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setMeliError(err.response?.data?.message || 'No se pudo cotizar la publicacion vinculada.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasLinkedMeliPublication, normalizedMeliItemId]);
+
   const validateMeliPublication = async () => {
     const itemId = String(meliExistingItemId || '').trim().toUpperCase();
     const validationError = getExistingMeliItemError(itemId);
@@ -446,6 +481,7 @@ const ProductEditScreen = () => {
       });
       const requirements = data.data || {};
       setMeliRequirements(requirements);
+      setMeliQuoteConfirmed(false);
       const preparedCategoryId = String(
         requirements.categoryId || requirements.category?.id || ''
       ).trim().toUpperCase();
@@ -511,6 +547,11 @@ const ProductEditScreen = () => {
       return;
     }
 
+    if (!selectedMeliQuote || !meliQuoteConfirmed) {
+      setMeliError('Revisa la cotizacion de comision y envio, y confirma el neto antes de publicar.');
+      return;
+    }
+
     const missingAttribute = (meliRequirements.attributes || []).find(
       (attribute) => attribute.required && !String(
         meliPublishForm.attributes[attribute.id] || ''
@@ -564,6 +605,7 @@ const ProductEditScreen = () => {
         condition: meliPublishForm.condition,
         gtin: form.gtin || undefined,
         attributes,
+        confirmCosts: true,
       });
       const product = data.data?.product || {};
       const item = data.data?.item || {};
@@ -632,17 +674,24 @@ const ProductEditScreen = () => {
       setMeliMessage('');
       return;
     }
+    if (!meliPreview?.tecnotitlanCostEstimate || !meliSyncQuoteConfirmed) {
+      setMeliError('Revisa los costos actuales y confirma antes de sincronizar el stock.');
+      return;
+    }
 
     setMeliLoading(true);
     setMeliError('');
     setMeliMessage('');
 
     try {
-      const { data } = await api.put(`/mercadolibre/products/${encodeURIComponent(form.sku)}/sync`);
+      const { data } = await api.put(`/mercadolibre/products/${encodeURIComponent(form.sku)}/sync`, {
+        confirmCosts: true,
+      });
       setForm((current) => ({ ...current, lastMeliSync: new Date().toISOString() }));
-      setMeliMessage(data.message || 'Stock sincronizado con Mercado Libre.');
+      setMeliMessage(data.message || 'Precio y stock sincronizados con Mercado Libre.');
+      setMeliSyncQuoteConfirmed(false);
     } catch (err) {
-      setMeliError(err.response?.data?.message || 'No se pudo sincronizar el stock con Mercado Libre.');
+      setMeliError(err.response?.data?.message || 'No se pudieron sincronizar el precio y el stock con Mercado Libre.');
     } finally {
       setMeliLoading(false);
     }
@@ -968,19 +1017,34 @@ const ProductEditScreen = () => {
                               </small>
                             </div>
                             <div className={styles.field}>
-                              <label className={styles.label} htmlFor="meli-listing-type">Tipo de publicacion</label>
+                              <label className={styles.label} htmlFor="meli-listing-type">
+                                Tipo de publicacion
+                                <span
+                                  className={styles.helpIcon}
+                                  title="Clasica: menor comision y sin meses sin intereses. Premium: mayor exposicion y meses sin intereses, con una comision mayor."
+                                  aria-label="Ayuda sobre tipos de publicacion"
+                                >?</span>
+                              </label>
                               <select
                                 id="meli-listing-type"
                                 className={styles.select}
                                 value={meliPublishForm.listingTypeId}
-                                onChange={(event) => setMeliPublishForm((current) => ({
-                                  ...current,
-                                  listingTypeId: event.target.value,
-                                }))}
+                                onChange={(event) => {
+                                  setMeliPublishForm((current) => ({
+                                    ...current,
+                                    listingTypeId: event.target.value,
+                                  }));
+                                  setMeliQuoteConfirmed(false);
+                                }}
                               >
                                 <option value="gold_special">Clasica</option>
                                 <option value="gold_pro">Premium</option>
                               </select>
+                              <small className={styles.fieldHint}>
+                                {meliPublishForm.listingTypeId === 'gold_pro'
+                                  ? 'Premium: mayor exposicion y meses sin intereses; normalmente cobra una comision mayor.'
+                                  : 'Clasica: alta exposicion y menor comision; no incluye meses sin intereses.'}
+                              </small>
                             </div>
                             <div className={styles.field}>
                               <label className={styles.label} htmlFor="meli-catalog-product">Ficha del catalogo</label>
@@ -1016,16 +1080,49 @@ const ProductEditScreen = () => {
                                 id="meli-condition"
                                 className={styles.select}
                                 value={meliPublishForm.condition}
-                                onChange={(event) => setMeliPublishForm((current) => ({
-                                  ...current,
-                                  condition: event.target.value,
-                                }))}
+                                onChange={(event) => {
+                                  setMeliPublishForm((current) => ({
+                                    ...current,
+                                    condition: event.target.value,
+                                  }));
+                                  setMeliQuoteConfirmed(false);
+                                }}
                               >
                                 <option value="new">Nuevo</option>
                                 <option value="used">Usado</option>
                               </select>
                             </div>
                           </div>
+                          {selectedMeliQuote && (
+                            <section className={styles.meliQuoteCard}>
+                              <div>
+                                <strong>Cotizacion antes de publicar: {selectedMeliQuote.listingTypeName}</strong>
+                                <small>
+                                  Calculo en vivo con categoria, dimensiones, ME2 y modalidad logistica de tu cuenta.
+                                </small>
+                              </div>
+                              <div className={styles.meliQuoteGrid}>
+                                <span><small>Precio base / neto objetivo</small><strong>{formatMxn(selectedMeliQuote.targetNet)}</strong></span>
+                                <span><small>Precio sugerido en Meli</small><strong>{formatMxn(selectedMeliQuote.recommendedPrice)}</strong></span>
+                                <span><small>Comision ({selectedMeliQuote.commissionPercentage}%)</small><strong>-{formatMxn(selectedMeliQuote.saleFee)}</strong></span>
+                                <span><small>Envio</small><strong>-{formatMxn(selectedMeliQuote.shippingCost)}</strong></span>
+                                <span><small>Otros cargos</small><strong>-{formatMxn(selectedMeliQuote.listingFee)}</strong></span>
+                                <span><small>Neto estimado</small><strong>{formatMxn(selectedMeliQuote.estimatedNet)}</strong></span>
+                              </div>
+                              <small>
+                                Total estimado de cargos: {formatMxn(selectedMeliQuote.totalCharges)}. Puede variar por impuestos,
+                                promociones, reputacion o cambios de tarifa de Mercado Libre.
+                              </small>
+                              <label className={styles.checkboxLabel}>
+                                <input
+                                  type="checkbox"
+                                  checked={meliQuoteConfirmed}
+                                  onChange={(event) => setMeliQuoteConfirmed(event.target.checked)}
+                                />
+                                Revise precio, comision, envio y confirmo esta publicacion.
+                              </label>
+                            </section>
+                          )}
                           {(meliRequirements.attributes || []).length > 0 && (
                             <div className={styles.meliAttributeGrid}>
                               {(meliRequirements.attributes || []).map((attribute) => (
@@ -1089,6 +1186,8 @@ const ProductEditScreen = () => {
                               meliLoading
                               || Number(meliRequirements.inventory?.publishableStock || 0) <= 0
                               || (meliRequirements.existingListings || []).length > 0
+                              || !selectedMeliQuote
+                              || !meliQuoteConfirmed
                             }
                           >
                            Publicar en Mercado Libre
@@ -1145,10 +1244,39 @@ const ProductEditScreen = () => {
                          <small>Ultima sincronizacion: {new Date(form.lastMeliSync).toLocaleString()}</small>
                        )}
                        {meliPreview && (
-                         <small>
-                           Estado remoto: <strong>{meliPreview.title || meliPreview.id}</strong>
-                           {meliPreview.status ? ` / ${meliPreview.status}` : ''}
-                         </small>
+                         <>
+                           <small>
+                             Estado remoto: <strong>{meliPreview.title || meliPreview.id}</strong>
+                             {meliPreview.status ? ` / ${meliPreview.status}` : ''}
+                           </small>
+                           {meliPreview.tecnotitlanCostEstimate && (
+                             <section className={styles.meliQuoteCard}>
+                               <strong>Costos actuales antes de sincronizar</strong>
+                               <div className={styles.meliQuoteGrid}>
+                                 <span><small>Precio publicado</small><strong>{formatMxn(meliPreview.tecnotitlanCostEstimate.listedPrice)}</strong></span>
+                                 <span><small>Comision ({meliPreview.tecnotitlanCostEstimate.commissionPercentage}%)</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.saleFee)}</strong></span>
+                                 <span><small>Envio</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.shippingCost)}</strong></span>
+                                 <span><small>Otros cargos</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.listingFee)}</strong></span>
+                                 <span><small>Total de cargos</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.totalCharges)}</strong></span>
+                                 <span><small>Neto estimado</small><strong>{formatMxn(meliPreview.tecnotitlanCostEstimate.estimatedNet)}</strong></span>
+                               </div>
+                               {meliPreview.tecnotitlanRecommendedQuote && (
+                                 <small>
+                                   Para conservar un neto de {formatMxn(meliPreview.tecnotitlanRecommendedQuote.targetNet)},
+                                   el precio sugerido seria {formatMxn(meliPreview.tecnotitlanRecommendedQuote.recommendedPrice)}.
+                                 </small>
+                               )}
+                               <label className={styles.checkboxLabel}>
+                                 <input
+                                   type="checkbox"
+                                   checked={meliSyncQuoteConfirmed}
+                                   onChange={(event) => setMeliSyncQuoteConfirmed(event.target.checked)}
+                                 />
+                                 Revise estos costos y confirmo aplicar el precio sugerido y sincronizar el stock.
+                               </label>
+                             </section>
+                           )}
+                         </>
                        )}
                      </section>
                    )}

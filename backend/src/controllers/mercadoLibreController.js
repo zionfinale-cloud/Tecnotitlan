@@ -174,7 +174,51 @@ const getMeliItemDetails = asyncHandler(async (req, res) => {
     throw new Error('No se encontro el articulo en Mercado Libre o no tienes acceso.');
   }
 
-  res.status(200).json({ status: 'success', data: itemDetails });
+  const localProduct = await prisma.product.findUnique({
+    where: { meliItemId: normalizedMeliItemId },
+    select: {
+      price: true,
+      weightKg: true,
+      lengthCm: true,
+      widthCm: true,
+      heightCm: true,
+    },
+  });
+  let currentCostEstimate = null;
+  let recommendedQuote = null;
+  if (localProduct && itemDetails.category_id && itemDetails.listing_type_id) {
+    [currentCostEstimate, recommendedQuote] = await Promise.all([
+      mercadoLibreService.estimatePublicationCostsAtPrice(req.user.id, {
+        price: itemDetails.price,
+        categoryId: itemDetails.category_id,
+        listingTypeId: itemDetails.listing_type_id,
+        condition: itemDetails.condition || 'new',
+        weightKg: localProduct.weightKg,
+        lengthCm: localProduct.lengthCm,
+        widthCm: localProduct.widthCm,
+        heightCm: localProduct.heightCm,
+      }),
+      mercadoLibreService.quotePublicationCosts(req.user.id, {
+        targetNet: localProduct.price,
+        categoryId: itemDetails.category_id,
+        listingTypeId: itemDetails.listing_type_id,
+        condition: itemDetails.condition || 'new',
+        weightKg: localProduct.weightKg,
+        lengthCm: localProduct.lengthCm,
+        widthCm: localProduct.widthCm,
+        heightCm: localProduct.heightCm,
+      }),
+    ]);
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      ...itemDetails,
+      tecnotitlanCostEstimate: currentCostEstimate,
+      tecnotitlanRecommendedQuote: recommendedQuote,
+    },
+  });
 });
 
 const getPublicationRequirements = asyncHandler(async (req, res) => {
@@ -202,6 +246,11 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
         name: true,
         brand: true,
         gtin: true,
+        price: true,
+        weightKg: true,
+        lengthCm: true,
+        widthCm: true,
+        heightCm: true,
         characteristics: {
           select: { key: true, value: true },
         },
@@ -335,6 +384,20 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
       ...catalogProduct,
       recommended: index === 0,
     }));
+  const publicationQuotes = localProduct
+    ? await Promise.all(['gold_special', 'gold_pro'].map((listingTypeId) =>
+      mercadoLibreService.quotePublicationCosts(req.user.id, {
+        targetNet: localProduct.price,
+        categoryId,
+        listingTypeId,
+        condition: String(req.query.condition || 'new'),
+        weightKg: localProduct.weightKg,
+        lengthCm: localProduct.lengthCm,
+        widthCm: localProduct.widthCm,
+        heightCm: localProduct.heightCm,
+      })
+    ))
+    : [];
   const editableAttributes = attributes
     .filter((attribute) => {
       const tags = attribute?.tags || {};
@@ -377,6 +440,7 @@ const getPublicationRequirements = asyncHandler(async (req, res) => {
       catalogProducts,
       catalogRecommendedId: catalogProducts[0]?.id || null,
       catalogMatchExact: Boolean(localProduct?.gtin && catalogProducts.length === 1),
+      publicationQuotes,
       attributes: editableAttributes,
       inventory,
     },
@@ -404,12 +468,32 @@ const syncStock = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error('Este producto no esta vinculado a una publicacion de Mercado Libre.');
   }
+  if (req.body?.confirmCosts !== true) {
+    res.status(400);
+    throw new Error('Revisa y confirma la cotizacion de Mercado Libre antes de sincronizar.');
+  }
 
   const listing = product.marketplaceListings?.[0] || null;
+  const remoteItem = await mercadoLibreService.getItem(req.user.id, product.meliItemId);
+  if (!remoteItem?.category_id || !remoteItem?.listing_type_id) {
+    res.status(400);
+    throw new Error('No se pudo leer la categoria o modalidad de la publicacion vinculada.');
+  }
+  const pricing = await mercadoLibreService.quotePublicationCosts(req.user.id, {
+    targetNet: product.price,
+    categoryId: remoteItem.category_id,
+    listingTypeId: remoteItem.listing_type_id,
+    condition: remoteItem.condition || 'new',
+    weightKg: product.weightKg,
+    lengthCm: product.lengthCm,
+    widthCm: product.widthCm,
+    heightCm: product.heightCm,
+  });
   const syncResult = await syncMercadoLibreListingStock({
     userId: req.user.id,
     product,
     listing,
+    confirmedPrice: pricing.recommendedPrice,
   });
 
   if (syncResult.status !== 'synced') {
@@ -418,7 +502,11 @@ const syncStock = asyncHandler(async (req, res) => {
   }
 
   logger.info(`[Meli Sync] Stock ${sku} -> ${syncResult.stock} en Mercado Libre`);
-  res.status(200).json({ status: 'success', message: syncResult.message });
+  res.status(200).json({
+    status: 'success',
+    message: syncResult.message,
+    data: { sync: syncResult, pricing },
+  });
 });
 
 const disconnectMeli = asyncHandler(async (req, res) => {
