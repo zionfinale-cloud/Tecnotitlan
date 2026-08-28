@@ -197,6 +197,7 @@ const getMeliItemDetails = asyncHandler(async (req, res) => {
         lengthCm: localProduct.lengthCm,
         widthCm: localProduct.widthCm,
         heightCm: localProduct.heightCm,
+        itemId: normalizedMeliItemId,
       }),
       mercadoLibreService.quotePublicationCosts(req.user.id, {
         targetNet: localProduct.price,
@@ -207,6 +208,7 @@ const getMeliItemDetails = asyncHandler(async (req, res) => {
         lengthCm: localProduct.lengthCm,
         widthCm: localProduct.widthCm,
         heightCm: localProduct.heightCm,
+        itemId: normalizedMeliItemId,
       }),
     ]);
   }

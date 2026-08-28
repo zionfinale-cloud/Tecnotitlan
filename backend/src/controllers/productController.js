@@ -1218,6 +1218,17 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     widthCm: product.widthCm,
     heightCm: product.heightCm,
   });
+  const packageAttributes = [
+    ['SELLER_PACKAGE_HEIGHT', product.heightCm],
+    ['SELLER_PACKAGE_LENGTH', product.lengthCm],
+    ['SELLER_PACKAGE_WIDTH', product.widthCm],
+    ['SELLER_PACKAGE_WEIGHT', Number(product.weightKg) * 1000],
+  ];
+  packageAttributes.forEach(([id, value]) => {
+    if (!attributes.some((attribute) => attribute.id === id) && Number(value) > 0) {
+      attributes.push({ id, value_name: String(Math.ceil(Number(value))) });
+    }
+  });
   const pictures = [];
   const pictureWarnings = [];
   for (const source of pictureSources) {
@@ -1234,11 +1245,6 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
     } catch (error) {
       pictureWarnings.push(`${source} (${error.message})`);
     }
-  }
-  if (pictures.length === 0) {
-    return next(new BadRequestError(
-      'Ninguna imagen cumple la resolucion minima de 500x500 para Mercado Libre.'
-    ));
   }
   const payload = {
     category_id: categoryId,
@@ -1269,7 +1275,19 @@ const publishProductToMeli = asyncHandler(async (req, res, next) => {
         'Seleccionaste una ficha padre del catalogo. Elige la variante especifica del producto.'
       ));
     }
+    const knownPictureIds = new Set(pictures.map((picture) => picture.id));
+    (catalogProduct.pictures || []).forEach((picture) => {
+      if (picture?.id && !knownPictureIds.has(picture.id) && pictures.length < 12) {
+        pictures.push({ id: picture.id });
+        knownPictureIds.add(picture.id);
+      }
+    });
     payload.catalog_product_id = requestedCatalogProductId;
+  }
+  if (pictures.length === 0) {
+    return next(new BadRequestError(
+      'Ninguna imagen propia o de la ficha exacta de catalogo cumple los requisitos de Mercado Libre.'
+    ));
   }
 
   let validation = await meliService.validateItem(req.user.id, payload);

@@ -131,11 +131,15 @@ const getMeliPhone = (order = {}) => {
 };
 
 const buildMeliShippingAddress = (order = {}) => {
-  const address = order.shipping?.receiver_address || {};
+  const address = order.shipping?.destination?.shipping_address
+    || order.shipping?.receiver_address
+    || {};
   return {
     source: 'mercadolibre',
-    receiverName: address.receiver_name || getMeliCustomerName(order),
-    phone: getMeliPhone(order),
+    receiverName: order.shipping?.destination?.receiver_name
+      || address.receiver_name
+      || getMeliCustomerName(order),
+    phone: order.shipping?.destination?.receiver_phone || getMeliPhone(order),
     street: address.street_name || '',
     number: address.street_number || '',
     neighborhood: address.neighborhood?.name || address.neighborhood || '',
@@ -144,6 +148,53 @@ const buildMeliShippingAddress = (order = {}) => {
     zipCode: address.zip_code || '',
     country: address.country?.name || 'Mexico',
     raw: address,
+  };
+};
+
+const buildMeliShippingInfo = (order = {}) => {
+  const shipping = order.shipping || {};
+  const logistic = shipping.logistic || {};
+  const method = shipping.lead_time?.shipping_method || {};
+  const printable = shipping.status === 'ready_to_ship'
+    && ['ready_to_print', 'printed'].includes(String(shipping.substatus || ''));
+  return {
+    provider: 'mercadolibre',
+    shippingId: shipping.id || null,
+    status: shipping.status || null,
+    substatus: shipping.substatus || null,
+    trackingNumber: shipping.tracking_number || null,
+    carrier: shipping.tracking_method || method.name || 'Mercado Envios',
+    trackingUrl: shipping.tracking_number
+      ? `https://www.mercadolibre.com.mx/ventas/${shipping.id}/detalle`
+      : null,
+    logisticMode: logistic.mode || null,
+    logisticType: logistic.type || null,
+    labelAvailable: printable,
+    estimatedDelivery: shipping.lead_time?.estimated_delivery_time?.date || null,
+    shippingCost: toNumber(shipping.lead_time?.list_cost, 0),
+    dimensions: shipping.dimensions || null,
+    updatedAt: new Date().toISOString(),
+    raw: shipping,
+  };
+};
+
+const preserveOperationalStatus = (currentStatus, remoteStatus) => {
+  if (currentStatus === 'CANCELLED' || remoteStatus === 'CANCELLED') return 'CANCELLED';
+  if (remoteStatus === 'DELIVERED') return 'DELIVERED';
+  if (remoteStatus === 'SHIPPED') return 'SHIPPED';
+  if (currentStatus === 'PROCESSING' && remoteStatus === 'PENDING_FULFILLMENT') return currentStatus;
+  return remoteStatus;
+};
+
+const getPackageDimensionsUpdate = (shipping = {}) => {
+  const dimensions = shipping.dimensions || {};
+  const values = [dimensions.height, dimensions.width, dimensions.length, dimensions.weight].map(Number);
+  if (values.some((value) => !Number.isFinite(value) || value <= 0)) return null;
+  return {
+    heightCm: values[0],
+    widthCm: values[1],
+    lengthCm: values[2],
+    weightKg: values[3] / 1000,
   };
 };
 
@@ -594,6 +645,102 @@ const getOrder = async (orderId, userId = null) => {
   }
 };
 
+const getShipment = async (userId, shipmentId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  try {
+    const { data } = await axios.get(`${MELI_API_BASE_URL}/shipments/${shipmentId}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'x-format-new': 'true',
+      },
+    });
+    return data;
+  } catch (error) {
+    logger.error(`[Meli Service] Error al obtener envio ${shipmentId}:`, error.response?.data || error.message);
+    throw new Error(getMeliErrorMessage(error, 'No se pudo consultar el envio de Mercado Libre.'));
+  }
+};
+
+const getShipmentLabel = async (userId, shipmentId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  try {
+    const response = await axios.get(`${MELI_API_BASE_URL}/shipment_labels`, {
+      params: { shipment_ids: shipmentId, response_type: 'pdf' },
+      headers: { Authorization: `Bearer ${accessToken}` },
+      responseType: 'arraybuffer',
+    });
+    return {
+      data: Buffer.from(response.data),
+      contentType: response.headers['content-type'] || 'application/pdf',
+    };
+  } catch (error) {
+    logger.error(`[Meli Service] Error al obtener etiqueta ${shipmentId}:`, error.response?.data || error.message);
+    throw new Error(getMeliErrorMessage(
+      error,
+      'La etiqueta aun no esta disponible. El envio debe estar listo para imprimir.'
+    ));
+  }
+};
+
+const enrichMeliOrderWithShipment = async (order = {}, userId = null) => {
+  const shipmentId = order.shipping?.id;
+  if (!shipmentId) return order;
+  const shipment = await getShipment(userId, shipmentId);
+  return { ...order, shipping: shipment || order.shipping };
+};
+
+const refreshExistingMeliOrder = async (existingOrder, existingExternalOrder, meliOrder) => {
+  const remoteStatus = mapMeliStatusToOrderStatus(meliOrder);
+  const nextStatus = preserveOperationalStatus(existingOrder.status, remoteStatus);
+  const paymentFee = getMeliPaymentFee(meliOrder);
+  const totalPrice = toNumber(meliOrder.paid_amount, toNumber(meliOrder.total_amount, existingOrder.totalPrice));
+  const shippingInfo = buildMeliShippingInfo(meliOrder);
+  const shippingAddress = buildMeliShippingAddress(meliOrder);
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.order.update({
+      where: { id: existingOrder.id },
+      data: {
+        status: nextStatus,
+        isPaid: isPaidMeliOrder(meliOrder),
+        paymentFee,
+        totalPrice,
+        shippingPrice: shippingInfo.shippingCost,
+        shippingAddress,
+        shippingInfo,
+        isDelivered: nextStatus === 'DELIVERED',
+        ...(nextStatus === 'DELIVERED' ? { deliveredAt: toSafeDate(meliOrder.shipping?.last_updated) || new Date() } : {}),
+        ...(['SHIPPED', 'DELIVERED'].includes(nextStatus)
+          ? { shippedAt: existingOrder.shippedAt || toSafeDate(meliOrder.shipping?.last_updated) || new Date() }
+          : {}),
+      },
+    });
+    if (existingExternalOrder) {
+      await tx.externalOrder.update({
+        where: { id: existingExternalOrder.id },
+        data: {
+          externalStatus: meliOrder.status || null,
+          totalPrice,
+          shippingPrice: shippingInfo.shippingCost,
+          feesEstimated: paymentFee,
+          netRevenue: Math.max(totalPrice - paymentFee - shippingInfo.shippingCost, 0),
+          rawData: { meliOrder },
+        },
+      });
+    }
+    const packageDimensions = getPackageDimensionsUpdate(meliOrder.shipping);
+    if (packageDimensions && existingOrder.orderItems?.length === 1 && existingOrder.orderItems[0].qty === 1) {
+      await tx.product.update({
+        where: { id: existingOrder.orderItems[0].productId },
+        data: packageDimensions,
+      });
+    }
+    return tx.order.findUnique({ where: { id: updated.id }, include: ORDER_INCLUDE });
+  });
+};
+
 const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = true } = {}) => {
   const externalOrderId = cleanMeliOrderId(meliOrder.id || meliOrder.resource);
   if (!externalOrderId) {
@@ -612,10 +759,15 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
   });
 
   if (existingExternalOrder?.order) {
+    const refreshedOrder = await refreshExistingMeliOrder(
+      existingExternalOrder.order,
+      existingExternalOrder,
+      meliOrder
+    );
     return {
-      action: 'existing',
+      action: 'refreshed',
       externalOrderId,
-      order: existingExternalOrder.order,
+      order: refreshedOrder,
     };
   }
 
@@ -743,13 +895,7 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
           ? (toSafeDate(meliOrder.shipping?.status_history?.date_shipped) || new Date())
           : null,
         shippingAddress: buildMeliShippingAddress(meliOrder),
-        shippingInfo: {
-          provider: 'mercadolibre',
-          shippingId: meliOrder.shipping?.id || null,
-          status: meliOrder.shipping?.status || null,
-          trackingNumber: meliOrder.shipping?.tracking_number || null,
-          raw: meliOrder.shipping || null,
-        },
+        shippingInfo: buildMeliShippingInfo(meliOrder),
         createdAt: toSafeDate(meliOrder.date_created) || undefined,
         userId: customer.id,
         orderItems: {
@@ -812,6 +958,14 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
       await applyPaidOrderInventoryMovements(tx, createdOrder, userId);
     }
 
+    const packageDimensions = getPackageDimensionsUpdate(meliOrder.shipping);
+    if (packageDimensions && createdOrder.orderItems?.length === 1 && createdOrder.orderItems[0].qty === 1) {
+      await tx.product.update({
+        where: { id: createdOrder.orderItems[0].productId },
+        data: packageDimensions,
+      });
+    }
+
     return tx.order.findUnique({
       where: { id: createdOrder.id },
       include: ORDER_INCLUDE,
@@ -865,8 +1019,12 @@ const syncMeliOrders = async (userId = null) => {
       const orderDetail = externalOrderId
         ? await getOrder(externalOrderId, integration.userId || userId)
         : null;
+      const enrichedOrder = await enrichMeliOrderWithShipment(
+        orderDetail || order,
+        integration.userId || userId
+      );
 
-      imports.push(await importMeliOrder(orderDetail || order, {
+      imports.push(await importMeliOrder(enrichedOrder, {
         userId: integration.userId || userId,
         notifyStaff: true,
       }));
@@ -1134,6 +1292,20 @@ const getShippingPreferences = async (userId) => {
   }
 };
 
+const getSellerProfile = async (userId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  try {
+    const { data } = await axios.get(`${MELI_API_BASE_URL}/users/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return data || {};
+  } catch (error) {
+    logger.warn(`[MercadoLibre] No se pudo consultar el perfil fiscal: ${error.message}`);
+    return {};
+  }
+};
+
 const getDefaultShippingContext = (preferences = {}) => {
   const logistics = Array.isArray(preferences.logistics) ? preferences.logistics : [];
   const activeMode = logistics.find((entry) =>
@@ -1178,7 +1350,7 @@ const getListingPriceQuote = async (
 
 const getShippingCostQuote = async (
   userId,
-  { price, listingTypeId, shippingMode, logisticType, condition, dimensions }
+  { price, listingTypeId, shippingMode, logisticType, condition, dimensions, itemId }
 ) => {
   const integration = await getIntegration(userId);
   const sellerId = integration?.meliUserId;
@@ -1192,7 +1364,7 @@ const getShippingCostQuote = async (
       {
         headers: { Authorization: `Bearer ${accessToken}` },
         params: {
-          dimensions,
+          ...(itemId ? { item_id: itemId } : { dimensions }),
           verbose: true,
           item_price: price,
           listing_type_id: listingTypeId,
@@ -1212,6 +1384,34 @@ const getShippingCostQuote = async (
 
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
+const estimateTaxWithholdings = (price, sellerProfile = {}) => {
+  const identificationType = String(sellerProfile?.identification?.type || '').toUpperCase();
+  const hasRfc = identificationType === 'RFC';
+  if (hasRfc) {
+    return {
+      hasRfc: true,
+      taxableBase: money(Number(price) / 1.16),
+      vatWithholding: 0,
+      incomeTaxWithholding: 0,
+      totalTaxWithholding: 0,
+      estimated: false,
+      message: 'RFC detectado. Las retenciones exactas dependen del regimen fiscal validado por Mercado Libre.',
+    };
+  }
+  const taxableBase = money(Number(price) / 1.16);
+  const vatWithholding = money(taxableBase * 0.16);
+  const incomeTaxWithholding = money(taxableBase * 0.20);
+  return {
+    hasRfc: false,
+    taxableBase,
+    vatWithholding,
+    incomeTaxWithholding,
+    totalTaxWithholding: money(vatWithholding + incomeTaxWithholding),
+    estimated: true,
+    message: 'Mercado Libre no reporta un RFC valido y aplica las tasas maximas estimadas: 16% IVA y 20% ISR sobre la base sin IVA.',
+  };
+};
+
 const quotePublicationCosts = async (
   userId,
   {
@@ -1223,14 +1423,18 @@ const quotePublicationCosts = async (
     lengthCm,
     widthCm,
     heightCm,
+    itemId = null,
   }
 ) => {
   const numericDimensions = [heightCm, widthCm, lengthCm, weightKg].map(Number);
-  if (numericDimensions.some((value) => !Number.isFinite(value) || value <= 0)) {
+  if (!itemId && numericDimensions.some((value) => !Number.isFinite(value) || value <= 0)) {
     throw new Error('Completa peso, largo, ancho y alto para cotizar el envio de Mercado Libre.');
   }
-  const dimensions = `${Math.ceil(numericDimensions[0])}x${Math.ceil(numericDimensions[1])}x${Math.ceil(numericDimensions[2])},${Math.ceil(numericDimensions[3] * 1000)}`;
-  const preferences = await getShippingPreferences(userId);
+  const dimensions = itemId ? null : `${Math.ceil(numericDimensions[0])}x${Math.ceil(numericDimensions[1])}x${Math.ceil(numericDimensions[2])},${Math.ceil(numericDimensions[3] * 1000)}`;
+  const [preferences, sellerProfile] = await Promise.all([
+    getShippingPreferences(userId),
+    getSellerProfile(userId),
+  ]);
   const { mode: shippingMode, logisticType } = getDefaultShippingContext(preferences);
   let recommendedPrice = money(targetNet);
   let listingPrice = null;
@@ -1254,12 +1458,14 @@ const quotePublicationCosts = async (
         logisticType,
         condition,
         dimensions,
+        itemId,
       }),
     ]);
     const saleFee = Number(listingPrice?.sale_fee_amount || 0);
     const listingFee = Number(listingPrice?.listing_fee_amount || 0);
     const shippingCost = Number(shippingQuote?.coverage?.all_country?.list_cost || 0);
-    const nextPrice = money(Number(targetNet) + saleFee + listingFee + shippingCost);
+    const taxWithholding = estimateTaxWithholdings(recommendedPrice, sellerProfile).totalTaxWithholding;
+    const nextPrice = money(Number(targetNet) + saleFee + listingFee + shippingCost + taxWithholding);
     if (Math.abs(nextPrice - recommendedPrice) < 0.01) break;
     recommendedPrice = nextPrice;
   }
@@ -1280,6 +1486,7 @@ const quotePublicationCosts = async (
         logisticType,
         condition,
         dimensions,
+        itemId,
       }),
     ]);
   }
@@ -1287,7 +1494,8 @@ const quotePublicationCosts = async (
   const saleFee = money(listingPrice?.sale_fee_amount || 0);
   const listingFee = money(listingPrice?.listing_fee_amount || 0);
   const shippingCost = money(shippingQuote?.coverage?.all_country?.list_cost || 0);
-  const totalCharges = money(saleFee + listingFee + shippingCost);
+  const taxWithholdings = estimateTaxWithholdings(recommendedPrice, sellerProfile);
+  const totalCharges = money(saleFee + listingFee + shippingCost + taxWithholdings.totalTaxWithholding);
   return {
     listingTypeId,
     listingTypeName: listingPrice?.listing_type_name || listingTypeId,
@@ -1296,13 +1504,15 @@ const quotePublicationCosts = async (
     saleFee,
     listingFee,
     shippingCost,
+    ...taxWithholdings,
     totalCharges,
     estimatedNet: money(recommendedPrice - totalCharges),
     commissionPercentage: Number(listingPrice?.sale_fee_details?.percentage_fee || 0),
     shippingMode,
     logisticType,
     billableWeightGrams: Number(
-      shippingQuote?.coverage?.all_country?.billable_weight || Math.ceil(numericDimensions[3] * 1000)
+      shippingQuote?.coverage?.all_country?.billable_weight
+      || (Number.isFinite(numericDimensions[3]) ? Math.ceil(numericDimensions[3] * 1000) : 0)
     ),
     currencyId: listingPrice?.currency_id || 'MXN',
   };
@@ -1319,12 +1529,16 @@ const estimatePublicationCostsAtPrice = async (
     lengthCm,
     widthCm,
     heightCm,
+    itemId = null,
   }
 ) => {
   const numericDimensions = [heightCm, widthCm, lengthCm, weightKg].map(Number);
-  if (numericDimensions.some((value) => !Number.isFinite(value) || value <= 0)) return null;
-  const dimensions = `${Math.ceil(numericDimensions[0])}x${Math.ceil(numericDimensions[1])}x${Math.ceil(numericDimensions[2])},${Math.ceil(numericDimensions[3] * 1000)}`;
-  const preferences = await getShippingPreferences(userId);
+  if (!itemId && numericDimensions.some((value) => !Number.isFinite(value) || value <= 0)) return null;
+  const dimensions = itemId ? null : `${Math.ceil(numericDimensions[0])}x${Math.ceil(numericDimensions[1])}x${Math.ceil(numericDimensions[2])},${Math.ceil(numericDimensions[3] * 1000)}`;
+  const [preferences, sellerProfile] = await Promise.all([
+    getShippingPreferences(userId),
+    getSellerProfile(userId),
+  ]);
   const { mode: shippingMode, logisticType } = getDefaultShippingContext(preferences);
   const [listingPrice, shippingQuote] = await Promise.all([
     getListingPriceQuote(userId, {
@@ -1341,12 +1555,14 @@ const estimatePublicationCostsAtPrice = async (
       logisticType,
       condition,
       dimensions,
+      itemId,
     }),
   ]);
   const saleFee = money(listingPrice?.sale_fee_amount || 0);
   const listingFee = money(listingPrice?.listing_fee_amount || 0);
   const shippingCost = money(shippingQuote?.coverage?.all_country?.list_cost || 0);
-  const totalCharges = money(saleFee + listingFee + shippingCost);
+  const taxWithholdings = estimateTaxWithholdings(price, sellerProfile);
+  const totalCharges = money(saleFee + listingFee + shippingCost + taxWithholdings.totalTaxWithholding);
   return {
     listingTypeId,
     listingTypeName: listingPrice?.listing_type_name || listingTypeId,
@@ -1354,6 +1570,7 @@ const estimatePublicationCostsAtPrice = async (
     saleFee,
     listingFee,
     shippingCost,
+    ...taxWithholdings,
     totalCharges,
     estimatedNet: money(Number(price) - totalCharges),
     commissionPercentage: Number(listingPrice?.sale_fee_details?.percentage_fee || 0),
@@ -1563,6 +1780,11 @@ const processWebhookNotification = async (notification) => {
       String(notification.topic || '').toLowerCase().includes('orders')
       || String(notification.resource || '').toLowerCase().includes('/orders/')
     );
+  const isShipmentNotification = hasMeliOrderShape
+    && (
+      String(notification.topic || '').toLowerCase().includes('shipment')
+      || String(notification.resource || '').toLowerCase().includes('/shipments/')
+    );
 
   logger.info(`[Meli Webhook] Evento recibido source=${source} topic=${notification?.topic || 'sin-topic'} resource=${notification?.resource || 'sin-resource'}`);
 
@@ -1585,6 +1807,42 @@ const processWebhookNotification = async (notification) => {
 
   const externalOrderId = cleanMeliOrderId(notification.resource);
 
+  if (isShipmentNotification) {
+    try {
+      const integration = await getIntegrationByMeliUserId(notification.user_id);
+      const shipment = await getShipment(integration?.userId || null, externalOrderId);
+      const candidateOrders = await prisma.order.findMany({
+        where: { salesChannel: MELI_CHANNEL },
+        include: { externalOrders: true },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      });
+      const localOrder = candidateOrders.find(
+        (order) => String(order.shippingInfo?.shippingId || '') === String(externalOrderId)
+      );
+      const linkedExternalOrderId = localOrder?.externalOrders?.find(
+        (order) => order.channel === MELI_CHANNEL
+      )?.externalOrderId;
+      if (!linkedExternalOrderId) throw new Error('No se encontro el pedido local asociado al envio.');
+      const remoteOrder = await getOrder(linkedExternalOrderId, integration?.userId || null);
+      const result = await importMeliOrder(
+        { ...remoteOrder, shipping: shipment },
+        { userId: integration?.userId || null, notifyStaff: false }
+      );
+      await writeMeliImportLog({
+        status: 'SENT',
+        externalOrderId: linkedExternalOrderId,
+        order: result.order,
+        orderNumber: result.order?.orderNumber,
+        message: `Envio Mercado Libre ${externalOrderId} actualizado automaticamente.`,
+        details: { notification, shipmentId: externalOrderId },
+      });
+      return;
+    } catch (error) {
+      logger.warn(`[Meli Webhook] No se pudo actualizar envio ${externalOrderId}: ${error.message}`);
+    }
+  }
+
   if (isOrderNotification) {
     try {
       const integration = await getIntegrationByMeliUserId(notification.user_id);
@@ -1594,7 +1852,11 @@ const processWebhookNotification = async (notification) => {
         throw new Error('No se pudo leer el detalle de la orden en Mercado Libre.');
       }
 
-      const result = await importMeliOrder(meliOrder, {
+      const enrichedOrder = await enrichMeliOrderWithShipment(
+        meliOrder,
+        integration?.userId || null
+      );
+      const result = await importMeliOrder(enrichedOrder, {
         userId: integration?.userId || null,
         notifyStaff: true,
       });
@@ -1660,6 +1922,9 @@ export {
   syncMeliOrders,
   importMeliOrder,
   getOrder,
+  getShipment,
+  getShipmentLabel,
+  enrichMeliOrderWithShipment,
   getItem,
   searchSellerItemsBySku,
   predictCategory,
@@ -1669,6 +1934,7 @@ export {
   searchCatalogProducts,
   getCatalogProduct,
   getShippingPreferences,
+  getSellerProfile,
   getDefaultShippingContext,
   getListingPriceQuote,
   getShippingCostQuote,

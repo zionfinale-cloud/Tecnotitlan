@@ -17,6 +17,7 @@ import {
   sendOrderStatusUpdatedEmail,
 } from '../services/emailService.js';
 import { notifyStaffOrderPaid, notifyStaffOrderStatusChanged } from '../services/staffNotificationService.js';
+import * as mercadoLibreService from '../services/mercadoLibreService.js';
 import Stripe from 'stripe';
 import axios from 'axios'; // <-- REQUERIDO
 
@@ -40,6 +41,8 @@ export {
   requestOrderCancellation,
   updateOrderStatusOperational,
   updateOrderToDeliveredOperational,
+  refreshMercadoLibreShippingOperational,
+  downloadMercadoLibreLabelOperational,
 };
 
 const userCanManageOrders = (user) => {
@@ -95,6 +98,20 @@ const ORDER_INCLUDE = {
     },
   },
   statusHistory: { orderBy: { date: 'asc' } },
+  externalOrders: true,
+};
+
+const refreshMercadoLibreOrder = async (order, userId) => {
+  const externalOrderId = order.externalOrders?.find(
+    (externalOrder) => externalOrder.channel === 'MERCADOLIBRE'
+  )?.externalOrderId;
+  if (!externalOrderId) {
+    throw new BadRequestError('El pedido no tiene una orden externa de Mercado Libre vinculada.');
+  }
+  const remoteOrder = await mercadoLibreService.getOrder(externalOrderId, userId);
+  if (!remoteOrder) throw new BadRequestError('No se pudo consultar la orden en Mercado Libre.');
+  const enrichedOrder = await mercadoLibreService.enrichMeliOrderWithShipment(remoteOrder, userId);
+  return mercadoLibreService.importMeliOrder(enrichedOrder, { userId, notifyStaff: false });
 };
 
 const appendStatusHistory = (tx, orderId, status, notes) => tx.statusHistory.create({
@@ -636,6 +653,42 @@ const getAllOrdersOperational = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json({ status: 'success', results: orders.length, data: { orders } });
+});
+
+const refreshMercadoLibreShippingOperational = asyncHandler(async (req, res, next) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: ORDER_INCLUDE,
+  });
+  if (!order) return next(new NotFoundError('Pedido no encontrado'));
+  if (order.salesChannel !== 'MERCADOLIBRE') {
+    return next(new BadRequestError('Este pedido no pertenece a Mercado Libre.'));
+  }
+  const result = await refreshMercadoLibreOrder(order, req.user.id);
+  res.status(200).json({
+    status: 'success',
+    message: 'Envio, domicilio y guia actualizados desde Mercado Libre.',
+    data: { order: result.order },
+  });
+});
+
+const downloadMercadoLibreLabelOperational = asyncHandler(async (req, res, next) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: ORDER_INCLUDE,
+  });
+  if (!order) return next(new NotFoundError('Pedido no encontrado'));
+  if (order.salesChannel !== 'MERCADOLIBRE') {
+    return next(new BadRequestError('Este pedido no pertenece a Mercado Libre.'));
+  }
+  const result = await refreshMercadoLibreOrder(order, req.user.id);
+  const shipmentId = result.order?.shippingInfo?.shippingId;
+  if (!shipmentId) return next(new BadRequestError('Mercado Libre aun no asigna un envio a este pedido.'));
+  const label = await mercadoLibreService.getShipmentLabel(req.user.id, shipmentId);
+  res.setHeader('Content-Type', label.contentType);
+  res.setHeader('Content-Disposition', `inline; filename="guia-${shipmentId}.pdf"`);
+  res.setHeader('Content-Length', label.data.length);
+  res.status(200).send(label.data);
 });
 
 const retryOrderInventoryOperational = asyncHandler(async (req, res, next) => {

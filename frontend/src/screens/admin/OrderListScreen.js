@@ -268,6 +268,44 @@ const OrderListScreen = () => {
     }
   };
 
+  const refreshMeliShipping = async (order) => {
+    setSavingId(order.id);
+    setError('');
+    setSuccess('');
+    try {
+      const { data } = await api.put(`/orders/${order.id}/meli-shipping`);
+      setOrders((current) => current.map((item) => (item.id === order.id ? data.data.order : item)));
+      setSuccess(data.message || 'Envio actualizado desde Mercado Libre.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'No se pudo actualizar el envio de Mercado Libre.');
+    } finally {
+      setSavingId('');
+    }
+  };
+
+  const downloadMeliLabel = async (order) => {
+    setSavingId(order.id);
+    setError('');
+    try {
+      const response = await api.get(`/orders/${order.id}/meli-label`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.download = `guia-${order.shippingInfo?.shippingId || order.orderNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      await loadOrders({ silent: true });
+    } catch (err) {
+      setError(err.response?.data?.message || 'La etiqueta aun no esta disponible para imprimir.');
+    } finally {
+      setSavingId('');
+    }
+  };
+
   const submitShipping = (event, order) => {
     event.preventDefault();
     const shipping = shippingByOrder[order.id] || {};
@@ -465,6 +503,44 @@ const OrderListScreen = () => {
 
                   <section className={styles.panel}>
                     <h3>Acciones</h3>
+                    {order.salesChannel === 'MERCADOLIBRE' && (
+                      <div className={styles.meliShippingBox}>
+                        <strong>Mercado Envios</strong>
+                        <span>
+                          {order.shippingInfo?.carrier || 'Mercado Envios'}
+                          {order.shippingInfo?.trackingNumber ? ` · ${order.shippingInfo.trackingNumber}` : ''}
+                        </span>
+                        <small>
+                          {[order.shippingAddress?.receiverName,
+                            [order.shippingAddress?.street, order.shippingAddress?.number].filter(Boolean).join(' '),
+                            order.shippingAddress?.neighborhood,
+                            order.shippingAddress?.city,
+                            order.shippingAddress?.state,
+                            order.shippingAddress?.zipCode].filter(Boolean).join(', ') || 'Domicilio pendiente de Mercado Libre'}
+                        </small>
+                        <div className={styles.buttonRow}>
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={() => refreshMeliShipping(order)}
+                            disabled={saving}
+                          >
+                            Actualizar envio
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.primaryButton}
+                            onClick={() => downloadMeliLabel(order)}
+                            disabled={saving || !order.shippingInfo?.shippingId}
+                          >
+                            Imprimir guia PDF
+                          </button>
+                        </div>
+                        {!order.shippingInfo?.labelAvailable && (
+                          <small>La etiqueta se habilita cuando Mercado Libre marque el envio como listo para imprimir.</small>
+                        )}
+                      </div>
+                    )}
                     <div className={styles.actionGroup}>
                       {!order.isPaid && (
                         <button type="button" className={styles.primaryButton} onClick={() => confirmPayment(order)} disabled={saving}>

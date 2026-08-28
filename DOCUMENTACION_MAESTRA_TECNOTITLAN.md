@@ -1372,3 +1372,13 @@ Protecciones implementadas:
 - En una publicacion vinculada, la sincronizacion manual confirmada aplica juntos el precio sugerido y el stock publicable. Las sincronizaciones automaticas de inventario conservan el precio remoto.
 - Clasica se identifica como la opcion de menor comision y sin meses sin intereses; Premium ofrece mayor exposicion y meses sin intereses con una comision superior. La interfaz incluye ayuda contextual junto al selector.
 - Las imagenes se cargan primero al servicio de imagenes de Mercado Libre. Solo se anexan las que Mercado Libre procesa con al menos 500 x 500 pixeles; los archivos pequenos o rechazados se omiten y se reportan como advertencia. Si ninguna imagen es valida, la publicacion se bloquea.
+- Cuando se selecciona una ficha exacta de catalogo, sus imagenes oficiales se agregan a las imagenes propias sin duplicar IDs, hasta el limite de Mercado Libre.
+- La cotizacion detecta cuando la cuenta conectada no reporta RFC y agrega la estimacion conservadora de retenciones maximas sobre la base sin IVA. Con RFC detectado muestra una advertencia porque el importe exacto depende del regimen validado por Mercado Libre.
+- En publicaciones vinculadas, el costo de envio se consulta por `item_id` para utilizar las dimensiones logisticas efectivas de Mercado Libre. Al importar una venta de una sola pieza, las dimensiones del paquete remoto actualizan la ficha local para futuras simulaciones.
+
+## Actualizacion 2026-08-28 - Guias de Mercado Envios en Pedidos
+
+- Al recibir o releer una orden, Tecnotitlan consulta `/shipments/{shipping_id}` y guarda automaticamente destinatario, domicilio, telefono disponible, paqueteria, numero de guia, estado, modalidad logistica, costo, dimensiones y fecha estimada.
+- Los webhooks de envios refrescan el pedido local sin esperar una captura manual.
+- La tarjeta administrativa del pedido permite actualizar el envio y descargar/imprimir la etiqueta oficial PDF desde `/shipment_labels` cuando el envio ME2 esta `ready_to_ship` y `ready_to_print` o `printed`.
+- Las etiquetas no se inventan ni se almacenan como documentos propios: se solicitan autenticadas a Mercado Libre y se entregan al operador para impresion.

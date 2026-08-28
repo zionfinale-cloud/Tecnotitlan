@@ -12,6 +12,8 @@ import {
   getMyOrders,
   getAllOrdersOperational,
   updateOrderStatusOperational,
+  refreshMercadoLibreShippingOperational,
+  downloadMercadoLibreLabelOperational,
 } from '../controllers/orderController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
@@ -30,6 +32,8 @@ router.route('/:id/confirm-stripe-payment').post(protect, asyncHandler(confirmSt
 router.route('/:id/pay').put(protect, asyncHandler(updateOrderToPaid));
 router.route('/:id/cancel').put(protect, asyncHandler(requestOrderCancellation));
 router.route('/:id/retry-inventory').put(protect, checkPermission('order:update'), asyncHandler(retryOrderInventoryOperational));
+router.route('/:id/meli-shipping').put(protect, checkPermission('order:update'), asyncHandler(refreshMercadoLibreShippingOperational));
+router.route('/:id/meli-label').get(protect, checkPermission('order:update'), asyncHandler(downloadMercadoLibreLabelOperational));
 router.route('/:id/status').put(protect, checkPermission('order:update'), asyncHandler(updateOrderStatusOperational));
 router.route('/:id/deliver').put(protect, checkPermission('order:update'), asyncHandler(updateOrderToDeliveredOperational));
 

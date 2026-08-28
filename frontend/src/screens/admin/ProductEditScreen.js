@@ -1106,6 +1106,8 @@ const ProductEditScreen = () => {
                                 <span><small>Precio sugerido en Meli</small><strong>{formatMxn(selectedMeliQuote.recommendedPrice)}</strong></span>
                                 <span><small>Comision ({selectedMeliQuote.commissionPercentage}%)</small><strong>-{formatMxn(selectedMeliQuote.saleFee)}</strong></span>
                                 <span><small>Envio</small><strong>-{formatMxn(selectedMeliQuote.shippingCost)}</strong></span>
+                                <span><small>Retencion IVA estimada</small><strong>-{formatMxn(selectedMeliQuote.vatWithholding)}</strong></span>
+                                <span><small>Retencion ISR estimada</small><strong>-{formatMxn(selectedMeliQuote.incomeTaxWithholding)}</strong></span>
                                 <span><small>Otros cargos</small><strong>-{formatMxn(selectedMeliQuote.listingFee)}</strong></span>
                                 <span><small>Neto estimado</small><strong>{formatMxn(selectedMeliQuote.estimatedNet)}</strong></span>
                               </div>
@@ -1113,6 +1115,7 @@ const ProductEditScreen = () => {
                                 Total estimado de cargos: {formatMxn(selectedMeliQuote.totalCharges)}. Puede variar por impuestos,
                                 promociones, reputacion o cambios de tarifa de Mercado Libre.
                               </small>
+                              {selectedMeliQuote.message && <small>{selectedMeliQuote.message}</small>}
                               <label className={styles.checkboxLabel}>
                                 <input
                                   type="checkbox"
@@ -1256,6 +1259,8 @@ const ProductEditScreen = () => {
                                  <span><small>Precio publicado</small><strong>{formatMxn(meliPreview.tecnotitlanCostEstimate.listedPrice)}</strong></span>
                                  <span><small>Comision ({meliPreview.tecnotitlanCostEstimate.commissionPercentage}%)</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.saleFee)}</strong></span>
                                  <span><small>Envio</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.shippingCost)}</strong></span>
+                                 <span><small>Retencion IVA estimada</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.vatWithholding)}</strong></span>
+                                 <span><small>Retencion ISR estimada</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.incomeTaxWithholding)}</strong></span>
                                  <span><small>Otros cargos</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.listingFee)}</strong></span>
                                  <span><small>Total de cargos</small><strong>-{formatMxn(meliPreview.tecnotitlanCostEstimate.totalCharges)}</strong></span>
                                  <span><small>Neto estimado</small><strong>{formatMxn(meliPreview.tecnotitlanCostEstimate.estimatedNet)}</strong></span>
@@ -1265,6 +1270,9 @@ const ProductEditScreen = () => {
                                    Para conservar un neto de {formatMxn(meliPreview.tecnotitlanRecommendedQuote.targetNet)},
                                    el precio sugerido seria {formatMxn(meliPreview.tecnotitlanRecommendedQuote.recommendedPrice)}.
                                  </small>
+                               )}
+                               {meliPreview.tecnotitlanCostEstimate.message && (
+                                 <small>{meliPreview.tecnotitlanCostEstimate.message}</small>
                                )}
                                <label className={styles.checkboxLabel}>
                                  <input
