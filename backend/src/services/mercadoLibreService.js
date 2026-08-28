@@ -151,6 +151,69 @@ const buildMeliShippingAddress = (order = {}) => {
   };
 };
 
+const compactMeliAddress = (address = {}) => {
+  const street = [address.street_name, address.street_number].filter(Boolean).join(' ');
+  return {
+    name: address.name || address.receiver_name || null,
+    addressLine: address.address_line || street || null,
+    neighborhood: address.neighborhood?.name || address.neighborhood || null,
+    city: address.city?.name || address.city || null,
+    state: address.state?.name || address.state || null,
+    zipCode: address.zip_code || null,
+  };
+};
+
+const getMeliDispatchDetails = (shipping = {}) => {
+  const logisticType = shipping.logistic?.type || shipping.logistic_type || null;
+  const origin = shipping.origin || {};
+  const originAddress = shipping.sender_address || origin.shipping_address || {};
+  const detailsUrl = shipping.id
+    ? `https://www.mercadolibre.com.mx/ventas/${shipping.id}/detalle`
+    : null;
+  const definitions = {
+    xd_drop_off: {
+      mode: 'drop_off_place',
+      title: 'Entrega en punto Mercado Libre',
+      instruction: 'Lleva el paquete etiquetado al punto Places asignado. Consulta el punto exacto y el horario en el detalle de la venta.',
+    },
+    drop_off: {
+      mode: 'drop_off_carrier',
+      title: 'Entrega en paqueteria',
+      instruction: 'Lleva el paquete etiquetado a la sucursal o punto de entrega que Mercado Libre indique para esta venta.',
+    },
+    cross_docking: {
+      mode: 'seller_pickup',
+      title: 'Recoleccion en domicilio',
+      instruction: 'Mercado Libre o su transportista recolectara el paquete en el domicilio de origen configurado.',
+    },
+    fulfillment: {
+      mode: 'fulfillment',
+      title: 'Mercado Libre Full',
+      instruction: 'Mercado Libre prepara y despacha el producto desde su centro de fulfillment.',
+    },
+    self_service: {
+      mode: 'self_service',
+      title: 'Entrega Flex',
+      instruction: 'Despacha el pedido con la logistica Flex configurada en la cuenta.',
+    },
+  };
+  const definition = definitions[logisticType] || {
+    mode: 'meli_shipping',
+    title: 'Despacho por Mercado Libre',
+    instruction: 'Consulta el detalle de la venta para confirmar como y donde debes despachar el paquete.',
+  };
+
+  return {
+    ...definition,
+    logisticType,
+    originNode: origin.node || null,
+    originAddress: Object.values(originAddress).some(Boolean)
+      ? compactMeliAddress(originAddress)
+      : null,
+    detailsUrl,
+  };
+};
+
 const buildMeliShippingInfo = (order = {}) => {
   const shipping = order.shipping || {};
   const logistic = shipping.logistic || {};
@@ -169,6 +232,7 @@ const buildMeliShippingInfo = (order = {}) => {
       : null,
     logisticMode: logistic.mode || null,
     logisticType: logistic.type || null,
+    dispatch: getMeliDispatchDetails(shipping),
     labelAvailable: printable,
     estimatedDelivery: shipping.lead_time?.estimated_delivery_time?.date || null,
     shippingCost: toNumber(shipping.lead_time?.list_cost, 0),
@@ -1924,6 +1988,7 @@ export {
   getOrder,
   getShipment,
   getShipmentLabel,
+  getMeliDispatchDetails,
   enrichMeliOrderWithShipment,
   getItem,
   searchSellerItemsBySku,

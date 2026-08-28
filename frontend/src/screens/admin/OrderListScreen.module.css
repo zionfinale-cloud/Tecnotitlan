@@ -130,6 +130,30 @@
   line-height: 1.45;
 }
 
+.dispatchBox {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.7rem;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.dispatchBox strong {
+  color: #14532d;
+}
+
+.dispatchBox small {
+  color: #475569;
+  line-height: 1.45;
+}
+
+.dispatchBox a {
+  color: #047857;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
 .field span {
   color: #0f172a;
   font-size: 0.82rem;

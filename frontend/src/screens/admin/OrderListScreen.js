@@ -68,6 +68,12 @@ const getCustomerName = (order) => {
 
 const formatDate = (value) => (value ? dateFormat.format(new Date(value)) : 'Pendiente');
 
+const formatCompactAddress = (address) => address
+  ? [address.name, address.addressLine, address.neighborhood, address.city, address.state, address.zipCode]
+    .filter(Boolean)
+    .join(', ')
+  : '';
+
 const INVENTORY_WARNING_TEXT = 'salida de inventario requiere revision manual';
 const INVENTORY_RECOVERY_TEXT = 'Salida de inventario aplicada/reintentada correctamente';
 
@@ -293,7 +299,6 @@ const OrderListScreen = () => {
       link.href = url;
       link.target = '_blank';
       link.rel = 'noreferrer';
-      link.download = `guia-${order.shippingInfo?.shippingId || order.orderNumber}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -518,6 +523,23 @@ const OrderListScreen = () => {
                             order.shippingAddress?.state,
                             order.shippingAddress?.zipCode].filter(Boolean).join(', ') || 'Domicilio pendiente de Mercado Libre'}
                         </small>
+                        <div className={styles.dispatchBox}>
+                          <strong>{order.shippingInfo?.dispatch?.title || 'Despacho por Mercado Libre'}</strong>
+                          <small>{order.shippingInfo?.dispatch?.instruction || 'Consulta el detalle de la venta antes de despachar.'}</small>
+                          {formatCompactAddress(order.shippingInfo?.dispatch?.originAddress) && (
+                            <small>
+                              <b>Origen configurado:</b> {formatCompactAddress(order.shippingInfo.dispatch.originAddress)}
+                            </small>
+                          )}
+                          {order.shippingInfo?.dispatch?.originNode && (
+                            <small><b>Nodo:</b> {order.shippingInfo.dispatch.originNode}</small>
+                          )}
+                          {order.shippingInfo?.dispatch?.detailsUrl && (
+                            <a href={order.shippingInfo.dispatch.detailsUrl} target="_blank" rel="noreferrer">
+                              Ver punto, horario y detalle en Mercado Libre
+                            </a>
+                          )}
+                        </div>
                         <div className={styles.buttonRow}>
                           <button
                             type="button"
@@ -533,9 +555,10 @@ const OrderListScreen = () => {
                             onClick={() => downloadMeliLabel(order)}
                             disabled={saving || !order.shippingInfo?.shippingId}
                           >
-                            Imprimir guia PDF
+                            Abrir guia 100 x 200 mm
                           </button>
                         </div>
+                        <small>Para la Aiyin E40 Pro: selecciona papel 100 x 200 mm, escala 100% y sin margenes.</small>
                         {!order.shippingInfo?.labelAvailable && (
                           <small>La etiqueta se habilita cuando Mercado Libre marque el envio como listo para imprimir.</small>
                         )}
