@@ -31,6 +31,7 @@ const navGroups = [
             { to: '/admin/tecatl', icon: 'fa-robot', text: 'Tecatl', anyPermission: ['tecatl:read', 'tecatl:reply', 'tecatl:knowledge'] },
             { to: '/mail', icon: 'fa-envelope', text: 'Correo', anyPermission: ['mail:read', 'mail:send'] },
             { to: '/admin/support', icon: 'fa-headset', text: 'Soporte', permission: 'support:read' },
+            { to: '/admin/meli-claims', icon: 'fa-undo-alt', text: 'Reclamos ML', anyPermission: ['support:read', 'order:read'] },
         ],
     },
     {

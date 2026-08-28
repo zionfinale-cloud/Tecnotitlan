@@ -128,47 +128,47 @@ model UserPermissionDeny {
 }
 
 model Product {
-  id                   String               @id @default(cuid())
-  sku                  String               @unique
-  name                 String
-  shortDescription     String?              @map("short_description") @db.VarChar(280)
-  gtin                 String?              @db.VarChar(14)
-  description          String               @db.Text
-  price                Float
-  costPrice            Float?               @default(0)
-  brand                String?
-  countInStock         Int                  @default(0)
-  productType          ProductType          @default(IN_HOUSE)
-  supplierInfo         String?
-  supplierStock        Int                  @default(0) @map("supplier_stock")
-  supplierStockUnlimited Boolean            @default(false) @map("supplier_stock_unlimited")
-  supplierLeadTimeMinutes Int               @default(60) @map("supplier_lead_time_minutes")
-  shippingPayer        ShippingPayer        @default(CUSTOMER) @map("shipping_payer")
-  shippingCostEstimate Float?               @default(0) @map("shipping_cost_estimate")
-  weightKg             Float?               @map("weight_kg")
-  lengthCm             Float?               @map("length_cm")
-  widthCm              Float?               @map("width_cm")
-  heightCm             Float?               @map("height_cm")
-  isArchived           Boolean              @default(false)
-  rating               Float                @default(0)
-  numReviews           Int                  @default(0)
-  meliItemId           String?              @unique
-  meliPublicationUrl   String?
-  youtubeUrl           String?              @db.Text
-  lastMeliSync         DateTime?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+  id                      String               @id @default(cuid())
+  sku                     String               @unique
+  name                    String
+  shortDescription        String?              @map("short_description") @db.VarChar(280)
+  gtin                    String?              @db.VarChar(14)
+  description             String               @db.Text
+  price                   Float
+  costPrice               Float?               @default(0)
+  brand                   String?
+  countInStock            Int                  @default(0)
+  productType             ProductType          @default(IN_HOUSE)
+  supplierInfo            String?
+  supplierStock           Int                  @default(0) @map("supplier_stock")
+  supplierStockUnlimited  Boolean              @default(false) @map("supplier_stock_unlimited")
+  supplierLeadTimeMinutes Int                  @default(60) @map("supplier_lead_time_minutes")
+  shippingPayer           ShippingPayer        @default(CUSTOMER) @map("shipping_payer")
+  shippingCostEstimate    Float?               @default(0) @map("shipping_cost_estimate")
+  weightKg                Float?               @map("weight_kg")
+  lengthCm                Float?               @map("length_cm")
+  widthCm                 Float?               @map("width_cm")
+  heightCm                Float?               @map("height_cm")
+  isArchived              Boolean              @default(false)
+  rating                  Float                @default(0)
+  numReviews              Int                  @default(0)
+  meliItemId              String?              @unique
+  meliPublicationUrl      String?
+  youtubeUrl              String?              @db.Text
+  lastMeliSync            DateTime?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
   // Relaciones
-  user                 User                 @relation(fields: [userId], references: [id])
-  userId               String
-  category             Category             @relation(fields: [categoryId], references: [id])
-  categoryId           String
-  media                Media[]
-  characteristics      Characteristic[]
-  reviews              Review[]
-  orderItems           OrderItem[]
-  inventoryMovements   InventoryMovement[]
-  marketplaceListings  MarketplaceListing[]
+  user                    User                 @relation(fields: [userId], references: [id])
+  userId                  String
+  category                Category             @relation(fields: [categoryId], references: [id])
+  categoryId              String
+  media                   Media[]
+  characteristics         Characteristic[]
+  reviews                 Review[]
+  orderItems              OrderItem[]
+  inventoryMovements      InventoryMovement[]
+  marketplaceListings     MarketplaceListing[]
 
   @@map("products")
 }
@@ -285,35 +285,101 @@ model Category {
 }
 
 model Order {
-  id              String          @id @default(cuid())
-  orderNumber     String          @unique
-  itemsPrice      Float
-  shippingPrice   Float
-  taxPrice        Float
-  paymentFee      Float
-  totalPrice      Float
-  isPaid          Boolean         @default(false)
-  paidAt          DateTime?
-  paymentMethod   String
-  salesChannel    SalesChannel    @default(WEB) @map("sales_channel")
-  isDelivered     Boolean         @default(false)
-  deliveredAt     DateTime?
-  status          OrderStatus     @default(PENDING_PAYMENT)
-  shippedAt       DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id               String            @id @default(cuid())
+  orderNumber      String            @unique
+  itemsPrice       Float
+  shippingPrice    Float
+  taxPrice         Float
+  paymentFee       Float
+  totalPrice       Float
+  isPaid           Boolean           @default(false)
+  paidAt           DateTime?
+  paymentMethod    String
+  salesChannel     SalesChannel      @default(WEB) @map("sales_channel")
+  isDelivered      Boolean           @default(false)
+  deliveredAt      DateTime?
+  status           OrderStatus       @default(PENDING_PAYMENT)
+  shippedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
   // Relaciones y JSON
-  user            User            @relation(fields: [userId], references: [id])
-  userId          String
-  orderItems      OrderItem[]
-  externalOrders  ExternalOrder[]
-  shippingAddress Json
-  paymentResult   Json?
-  shippingInfo    Json?
-  statusHistory   StatusHistory[]
+  user             User              @relation(fields: [userId], references: [id])
+  userId           String
+  orderItems       OrderItem[]
+  externalOrders   ExternalOrder[]
+  shippingAddress  Json
+  paymentResult    Json?
+  shippingInfo     Json?
+  statusHistory    StatusHistory[]
   notificationLogs NotificationLog[]
+  meliClaims       MeliClaim[]
 
   @@map("orders")
+}
+
+model MeliClaim {
+  id                   String              @id @default(cuid())
+  externalClaimId      String              @unique @map("external_claim_id")
+  externalOrderId      String?             @map("external_order_id")
+  sellerId             String?             @map("seller_id")
+  type                 String?
+  stage                String?
+  status               String
+  resource             String?
+  resourceId           String?             @map("resource_id")
+  reasonId             String?             @map("reason_id")
+  reasonDetail         String?             @map("reason_detail") @db.Text
+  title                String?
+  description          String?             @db.Text
+  problem              String?             @db.Text
+  actionResponsible    String?             @map("action_responsible")
+  dueDate              DateTime?           @map("due_date")
+  affectsReputation    Boolean?            @map("affects_reputation")
+  returnId             String?             @map("return_id")
+  returnStatus         String?             @map("return_status")
+  returnShipmentId     String?             @map("return_shipment_id")
+  returnTrackingNumber String?             @map("return_tracking_number")
+  returnCost           Float?              @map("return_cost")
+  returnCurrency       String?             @map("return_currency")
+  refundAt             String?             @map("refund_at")
+  moneyStatus          String?             @map("money_status")
+  internalStatus       String              @default("PENDING_REVIEW") @map("internal_status")
+  priority             TicketPriority      @default(HIGH)
+  assignedTo           String?             @map("assigned_to")
+  inspectionStatus     String              @default("NOT_RECEIVED") @map("inspection_status")
+  inspectionNotes      String?             @map("inspection_notes") @db.Text
+  rawData              Json                @map("raw_data")
+  detailData           Json?               @map("detail_data")
+  messagesData         Json?               @map("messages_data")
+  returnData           Json?               @map("return_data")
+  historyData          Json?               @map("history_data")
+  resolutionsData      Json?               @map("resolutions_data")
+  lastSyncedAt         DateTime            @default(now()) @map("last_synced_at")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  order                Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId              String?             @map("order_id")
+  activities           MeliClaimActivity[]
+
+  @@index([status, dueDate])
+  @@index([internalStatus, priority])
+  @@index([externalOrderId])
+  @@index([orderId])
+  @@map("meli_claims")
+}
+
+model MeliClaimActivity {
+  id        String    @id @default(cuid())
+  action    String
+  actorId   String?   @map("actor_id")
+  actorName String?   @map("actor_name")
+  details   Json?
+  createdAt DateTime  @default(now()) @map("created_at")
+  claim     MeliClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claimId   String    @map("claim_id")
+
+  @@index([claimId, createdAt])
+  @@map("meli_claim_activities")
 }
 
 model OrderItem {
@@ -402,8 +468,8 @@ model MarketplaceListing {
   publishedStock       Int?                     @map("published_stock")
   stockBuffer          Int                      @default(0) @map("stock_buffer")
   commissionRate       Float?                   @map("commission_rate")
-  fixedFee              Float                    @default(0) @map("fixed_fee")
-  autoPrice             Boolean                  @default(true) @map("auto_price")
+  fixedFee             Float                    @default(0) @map("fixed_fee")
+  autoPrice            Boolean                  @default(true) @map("auto_price")
   shippingCostEstimate Float?                   @map("shipping_cost_estimate")
   status               MarketplaceListingStatus @default(DRAFT)
   syncStatus           String?                  @map("sync_status")

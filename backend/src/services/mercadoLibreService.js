@@ -2,6 +2,7 @@ import axios from 'axios';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { URLSearchParams } from 'url';
+import { Prisma } from '@prisma/client';
 import logger from '../utils/logger.js';
 import { getConfig } from './configService.js';
 import prisma from '../config/prisma.js';
@@ -13,6 +14,7 @@ import { getProductAvailableStock, hasProductAvailability } from '../utils/produ
 const MELI_API_BASE_URL = 'https://api.mercadolibre.com';
 const MELI_CHANNEL = 'MERCADOLIBRE';
 const MELI_ORDER_PREFIX = 'MELI';
+const nullableJson = (value) => value == null ? Prisma.DbNull : value;
 
 const ORDER_INCLUDE = {
   user: true,
@@ -1816,6 +1818,221 @@ const updatePriceAndStock = async (userId, meliItemId, { price, stock }) => {
   }
 };
 
+const optionalMeliGet = async (accessToken, path, params = undefined) => {
+  try {
+    const { data } = await axios.get(`${MELI_API_BASE_URL}${path}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      ...(params ? { params } : {}),
+    });
+    return data;
+  } catch (error) {
+    if ([400, 404].includes(error.response?.status)) return null;
+    throw error;
+  }
+};
+
+const getClaimDueDate = (claim = {}, detail = {}) => {
+  if (detail?.due_date) return toSafeDate(detail.due_date);
+  const seller = (claim.players || []).find((player) => player.role === 'respondent');
+  const dates = (seller?.available_actions || [])
+    .map((action) => toSafeDate(action.due_date))
+    .filter(Boolean)
+    .sort((left, right) => left - right);
+  return dates[0] || null;
+};
+
+const getClaimExternalOrderId = (claim = {}, returnData = null) => {
+  if (claim.resource === 'order' && claim.resource_id) return String(claim.resource_id);
+  const returnOrder = (returnData?.orders || [])[0];
+  return returnOrder?.order_id ? String(returnOrder.order_id) : null;
+};
+
+const syncMeliClaimById = async (userId, externalClaimId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  const claimId = String(externalClaimId || '').replace(/\D/g, '');
+  if (!claimId) throw new Error('El identificador del reclamo no es valido.');
+
+  const claim = await optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}`);
+  if (!claim) throw new Error(`No se encontro el reclamo ${claimId} en Mercado Libre.`);
+
+  const [detail, messages, history, resolutions, returnPayload, reputation] = await Promise.all([
+    optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}/detail`),
+    optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}/messages`),
+    optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}/status_history`),
+    optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}/expected_resolutions`),
+    optionalMeliGet(accessToken, `/post-purchase/v2/claims/${claimId}/returns`),
+    optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}/affects-reputation`),
+  ]);
+  const returnData = Array.isArray(returnPayload) ? returnPayload[0] : returnPayload;
+  const returnShipment = (returnData?.shipments || [])[0] || {};
+  const returnCostData = returnData
+    ? await optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}/charges/return-cost`)
+    : null;
+  const externalOrderId = getClaimExternalOrderId(claim, returnData);
+  const externalOrder = externalOrderId
+    ? await prisma.externalOrder.findUnique({
+      where: { channel_externalOrderId: { channel: MELI_CHANNEL, externalOrderId } },
+      select: { orderId: true },
+    })
+    : null;
+  const sellerPlayer = (claim.players || []).find((player) => player.role === 'respondent');
+
+  return prisma.meliClaim.upsert({
+    where: { externalClaimId: claimId },
+    create: {
+      externalClaimId: claimId,
+      externalOrderId,
+      sellerId: sellerPlayer?.user_id ? String(sellerPlayer.user_id) : null,
+      type: claim.type || null,
+      stage: claim.stage || null,
+      status: claim.status || 'unknown',
+      resource: claim.resource || null,
+      resourceId: claim.resource_id ? String(claim.resource_id) : null,
+      reasonId: claim.reason_id || null,
+      reasonDetail: detail?.problem || null,
+      title: detail?.title || null,
+      description: detail?.description || null,
+      problem: detail?.problem || null,
+      actionResponsible: detail?.action_responsible || null,
+      dueDate: getClaimDueDate(claim, detail),
+      affectsReputation: typeof reputation?.affects_reputation === 'boolean'
+        ? reputation.affects_reputation
+        : null,
+      returnId: returnData?.id ? String(returnData.id) : null,
+      returnStatus: returnData?.status || null,
+      returnShipmentId: returnShipment.shipment_id ? String(returnShipment.shipment_id) : null,
+      returnTrackingNumber: returnShipment.tracking_number || null,
+      returnCost: returnCostData?.amount != null ? Number(returnCostData.amount) : null,
+      returnCurrency: returnCostData?.currency_id || null,
+      refundAt: returnData?.refund_at || null,
+      moneyStatus: returnData?.status_money || null,
+      rawData: claim,
+      detailData: nullableJson(detail),
+      messagesData: nullableJson(messages),
+      returnData: nullableJson(returnData),
+      historyData: nullableJson(history),
+      resolutionsData: nullableJson(resolutions),
+      orderId: externalOrder?.orderId || null,
+    },
+    update: {
+      externalOrderId,
+      sellerId: sellerPlayer?.user_id ? String(sellerPlayer.user_id) : null,
+      type: claim.type || null,
+      stage: claim.stage || null,
+      status: claim.status || 'unknown',
+      resource: claim.resource || null,
+      resourceId: claim.resource_id ? String(claim.resource_id) : null,
+      reasonId: claim.reason_id || null,
+      reasonDetail: detail?.problem || null,
+      title: detail?.title || null,
+      description: detail?.description || null,
+      problem: detail?.problem || null,
+      actionResponsible: detail?.action_responsible || null,
+      dueDate: getClaimDueDate(claim, detail),
+      affectsReputation: typeof reputation?.affects_reputation === 'boolean'
+        ? reputation.affects_reputation
+        : null,
+      returnId: returnData?.id ? String(returnData.id) : null,
+      returnStatus: returnData?.status || null,
+      returnShipmentId: returnShipment.shipment_id ? String(returnShipment.shipment_id) : null,
+      returnTrackingNumber: returnShipment.tracking_number || null,
+      returnCost: returnCostData?.amount != null ? Number(returnCostData.amount) : null,
+      returnCurrency: returnCostData?.currency_id || null,
+      refundAt: returnData?.refund_at || null,
+      moneyStatus: returnData?.status_money || null,
+      rawData: claim,
+      detailData: nullableJson(detail),
+      messagesData: nullableJson(messages),
+      returnData: nullableJson(returnData),
+      historyData: nullableJson(history),
+      resolutionsData: nullableJson(resolutions),
+      orderId: externalOrder?.orderId || null,
+      lastSyncedAt: new Date(),
+    },
+    include: {
+      order: { select: { id: true, orderNumber: true, status: true, totalPrice: true } },
+      activities: { orderBy: { createdAt: 'desc' }, take: 30 },
+    },
+  });
+};
+
+const syncMeliClaims = async (userId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  const sellerId = await getMeliSellerId(userId);
+  if (!sellerId) throw new Error('No se pudo identificar la cuenta vendedora de Mercado Libre.');
+  const { data } = await axios.get(`${MELI_API_BASE_URL}/post-purchase/v1/claims/search`, {
+    params: {
+      'players.user_id': sellerId,
+      'players.role': 'respondent',
+      limit: 100,
+      sort: 'last_updated:desc',
+    },
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const results = Array.isArray(data?.data) ? data.data : [];
+  const synced = [];
+  for (let index = 0; index < results.length; index += 5) {
+    const batch = results.slice(index, index + 5);
+    const settled = await Promise.allSettled(batch.map((claim) => syncMeliClaimById(userId, claim.id)));
+    settled.forEach((result, batchIndex) => {
+      if (result.status === 'fulfilled') synced.push(result.value);
+      else logger.warn(`[MercadoLibre] No se pudo sincronizar reclamo ${batch[batchIndex].id}: ${result.reason?.message}`);
+    });
+  }
+  return { count: synced.length, claims: synced, total: data?.paging?.total || results.length };
+};
+
+const sendMeliClaimMessage = async (userId, externalClaimId, { message, receiverRole }) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  const payload = {
+    receiver_role: receiverRole,
+    message: String(message || '').trim(),
+    attachments: [],
+  };
+  if (!payload.message) throw new Error('El mensaje no puede estar vacio.');
+  await axios.post(
+    `${MELI_API_BASE_URL}/post-purchase/v1/claims/${externalClaimId}/actions/send-message`,
+    payload,
+    { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
+  );
+  try {
+    return await syncMeliClaimById(userId, externalClaimId);
+  } catch (error) {
+    logger.warn(`[MercadoLibre] Mensaje enviado en reclamo ${externalClaimId}, pero fallo la resincronizacion: ${error.message}`);
+    return prisma.meliClaim.findUnique({ where: { externalClaimId: String(externalClaimId) } });
+  }
+};
+
+const executeMeliClaimAction = async (userId, externalClaimId, action) => {
+  const endpoints = {
+    allow_return: `/post-purchase/v1/claims/${externalClaimId}/expected-resolutions/allow-return`,
+    refund: `/post-purchase/v1/claims/${externalClaimId}/expected-resolutions/refund`,
+    open_dispute: `/post-purchase/v1/claims/${externalClaimId}/actions/open-dispute`,
+  };
+  if (!endpoints[action]) throw new Error('La accion solicitada no esta permitida por Tecnotitlan.');
+  const localClaim = await prisma.meliClaim.findUnique({ where: { externalClaimId: String(externalClaimId) } });
+  if (!localClaim) throw new Error('Sincroniza el reclamo antes de ejecutar una accion.');
+  const seller = (localClaim.rawData?.players || []).find((player) => player.role === 'respondent');
+  const available = (seller?.available_actions || []).map((entry) => typeof entry === 'string' ? entry : entry.action);
+  if (!available.includes(action)) {
+    throw new Error(`Mercado Libre no reporta la accion ${action} como disponible en este momento.`);
+  }
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  await axios.post(`${MELI_API_BASE_URL}${endpoints[action]}`, {}, {
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+  });
+  try {
+    return await syncMeliClaimById(userId, externalClaimId);
+  } catch (error) {
+    logger.warn(`[MercadoLibre] Accion ${action} aplicada en ${externalClaimId}, pero fallo la resincronizacion: ${error.message}`);
+    return prisma.meliClaim.findUnique({ where: { externalClaimId: String(externalClaimId) } });
+  }
+};
+
 const getWebhookSource = (notification = {}) => {
   if (notification.topic || notification.resource) return 'mercadolibre';
   if (notification.type || notification.action || notification.payment || notification.caller_id) return 'mercadopago';
@@ -1849,6 +2066,12 @@ const processWebhookNotification = async (notification) => {
       String(notification.topic || '').toLowerCase().includes('shipment')
       || String(notification.resource || '').toLowerCase().includes('/shipments/')
     );
+  const isClaimNotification = hasMeliOrderShape
+    && String(notification.resource || '').toLowerCase().includes('/claims/')
+    && (
+      ['post_purchase', 'claims', 'claims_actions'].includes(String(notification.topic || '').toLowerCase())
+      || (notification.actions || []).some((action) => ['claims', 'claims_actions'].includes(action))
+    );
 
   logger.info(`[Meli Webhook] Evento recibido source=${source} topic=${notification?.topic || 'sin-topic'} resource=${notification?.resource || 'sin-resource'}`);
 
@@ -1870,6 +2093,25 @@ const processWebhookNotification = async (notification) => {
   if (!hasMeliOrderShape) return;
 
   const externalOrderId = cleanMeliOrderId(notification.resource);
+
+  if (isClaimNotification) {
+    try {
+      const integration = await getIntegrationByMeliUserId(notification.user_id);
+      const claim = await syncMeliClaimById(integration?.userId || null, externalOrderId);
+      await prisma.meliClaimActivity.create({
+        data: {
+          claimId: claim.id,
+          action: 'WEBHOOK_SYNC',
+          actorName: 'Mercado Libre',
+          details: { notification },
+        },
+      });
+      return;
+    } catch (error) {
+      logger.warn(`[Meli Webhook] No se pudo actualizar reclamo ${externalOrderId}: ${error.message}`);
+      return;
+    }
+  }
 
   if (isShipmentNotification) {
     try {
@@ -2012,4 +2254,9 @@ export {
   createItemDescription,
   updateStock,
   updatePriceAndStock,
+  syncMeliClaims,
+  syncMeliClaimById,
+  sendMeliClaimMessage,
+  executeMeliClaimAction,
+  getClaimDueDate,
 };

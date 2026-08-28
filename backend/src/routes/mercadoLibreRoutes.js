@@ -12,6 +12,12 @@ import {
   getMeliItemDetails,
   getPublicationRequirements,
   syncStock,
+  getMeliClaims,
+  syncMeliClaims,
+  refreshMeliClaim,
+  updateMeliClaim,
+  sendMeliClaimMessage,
+  executeMeliClaimAction,
 } from '../controllers/mercadoLibreController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
@@ -36,5 +42,11 @@ router.put('/products/:sku/sync', protect, checkPermission('product:update'), sy
 router.post('/notifications', handleWebhookNotification);
 router.get('/webhook-events', protect, checkPermission('integration:read'), getWebhookEvents);
 router.get('/orders', protect, checkPermission('order:read'), getMeliOrders);
+router.get('/claims', protect, checkPermission('order:read', 'support:read'), getMeliClaims);
+router.post('/claims/sync', protect, checkPermission('order:update', 'support:update'), syncMeliClaims);
+router.post('/claims/:claimId/refresh', protect, checkPermission('order:update', 'support:update'), refreshMeliClaim);
+router.put('/claims/:claimId', protect, checkPermission('support:update'), updateMeliClaim);
+router.post('/claims/:claimId/messages', protect, checkPermission('support:update'), sendMeliClaimMessage);
+router.post('/claims/:claimId/actions', protect, checkPermission('support:update'), executeMeliClaimAction);
 
 export default router;

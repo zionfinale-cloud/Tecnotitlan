@@ -14,6 +14,7 @@ import {
   isRequiredMercadoLibreAttribute,
   isConditionalMercadoLibreAttribute,
 } from '../utils/mercadoLibreIdentifiers.js';
+import { BadRequestError, NotFoundError } from '../utils/errorUtils.js';
 
 const oauthStates = new Map();
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -511,6 +512,144 @@ const syncStock = asyncHandler(async (req, res) => {
   });
 });
 
+const getMeliClaims = asyncHandler(async (req, res) => {
+  const { status, internalStatus, priority } = req.query;
+  const claims = await prisma.meliClaim.findMany({
+    where: {
+      ...(status ? { status: String(status) } : {}),
+      ...(internalStatus ? { internalStatus: String(internalStatus) } : {}),
+      ...(priority ? { priority: String(priority) } : {}),
+    },
+    include: {
+      order: {
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          totalPrice: true,
+          user: { select: { firstName: true, lastName: true, email: true } },
+        },
+      },
+      activities: { orderBy: { createdAt: 'desc' }, take: 10 },
+    },
+    orderBy: [{ dueDate: 'asc' }, { updatedAt: 'desc' }],
+  });
+  res.json({ status: 'success', data: { claims } });
+});
+
+const syncMeliClaims = asyncHandler(async (req, res) => {
+  const result = await mercadoLibreService.syncMeliClaims(req.user.id);
+  res.json({
+    status: 'success',
+    message: `${result.count} reclamo(s) sincronizado(s) desde Mercado Libre.`,
+    data: result,
+  });
+});
+
+const refreshMeliClaim = asyncHandler(async (req, res) => {
+  const claim = await mercadoLibreService.syncMeliClaimById(req.user.id, req.params.claimId);
+  await prisma.meliClaimActivity.create({
+    data: {
+      claimId: claim.id,
+      action: 'MANUAL_SYNC',
+      actorId: req.user.id,
+      actorName: req.user.email,
+    },
+  });
+  res.json({ status: 'success', data: { claim } });
+});
+
+const updateMeliClaim = asyncHandler(async (req, res) => {
+  const validStatuses = ['PENDING_REVIEW', 'IN_PROGRESS', 'WAITING_BUYER', 'WAITING_MELI', 'INSPECTION', 'RESOLVED'];
+  const validInspection = ['NOT_RECEIVED', 'IN_TRANSIT', 'RECEIVED', 'INSPECTING', 'SELLABLE', 'DAMAGED', 'INCOMPLETE'];
+  const validPriorities = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
+  const current = await prisma.meliClaim.findUnique({ where: { externalClaimId: req.params.claimId } });
+  if (!current) throw new NotFoundError('Reclamo no encontrado.');
+  const { internalStatus, inspectionStatus, inspectionNotes, priority, assignedTo } = req.body;
+  if (internalStatus && !validStatuses.includes(internalStatus)) throw new BadRequestError('Estado interno invalido.');
+  if (inspectionStatus && !validInspection.includes(inspectionStatus)) throw new BadRequestError('Estado de inspeccion invalido.');
+  if (priority && !validPriorities.includes(priority)) throw new BadRequestError('Prioridad invalida.');
+  const claim = await prisma.$transaction(async (tx) => {
+    const updated = await tx.meliClaim.update({
+      where: { id: current.id },
+      data: {
+        ...(internalStatus ? { internalStatus } : {}),
+        ...(inspectionStatus ? { inspectionStatus } : {}),
+        ...(inspectionNotes !== undefined ? { inspectionNotes: String(inspectionNotes || '').slice(0, 5000) || null } : {}),
+        ...(priority ? { priority } : {}),
+        ...(assignedTo !== undefined ? { assignedTo: String(assignedTo || '').slice(0, 160) || null } : {}),
+      },
+      include: { order: true, activities: { orderBy: { createdAt: 'desc' }, take: 30 } },
+    });
+    await tx.meliClaimActivity.create({
+      data: {
+        claimId: current.id,
+        action: 'INTERNAL_UPDATE',
+        actorId: req.user.id,
+        actorName: req.user.email,
+        details: { internalStatus, inspectionStatus, priority, assignedTo },
+      },
+    });
+    return updated;
+  });
+  res.json({ status: 'success', data: { claim } });
+});
+
+const sendMeliClaimMessage = asyncHandler(async (req, res) => {
+  const receiverRole = req.body.receiverRole;
+  if (!['complainant', 'mediator'].includes(receiverRole)) throw new BadRequestError('Destinatario invalido.');
+  const claim = await mercadoLibreService.sendMeliClaimMessage(req.user.id, req.params.claimId, {
+    message: String(req.body.message || '').slice(0, 3500),
+    receiverRole,
+  });
+  await prisma.meliClaimActivity.create({
+    data: {
+      claimId: claim.id,
+      action: 'MESSAGE_SENT',
+      actorId: req.user.id,
+      actorName: req.user.email,
+      details: { receiverRole },
+    },
+  });
+  res.status(201).json({ status: 'success', message: 'Mensaje enviado por Mercado Libre.', data: { claim } });
+});
+
+const executeMeliClaimAction = asyncHandler(async (req, res) => {
+  const { action, confirmation } = req.body;
+  if (String(confirmation || '') !== String(req.params.claimId)) {
+    throw new BadRequestError('Confirma la accion escribiendo el folio exacto del reclamo.');
+  }
+  const current = await prisma.meliClaim.findUnique({ where: { externalClaimId: req.params.claimId } });
+  if (!current) throw new NotFoundError('Reclamo no encontrado.');
+  const requested = await prisma.meliClaimActivity.create({
+    data: {
+      claimId: current.id,
+      action: `MELI_ACTION_REQUESTED:${action}`,
+      actorId: req.user.id,
+      actorName: req.user.email,
+      details: { confirmedWithClaimId: true },
+    },
+  });
+  try {
+    const claim = await mercadoLibreService.executeMeliClaimAction(req.user.id, req.params.claimId, action);
+    await prisma.meliClaimActivity.create({
+      data: { claimId: current.id, action: `MELI_ACTION_APPLIED:${action}`, actorId: req.user.id, actorName: req.user.email },
+    });
+    res.json({ status: 'success', message: 'Accion aplicada y reclamo actualizado.', data: { claim } });
+  } catch (error) {
+    await prisma.meliClaimActivity.create({
+      data: {
+        claimId: current.id,
+        action: `MELI_ACTION_FAILED:${action}`,
+        actorId: req.user.id,
+        actorName: req.user.email,
+        details: { requestActivityId: requested.id, error: String(error.message || error).slice(0, 1000) },
+      },
+    });
+    throw error;
+  }
+});
+
 const disconnectMeli = asyncHandler(async (req, res) => {
   const integration = await prisma.meliIntegration.findFirst({ where: { userId: req.user.id } });
 
@@ -538,4 +677,10 @@ export {
   getMeliItemDetails,
   getPublicationRequirements,
   syncStock,
+  getMeliClaims,
+  syncMeliClaims,
+  refreshMeliClaim,
+  updateMeliClaim,
+  sendMeliClaimMessage,
+  executeMeliClaimAction,
 };
