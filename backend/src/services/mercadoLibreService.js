@@ -1237,7 +1237,7 @@ const quotePublicationCosts = async (
   let shippingQuote = null;
   let quotedPrice = null;
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     quotedPrice = recommendedPrice;
     [listingPrice, shippingQuote] = await Promise.all([
       getListingPriceQuote(userId, {
