@@ -1382,3 +1382,15 @@ Protecciones implementadas:
 - Los webhooks de envios refrescan el pedido local sin esperar una captura manual.
 - La tarjeta administrativa del pedido permite actualizar el envio y descargar/imprimir la etiqueta oficial PDF desde `/shipment_labels` cuando el envio ME2 esta `ready_to_ship` y `ready_to_print` o `printed`.
 - Las etiquetas no se inventan ni se almacenan como documentos propios: se solicitan autenticadas a Mercado Libre y se entregan al operador para impresion.
+
+## Actualizacion 2026-08-28 - Reclamos, devoluciones y comunicaciones Mercado Libre
+
+- El Centro de Reclamos conserva expediente, pedido relacionado, plazo oficial, impacto en reputacion, devolucion, rastreo, costo, estado del dinero, inspeccion y bitacora de acciones.
+- Los webhooks `post_purchase`, `claims` y `claims_actions` actualizan el expediente; las acciones monetarias o de resolucion solo se habilitan cuando Mercado Libre las reporta disponibles y exigen confirmacion del folio.
+- La bandeja **Mensajes ML** unifica preguntas preventa y conversaciones posventa sin mezclar sus reglas.
+- Las preguntas se sincronizan desde `/questions/search`, se vinculan por `meliItemId` al producto local y se responden mediante `/answers`. Los webhooks `questions` mantienen el estado actualizado.
+- Los mensajes posventa se consultan por paquete con `mark_as_read=false`, se relacionan con el pedido importado y solo se marcan como leidos cuando el operador lo solicita.
+- Tecnotitlan solo permite responder una conversacion posventa activa iniciada por el comprador. No envia mensajes automaticos repetitivos ni inicia contactos fuera del flujo autorizado por Mercado Libre.
+- Los webhooks `messages` recuperan el mensaje notificado y resincronizan la conversacion completa. La interfaz muestra contador de pendientes, alerta sonora disponible, responsable, estado interno y trazabilidad.
+- El texto posventa respeta el limite dinamico informado por Mercado Libre, normalmente 350 caracteres. La implementacion reconoce la ruta de agentes de mensajeria y conserva compatibilidad con conversaciones anteriores.
+- Las tablas `meli_questions`, `meli_post_sale_conversations`, `meli_post_sale_messages` y `meli_communication_activities` separan los datos operativos, mensajes y auditoria.

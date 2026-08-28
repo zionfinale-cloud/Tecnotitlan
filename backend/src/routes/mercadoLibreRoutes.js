@@ -18,6 +18,13 @@ import {
   updateMeliClaim,
   sendMeliClaimMessage,
   executeMeliClaimAction,
+  getMeliCommunications,
+  getMeliCommunicationCounts,
+  syncMeliCommunications,
+  answerMeliQuestion,
+  sendMeliPostSaleMessage,
+  markMeliPostSaleRead,
+  updateMeliCommunication,
 } from '../controllers/mercadoLibreController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
@@ -48,5 +55,12 @@ router.post('/claims/:claimId/refresh', protect, checkPermission('order:update',
 router.put('/claims/:claimId', protect, checkPermission('support:update'), updateMeliClaim);
 router.post('/claims/:claimId/messages', protect, checkPermission('support:update'), sendMeliClaimMessage);
 router.post('/claims/:claimId/actions', protect, checkPermission('support:update'), executeMeliClaimAction);
+router.get('/communications', protect, checkPermission('support:read', 'order:read'), getMeliCommunications);
+router.get('/communications/counts', protect, checkPermission('support:read', 'order:read'), getMeliCommunicationCounts);
+router.post('/communications/sync', protect, checkPermission('support:update', 'order:update'), syncMeliCommunications);
+router.put('/communications/:type/:externalId', protect, checkPermission('support:update'), updateMeliCommunication);
+router.post('/questions/:questionId/answer', protect, checkPermission('support:update'), answerMeliQuestion);
+router.post('/post-sale/:packId/messages', protect, checkPermission('support:update'), sendMeliPostSaleMessage);
+router.post('/post-sale/:packId/read', protect, checkPermission('support:update'), markMeliPostSaleRead);
 
 export default router;

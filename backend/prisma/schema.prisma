@@ -169,6 +169,7 @@ model Product {
   orderItems              OrderItem[]
   inventoryMovements      InventoryMovement[]
   marketplaceListings     MarketplaceListing[]
+  meliQuestions           MeliQuestion[]
 
   @@map("products")
 }
@@ -285,34 +286,35 @@ model Category {
 }
 
 model Order {
-  id               String            @id @default(cuid())
-  orderNumber      String            @unique
-  itemsPrice       Float
-  shippingPrice    Float
-  taxPrice         Float
-  paymentFee       Float
-  totalPrice       Float
-  isPaid           Boolean           @default(false)
-  paidAt           DateTime?
-  paymentMethod    String
-  salesChannel     SalesChannel      @default(WEB) @map("sales_channel")
-  isDelivered      Boolean           @default(false)
-  deliveredAt      DateTime?
-  status           OrderStatus       @default(PENDING_PAYMENT)
-  shippedAt        DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                String                     @id @default(cuid())
+  orderNumber       String                     @unique
+  itemsPrice        Float
+  shippingPrice     Float
+  taxPrice          Float
+  paymentFee        Float
+  totalPrice        Float
+  isPaid            Boolean                    @default(false)
+  paidAt            DateTime?
+  paymentMethod     String
+  salesChannel      SalesChannel               @default(WEB) @map("sales_channel")
+  isDelivered       Boolean                    @default(false)
+  deliveredAt       DateTime?
+  status            OrderStatus                @default(PENDING_PAYMENT)
+  shippedAt         DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
   // Relaciones y JSON
-  user             User              @relation(fields: [userId], references: [id])
-  userId           String
-  orderItems       OrderItem[]
-  externalOrders   ExternalOrder[]
-  shippingAddress  Json
-  paymentResult    Json?
-  shippingInfo     Json?
-  statusHistory    StatusHistory[]
-  notificationLogs NotificationLog[]
-  meliClaims       MeliClaim[]
+  user              User                       @relation(fields: [userId], references: [id])
+  userId            String
+  orderItems        OrderItem[]
+  externalOrders    ExternalOrder[]
+  shippingAddress   Json
+  paymentResult     Json?
+  shippingInfo      Json?
+  statusHistory     StatusHistory[]
+  notificationLogs  NotificationLog[]
+  meliClaims        MeliClaim[]
+  meliConversations MeliPostSaleConversation[]
 
   @@map("orders")
 }
@@ -380,6 +382,97 @@ model MeliClaimActivity {
 
   @@index([claimId, createdAt])
   @@map("meli_claim_activities")
+}
+
+model MeliQuestion {
+  id                 String    @id @default(cuid())
+  externalQuestionId String    @unique @map("external_question_id")
+  itemId             String    @map("item_id")
+  sellerId           String?   @map("seller_id")
+  buyerId            String?   @map("buyer_id")
+  status             String
+  text               String    @db.Text
+  answerText         String?   @map("answer_text") @db.Text
+  answerStatus       String?   @map("answer_status")
+  askedAt            DateTime? @map("asked_at")
+  answeredAt         DateTime? @map("answered_at")
+  assignedTo         String?   @map("assigned_to")
+  internalStatus     String    @default("PENDING") @map("internal_status")
+  rawData            Json      @map("raw_data")
+  lastSyncedAt       DateTime  @default(now()) @map("last_synced_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  product            Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productId          String?   @map("product_id")
+
+  @@index([status, askedAt])
+  @@index([internalStatus, updatedAt])
+  @@index([itemId])
+  @@index([productId])
+  @@map("meli_questions")
+}
+
+model MeliPostSaleConversation {
+  id               String                @id @default(cuid())
+  packId           String                @unique @map("pack_id")
+  sellerId         String                @map("seller_id")
+  buyerId          String?               @map("buyer_id")
+  status           String?
+  substatus        String?
+  unreadCount      Int                   @default(0) @map("unread_count")
+  maxMessageLength Int                   @default(350) @map("max_message_length")
+  assignedTo       String?               @map("assigned_to")
+  internalStatus   String                @default("PENDING") @map("internal_status")
+  lastMessageAt    DateTime?             @map("last_message_at")
+  rawData          Json?                 @map("raw_data")
+  lastSyncedAt     DateTime              @default(now()) @map("last_synced_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+  order            Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId          String?               @map("order_id")
+  messages         MeliPostSaleMessage[]
+
+  @@index([unreadCount, lastMessageAt])
+  @@index([internalStatus, updatedAt])
+  @@index([orderId])
+  @@map("meli_post_sale_conversations")
+}
+
+model MeliPostSaleMessage {
+  id                String                   @id @default(cuid())
+  externalMessageId String                   @unique @map("external_message_id")
+  fromUserId        String?                  @map("from_user_id")
+  toUserId          String?                  @map("to_user_id")
+  direction         String
+  status            String?
+  moderationStatus  String?                  @map("moderation_status")
+  text              String                   @db.Text
+  sentAt            DateTime?                @map("sent_at")
+  readAt            DateTime?                @map("read_at")
+  attachments       Json?
+  rawData           Json                     @map("raw_data")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  conversation      MeliPostSaleConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId    String                   @map("conversation_id")
+
+  @@index([conversationId, sentAt])
+  @@index([direction, readAt])
+  @@map("meli_post_sale_messages")
+}
+
+model MeliCommunicationActivity {
+  id         String   @id @default(cuid())
+  entityType String   @map("entity_type")
+  externalId String   @map("external_id")
+  action     String
+  actorId    String?  @map("actor_id")
+  actorName  String?  @map("actor_name")
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, externalId, createdAt])
+  @@map("meli_communication_activities")
 }
 
 model OrderItem {

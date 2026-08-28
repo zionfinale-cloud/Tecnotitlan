@@ -2035,6 +2035,307 @@ const executeMeliClaimAction = async (userId, externalClaimId, action) => {
   }
 };
 
+const getQuestionText = (question = {}) => String(question.text || '').trim();
+
+const syncMeliQuestionById = async (userId, externalQuestionId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  const questionId = String(externalQuestionId || '').replace(/\D/g, '');
+  if (!questionId) throw new Error('El identificador de la pregunta no es valido.');
+  const { data: question } = await axios.get(`${MELI_API_BASE_URL}/questions/${questionId}`, {
+    params: { api_version: 4 },
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const itemId = String(question.item_id || '');
+  const product = itemId ? await prisma.product.findFirst({ where: { meliItemId: itemId }, select: { id: true } }) : null;
+  const answer = question.answer || null;
+  const answered = Boolean(answer?.text);
+  return prisma.meliQuestion.upsert({
+    where: { externalQuestionId: questionId },
+    update: {
+      itemId,
+      sellerId: question.seller_id ? String(question.seller_id) : null,
+      buyerId: question.from?.id ? String(question.from.id) : null,
+      status: String(question.status || (answered ? 'ANSWERED' : 'UNANSWERED')),
+      text: getQuestionText(question),
+      answerText: answer?.text || null,
+      answerStatus: answer?.status || null,
+      askedAt: toSafeDate(question.date_created),
+      answeredAt: toSafeDate(answer?.date_created),
+      internalStatus: answered ? 'RESOLVED' : 'PENDING',
+      rawData: question,
+      productId: product?.id || null,
+      lastSyncedAt: new Date(),
+    },
+    create: {
+      externalQuestionId: questionId,
+      itemId,
+      sellerId: question.seller_id ? String(question.seller_id) : null,
+      buyerId: question.from?.id ? String(question.from.id) : null,
+      status: String(question.status || (answered ? 'ANSWERED' : 'UNANSWERED')),
+      text: getQuestionText(question),
+      answerText: answer?.text || null,
+      answerStatus: answer?.status || null,
+      askedAt: toSafeDate(question.date_created),
+      answeredAt: toSafeDate(answer?.date_created),
+      internalStatus: answered ? 'RESOLVED' : 'PENDING',
+      rawData: question,
+      productId: product?.id || null,
+      lastSyncedAt: new Date(),
+    },
+    include: { product: { select: { id: true, sku: true, name: true, meliItemId: true } } },
+  });
+};
+
+const syncMeliQuestions = async (userId) => {
+  const accessToken = await getValidAccessToken(userId);
+  const sellerId = await getMeliSellerId();
+  if (!accessToken || !sellerId) throw new Error('No hay una cuenta valida de Mercado Libre conectada.');
+  const { data } = await axios.get(`${MELI_API_BASE_URL}/questions/search`, {
+    params: { seller_id: sellerId, api_version: 4, limit: 100 },
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const questions = Array.isArray(data?.questions) ? data.questions : [];
+  const synced = [];
+  for (let index = 0; index < questions.length; index += 10) {
+    const batch = questions.slice(index, index + 10);
+    const settled = await Promise.allSettled(batch.map((question) => syncMeliQuestionById(userId, question.id)));
+    settled.forEach((result, batchIndex) => {
+      if (result.status === 'fulfilled') synced.push(result.value);
+      else logger.warn(`[MercadoLibre] No se pudo sincronizar pregunta ${batch[batchIndex].id}: ${result.reason?.message}`);
+    });
+  }
+  return { count: synced.length, total: Number(data?.total || questions.length), questions: synced };
+};
+
+const findLocalOrderForMeliPack = async (packId) => {
+  const externalOrders = await prisma.externalOrder.findMany({
+    where: { channel: MELI_CHANNEL },
+    orderBy: { importedAt: 'desc' },
+    take: 200,
+    select: { externalOrderId: true, orderId: true, rawData: true },
+  });
+  return externalOrders.find((entry) => {
+    const meliOrder = entry.rawData?.meliOrder || entry.rawData || {};
+    return String(meliOrder.pack_id || meliOrder.id || entry.externalOrderId) === String(packId);
+  }) || null;
+};
+
+const getMessageText = (message = {}) => String(
+  typeof message.text === 'string' ? message.text : message.text?.plain || ''
+).trim();
+
+const syncMeliPostSaleConversation = async (userId, packId, { markAsRead = false, unreadCount = null, persistEmpty = true } = {}) => {
+  const accessToken = await getValidAccessToken(userId);
+  const sellerId = await getMeliSellerId();
+  if (!accessToken || !sellerId) throw new Error('No hay una cuenta valida de Mercado Libre conectada.');
+  const normalizedPackId = String(packId || '').trim();
+  if (!normalizedPackId) throw new Error('El identificador del paquete no es valido.');
+  const { data } = await axios.get(`${MELI_API_BASE_URL}/messages/packs/${normalizedPackId}/sellers/${sellerId}`, {
+    params: { tag: 'post_sale', mark_as_read: markAsRead, limit: 100 },
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const messages = Array.isArray(data?.messages) ? data.messages : [];
+  const existing = await prisma.meliPostSaleConversation.findUnique({ where: { packId: normalizedPackId } });
+  if (!persistEmpty && messages.length === 0 && !existing) return null;
+  const localOrder = await findLocalOrderForMeliPack(normalizedPackId);
+  const rawOrder = localOrder?.rawData?.meliOrder || localOrder?.rawData || {};
+  const buyerId = rawOrder.buyer?.id
+    || messages.map((message) => message.from?.user_id).find((id) => String(id) !== String(sellerId))
+    || existing?.buyerId;
+  const messageDates = messages.map((message) => toSafeDate(message.message_date?.created || message.date_created || message.date)).filter(Boolean);
+  const lastMessageAt = messageDates.sort((left, right) => right - left)[0] || existing?.lastMessageAt || null;
+  const resolvedUnread = markAsRead
+    ? 0
+    : unreadCount == null
+      ? messages.filter((message) => String(message.from?.user_id) !== String(sellerId) && !message.message_date?.read).length
+      : Number(unreadCount || 0);
+  return prisma.$transaction(async (tx) => {
+    const conversation = await tx.meliPostSaleConversation.upsert({
+      where: { packId: normalizedPackId },
+      update: {
+        sellerId: String(sellerId),
+        buyerId: buyerId ? String(buyerId) : null,
+        status: data?.conversation_status?.status || null,
+        substatus: data?.conversation_status?.substatus || null,
+        unreadCount: resolvedUnread,
+        maxMessageLength: Number(data?.seller_max_message_length || 350),
+        lastMessageAt,
+        rawData: nullableJson(data),
+        orderId: localOrder?.orderId || null,
+        lastSyncedAt: new Date(),
+      },
+      create: {
+        packId: normalizedPackId,
+        sellerId: String(sellerId),
+        buyerId: buyerId ? String(buyerId) : null,
+        status: data?.conversation_status?.status || null,
+        substatus: data?.conversation_status?.substatus || null,
+        unreadCount: resolvedUnread,
+        maxMessageLength: Number(data?.seller_max_message_length || 350),
+        lastMessageAt,
+        rawData: nullableJson(data),
+        orderId: localOrder?.orderId || null,
+        lastSyncedAt: new Date(),
+      },
+    });
+    for (const message of messages) {
+      const externalMessageId = String(message.id || message.message_id || '').trim();
+      if (!externalMessageId) continue;
+      const messageData = {
+        fromUserId: message.from?.user_id ? String(message.from.user_id) : null,
+        toUserId: message.to?.user_id ? String(message.to.user_id) : null,
+        direction: String(message.from?.user_id) === String(sellerId) ? 'OUTBOUND' : 'INBOUND',
+        status: message.status || null,
+        moderationStatus: message.message_moderation?.status || message.moderation?.status || null,
+        text: getMessageText(message),
+        sentAt: toSafeDate(message.message_date?.created || message.date_created || message.date),
+        readAt: toSafeDate(message.message_date?.read || message.date_read),
+        attachments: nullableJson(message.message_attachments || message.attachments),
+        rawData: message,
+        conversationId: conversation.id,
+      };
+      await tx.meliPostSaleMessage.upsert({
+        where: { externalMessageId },
+        update: messageData,
+        create: { externalMessageId, ...messageData },
+      });
+    }
+    return tx.meliPostSaleConversation.findUnique({
+      where: { id: conversation.id },
+      include: {
+        order: { select: { id: true, orderNumber: true, status: true, totalPrice: true } },
+        messages: { orderBy: { sentAt: 'asc' } },
+      },
+    });
+  });
+};
+
+const getPackIdFromMessage = (message = {}) => {
+  const resources = message.message_resources || [];
+  const pack = resources.find((entry) => entry.name === 'packs');
+  return pack?.id || (message.resource === 'orders' ? message.resource_id : null);
+};
+
+const syncMeliMessageNotification = async (userId, messageResource) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  const messageId = String(messageResource || '').replace(/^\/+messages\//, '').replace(/^\/+/, '');
+  const { data } = await axios.get(`${MELI_API_BASE_URL}/messages/${messageId}`, {
+    params: { tag: 'post_sale' },
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const message = Array.isArray(data?.messages) ? data.messages[0] : data;
+  const packId = getPackIdFromMessage(message);
+  if (!packId) throw new Error('El mensaje no contiene un paquete u orden asociada.');
+  return syncMeliPostSaleConversation(userId, packId, { markAsRead: false, persistEmpty: true });
+};
+
+const syncMeliPostSaleConversations = async (userId) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  const { data: unreadData } = await axios.get(`${MELI_API_BASE_URL}/messages/unread`, {
+    params: { role: 'seller', tag: 'post_sale' },
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const unreadByPack = new Map((unreadData?.results || []).map((entry) => {
+    const match = String(entry.resource || '').match(/packs\/(\d+)/);
+    return [match?.[1] || '', Number(entry.count || 0)];
+  }).filter(([packId]) => packId));
+  const externalOrders = await prisma.externalOrder.findMany({
+    where: { channel: MELI_CHANNEL, orderId: { not: null } }, orderBy: { importedAt: 'desc' }, take: 50,
+    select: { externalOrderId: true, rawData: true },
+  });
+  const packIds = uniqueTruthy([
+    ...unreadByPack.keys(),
+    ...externalOrders.map((entry) => {
+      const order = entry.rawData?.meliOrder || {};
+      return order.pack_id || order.id || entry.externalOrderId;
+    }),
+  ]);
+  const synced = [];
+  for (let index = 0; index < packIds.length; index += 5) {
+    const batch = packIds.slice(index, index + 5);
+    const settled = await Promise.allSettled(batch.map((packId) => syncMeliPostSaleConversation(userId, packId, {
+      markAsRead: false,
+      unreadCount: unreadByPack.get(packId) || 0,
+      persistEmpty: unreadByPack.has(packId),
+    })));
+    settled.forEach((result, batchIndex) => {
+      if (result.status === 'fulfilled' && result.value) synced.push(result.value);
+      else if (result.status === 'rejected') logger.warn(`[MercadoLibre] No se pudo sincronizar conversacion ${batch[batchIndex]}: ${result.reason?.message}`);
+    });
+  }
+  return { count: synced.length, unread: [...unreadByPack.values()].reduce((sum, count) => sum + count, 0), conversations: synced };
+};
+
+const answerMeliQuestion = async (userId, externalQuestionId, text) => {
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  const answerText = String(text || '').trim();
+  if (!answerText) throw new Error('La respuesta no puede estar vacia.');
+  try {
+    await axios.post(`${MELI_API_BASE_URL}/answers`, {
+      question_id: Number(externalQuestionId),
+      text: answerText,
+    }, { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } });
+  } catch (error) {
+    throw new Error(getMeliErrorMessage(error, 'Mercado Libre no permitio responder esta pregunta.'));
+  }
+  try {
+    return await syncMeliQuestionById(userId, externalQuestionId);
+  } catch (error) {
+    logger.warn(`[MercadoLibre] Pregunta ${externalQuestionId} respondida, pero fallo la resincronizacion: ${error.message}`);
+    return prisma.meliQuestion.update({
+      where: { externalQuestionId: String(externalQuestionId) },
+      data: { answerText, status: 'ANSWERED', internalStatus: 'RESOLVED', answeredAt: new Date() },
+      include: { product: true },
+    });
+  }
+};
+
+const MELI_MESSAGE_AGENTS = {
+  MLM: '3037204279', MLA: '3037674934', MLB: '3037675074', MLC: '3020819166',
+  MCO: '3037204123', MLU: '3037204685',
+};
+
+const sendMeliPostSaleMessage = async (userId, packId, text) => {
+  const conversation = await prisma.meliPostSaleConversation.findUnique({
+    where: { packId: String(packId) }, include: { messages: { orderBy: { sentAt: 'desc' }, take: 1 } },
+  });
+  if (!conversation || conversation.messages.length === 0) throw new Error('El comprador debe iniciar la conversacion antes de responder.');
+  if (conversation.status && conversation.status !== 'active') throw new Error('Mercado Libre reporta esta conversacion como bloqueada o cerrada.');
+  const message = String(text || '').trim();
+  if (!message) throw new Error('El mensaje no puede estar vacio.');
+  if (message.length > conversation.maxMessageLength) throw new Error(`El mensaje supera el limite de ${conversation.maxMessageLength} caracteres.`);
+  const accessToken = await getValidAccessToken(userId);
+  if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
+  const lastMessage = conversation.messages[0];
+  const siteId = lastMessage.rawData?.site_id || 'MLM';
+  const agentPath = String(conversation.rawData?.conversation_status?.path || '').includes('/conversations/');
+  const recipientId = agentPath ? MELI_MESSAGE_AGENTS[siteId] : conversation.buyerId;
+  if (!recipientId) throw new Error('No se pudo identificar al destinatario autorizado por Mercado Libre.');
+  try {
+    await axios.post(`${MELI_API_BASE_URL}/messages/packs/${conversation.packId}/sellers/${conversation.sellerId}`, {
+      from: { user_id: conversation.sellerId },
+      to: { user_id: String(recipientId) },
+      text: message,
+    }, { params: { tag: 'post_sale' }, headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } });
+  } catch (error) {
+    throw new Error(getMeliErrorMessage(error, 'Mercado Libre no permitio enviar este mensaje.'));
+  }
+  try {
+    return await syncMeliPostSaleConversation(userId, conversation.packId, { markAsRead: true, persistEmpty: true });
+  } catch (error) {
+    logger.warn(`[MercadoLibre] Mensaje enviado en paquete ${conversation.packId}, pero fallo la resincronizacion: ${error.message}`);
+    return prisma.meliPostSaleConversation.update({
+      where: { packId: conversation.packId },
+      data: { unreadCount: 0, internalStatus: 'WAITING_CUSTOMER' },
+      include: { order: true, messages: { orderBy: { sentAt: 'asc' } } },
+    });
+  }
+};
+
 const getWebhookSource = (notification = {}) => {
   if (notification.topic || notification.resource) return 'mercadolibre';
   if (notification.type || notification.action || notification.payment || notification.caller_id) return 'mercadopago';
@@ -2074,6 +2375,9 @@ const processWebhookNotification = async (notification) => {
       ['post_purchase', 'claims', 'claims_actions'].includes(String(notification.topic || '').toLowerCase())
       || (notification.actions || []).some((action) => ['claims', 'claims_actions'].includes(action))
     );
+  const notificationTopic = String(notification.topic || '').toLowerCase();
+  const isQuestionNotification = hasMeliOrderShape && notificationTopic === 'questions';
+  const isMessageNotification = hasMeliOrderShape && notificationTopic === 'messages';
 
   logger.info(`[Meli Webhook] Evento recibido source=${source} topic=${notification?.topic || 'sin-topic'} resource=${notification?.resource || 'sin-resource'}`);
 
@@ -2095,6 +2399,32 @@ const processWebhookNotification = async (notification) => {
   if (!hasMeliOrderShape) return;
 
   const externalOrderId = cleanMeliOrderId(notification.resource);
+
+  if (isQuestionNotification) {
+    try {
+      const integration = await getIntegrationByMeliUserId(notification.user_id);
+      const question = await syncMeliQuestionById(integration?.userId || null, externalOrderId);
+      await prisma.meliCommunicationActivity.create({
+        data: { entityType: 'QUESTION', externalId: question.externalQuestionId, action: 'WEBHOOK_SYNC', actorName: 'Mercado Libre', details: { notification } },
+      });
+    } catch (error) {
+      logger.warn(`[Meli Webhook] No se pudo actualizar pregunta ${externalOrderId}: ${error.message}`);
+    }
+    return;
+  }
+
+  if (isMessageNotification) {
+    try {
+      const integration = await getIntegrationByMeliUserId(notification.user_id);
+      const conversation = await syncMeliMessageNotification(integration?.userId || null, notification.resource);
+      await prisma.meliCommunicationActivity.create({
+        data: { entityType: 'POST_SALE', externalId: conversation.packId, action: 'WEBHOOK_SYNC', actorName: 'Mercado Libre', details: { notification } },
+      });
+    } catch (error) {
+      logger.warn(`[Meli Webhook] No se pudo actualizar mensaje ${notification.resource}: ${error.message}`);
+    }
+    return;
+  }
 
   if (isClaimNotification) {
     try {
@@ -2261,4 +2591,13 @@ export {
   sendMeliClaimMessage,
   executeMeliClaimAction,
   getClaimDueDate,
+  syncMeliQuestions,
+  syncMeliQuestionById,
+  answerMeliQuestion,
+  syncMeliPostSaleConversations,
+  syncMeliPostSaleConversation,
+  syncMeliMessageNotification,
+  sendMeliPostSaleMessage,
+  getPackIdFromMessage,
+  getMessageText,
 };

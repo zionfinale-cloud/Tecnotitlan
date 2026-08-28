@@ -650,6 +650,110 @@ const executeMeliClaimAction = asyncHandler(async (req, res) => {
   }
 });
 
+const getMeliCommunications = asyncHandler(async (req, res) => {
+  const [questions, conversations, activities] = await Promise.all([
+    prisma.meliQuestion.findMany({
+      include: { product: { select: { id: true, sku: true, name: true, meliItemId: true, meliPublicationUrl: true } } },
+      orderBy: [{ askedAt: 'desc' }, { updatedAt: 'desc' }],
+      take: 200,
+    }),
+    prisma.meliPostSaleConversation.findMany({
+      include: {
+        order: { select: { id: true, orderNumber: true, status: true, totalPrice: true } },
+        messages: { orderBy: { sentAt: 'asc' } },
+      },
+      orderBy: [{ unreadCount: 'desc' }, { lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+      take: 100,
+    }),
+    prisma.meliCommunicationActivity.findMany({ orderBy: { createdAt: 'desc' }, take: 200 }),
+  ]);
+  res.json({ status: 'success', data: { questions, conversations, activities } });
+});
+
+const getMeliCommunicationCounts = asyncHandler(async (req, res) => {
+  const [unansweredQuestions, unreadMessages] = await Promise.all([
+    prisma.meliQuestion.count({ where: { status: 'UNANSWERED' } }),
+    prisma.meliPostSaleConversation.aggregate({ _sum: { unreadCount: true } }),
+  ]);
+  const unread = Number(unreadMessages._sum.unreadCount || 0);
+  res.json({ status: 'success', data: { unansweredQuestions, unreadMessages: unread, total: unansweredQuestions + unread } });
+});
+
+const syncMeliCommunications = asyncHandler(async (req, res) => {
+  const [questions, conversations] = await Promise.all([
+    mercadoLibreService.syncMeliQuestions(req.user.id),
+    mercadoLibreService.syncMeliPostSaleConversations(req.user.id),
+  ]);
+  res.json({
+    status: 'success',
+    message: 'Preguntas y mensajes sincronizados con Mercado Libre.',
+    data: { questions, conversations },
+  });
+});
+
+const answerMeliQuestion = asyncHandler(async (req, res) => {
+  const text = String(req.body.text || '').trim();
+  if (!text) throw new BadRequestError('Escribe una respuesta antes de enviarla.');
+  if (text.length > 2000) throw new BadRequestError('La respuesta no puede superar 2000 caracteres.');
+  const question = await mercadoLibreService.answerMeliQuestion(req.user.id, req.params.questionId, text);
+  await prisma.meliCommunicationActivity.create({
+    data: {
+      entityType: 'QUESTION', externalId: req.params.questionId, action: 'ANSWER_SENT',
+      actorId: req.user.id, actorName: req.user.email,
+    },
+  });
+  res.status(201).json({ status: 'success', message: 'Respuesta publicada en Mercado Libre.', data: { question } });
+});
+
+const sendMeliPostSaleMessage = asyncHandler(async (req, res) => {
+  const text = String(req.body.text || '').trim();
+  if (!text) throw new BadRequestError('Escribe un mensaje antes de enviarlo.');
+  const conversation = await mercadoLibreService.sendMeliPostSaleMessage(req.user.id, req.params.packId, text);
+  await prisma.meliCommunicationActivity.create({
+    data: {
+      entityType: 'POST_SALE', externalId: req.params.packId, action: 'MESSAGE_SENT',
+      actorId: req.user.id, actorName: req.user.email,
+    },
+  });
+  res.status(201).json({ status: 'success', message: 'Mensaje enviado por Mercado Libre.', data: { conversation } });
+});
+
+const markMeliPostSaleRead = asyncHandler(async (req, res) => {
+  const conversation = await mercadoLibreService.syncMeliPostSaleConversation(req.user.id, req.params.packId, {
+    markAsRead: true,
+    persistEmpty: true,
+  });
+  await prisma.meliCommunicationActivity.create({
+    data: {
+      entityType: 'POST_SALE', externalId: req.params.packId, action: 'MARKED_READ',
+      actorId: req.user.id, actorName: req.user.email,
+    },
+  });
+  res.json({ status: 'success', data: { conversation } });
+});
+
+const updateMeliCommunication = asyncHandler(async (req, res) => {
+  const { type, externalId } = req.params;
+  const { assignedTo, internalStatus } = req.body;
+  const validStatuses = ['PENDING', 'IN_PROGRESS', 'WAITING_CUSTOMER', 'RESOLVED'];
+  if (internalStatus && !validStatuses.includes(internalStatus)) throw new BadRequestError('Estado interno invalido.');
+  const data = {
+    ...(assignedTo !== undefined ? { assignedTo: String(assignedTo || '').slice(0, 160) || null } : {}),
+    ...(internalStatus ? { internalStatus } : {}),
+  };
+  let entity;
+  if (type === 'question') entity = await prisma.meliQuestion.update({ where: { externalQuestionId: externalId }, data });
+  else if (type === 'post-sale') entity = await prisma.meliPostSaleConversation.update({ where: { packId: externalId }, data });
+  else throw new BadRequestError('Tipo de comunicacion invalido.');
+  await prisma.meliCommunicationActivity.create({
+    data: {
+      entityType: type === 'question' ? 'QUESTION' : 'POST_SALE', externalId, action: 'INTERNAL_UPDATE',
+      actorId: req.user.id, actorName: req.user.email, details: { assignedTo, internalStatus },
+    },
+  });
+  res.json({ status: 'success', data: { entity } });
+});
+
 const disconnectMeli = asyncHandler(async (req, res) => {
   const integration = await prisma.meliIntegration.findFirst({ where: { userId: req.user.id } });
 
@@ -683,4 +787,11 @@ export {
   updateMeliClaim,
   sendMeliClaimMessage,
   executeMeliClaimAction,
+  getMeliCommunications,
+  getMeliCommunicationCounts,
+  syncMeliCommunications,
+  answerMeliQuestion,
+  sendMeliPostSaleMessage,
+  markMeliPostSaleRead,
+  updateMeliCommunication,
 };

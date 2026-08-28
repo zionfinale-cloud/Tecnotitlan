@@ -32,6 +32,7 @@ const navGroups = [
             { to: '/mail', icon: 'fa-envelope', text: 'Correo', anyPermission: ['mail:read', 'mail:send'] },
             { to: '/admin/support', icon: 'fa-headset', text: 'Soporte', permission: 'support:read' },
             { to: '/admin/meli-claims', icon: 'fa-undo-alt', text: 'Reclamos ML', anyPermission: ['support:read', 'order:read'] },
+            { to: '/admin/meli-communications', icon: 'fa-comments-dollar', text: 'Mensajes ML', anyPermission: ['support:read', 'order:read'] },
         ],
     },
     {
@@ -72,7 +73,9 @@ const AdminLayout = () => {
     const { userInfo } = useContext(AuthContext);
     const [collapsed, setCollapsed] = useState(() => localStorage.getItem('tecnotitlan-admin-sidebar') === 'collapsed');
     const [whatsappUnread, setWhatsappUnread] = useState(0);
+    const [meliUnread, setMeliUnread] = useState(0);
     const previousWhatsappUnread = useRef(0);
+    const previousMeliUnread = useRef(0);
     const isSuperAdmin = checkIsSuperAdmin(userInfo);
 
     const toggleSidebar = () => {
@@ -97,6 +100,7 @@ const AdminLayout = () => {
     const visibleLinks = visibleGroups.flatMap((group) => group.links);
 
     const canPollWhatsApp = visibleLinks.some((item) => item.to === '/admin/whatsapp-chat');
+    const canPollMeli = visibleLinks.some((item) => item.to === '/admin/meli-communications');
 
     useEffect(() => {
         if (!canPollWhatsApp) return undefined;
@@ -125,8 +129,35 @@ const AdminLayout = () => {
         return () => window.clearInterval(timer);
     }, [canPollWhatsApp]);
 
+    useEffect(() => {
+        if (!canPollMeli) return undefined;
+        const loadMeliUnread = async () => {
+            try {
+                const { data } = await api.get('/mercadolibre/communications/counts');
+                const totalUnread = Number(data.data?.total || 0);
+                if (previousMeliUnread.current > 0 && totalUnread > previousMeliUnread.current) {
+                    playNotificationSound();
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification('Atención Mercado Libre', {
+                            body: `Tienes ${totalUnread - previousMeliUnread.current} contacto(s) nuevo(s).`,
+                        });
+                    }
+                }
+                previousMeliUnread.current = totalUnread;
+                setMeliUnread(totalUnread);
+            } catch (error) {
+                // La bandeja no debe bloquear el panel si la integración aún no está lista.
+            }
+        };
+        loadMeliUnread();
+        const timer = window.setInterval(loadMeliUnread, 30000);
+        return () => window.clearInterval(timer);
+    }, [canPollMeli]);
+
     const renderLinkContent = (item) => {
-        const unreadCount = item.to === '/admin/whatsapp-chat' ? whatsappUnread : 0;
+        const unreadCount = item.to === '/admin/whatsapp-chat'
+            ? whatsappUnread
+            : item.to === '/admin/meli-communications' ? meliUnread : 0;
         return (
             <>
                 <div className={styles.iconContainer}>
