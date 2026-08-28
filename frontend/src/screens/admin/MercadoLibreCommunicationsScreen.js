@@ -38,7 +38,20 @@ const MercadoLibreCommunicationsScreen = () => {
     } finally { if (!silent) setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    let active = true;
+    const bootstrap = async () => {
+      await load();
+      try {
+        await api.post('/mercadolibre/communications/sync');
+        if (active) await load({ silent: true });
+      } catch (syncError) {
+        // La bandeja local sigue disponible si Mercado Libre esta temporalmente fuera de linea.
+      }
+    };
+    bootstrap();
+    return () => { active = false; };
+  }, []);
 
   const items = useMemo(() => [
     ...questions.map((question) => ({

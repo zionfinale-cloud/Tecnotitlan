@@ -1391,6 +1391,6 @@ Protecciones implementadas:
 - Las preguntas se sincronizan desde `/questions/search`, se vinculan por `meliItemId` al producto local y se responden mediante `/answers`. Los webhooks `questions` mantienen el estado actualizado.
 - Los mensajes posventa se consultan por paquete con `mark_as_read=false`, se relacionan con el pedido importado y solo se marcan como leidos cuando el operador lo solicita.
 - Tecnotitlan solo permite responder una conversacion posventa activa iniciada por el comprador. No envia mensajes automaticos repetitivos ni inicia contactos fuera del flujo autorizado por Mercado Libre.
-- Los webhooks `messages` recuperan el mensaje notificado y resincronizan la conversacion completa. La interfaz muestra contador de pendientes, alerta sonora disponible, responsable, estado interno y trazabilidad.
+- Los webhooks `messages` recuperan el mensaje notificado y resincronizan la conversacion completa. Como respaldo, la bandeja consulta preguntas y pendientes al abrirse. La interfaz muestra contador, alerta sonora disponible, responsable, estado interno y trazabilidad.
 - El texto posventa respeta el limite dinamico informado por Mercado Libre, normalmente 350 caracteres. La implementacion reconoce la ruta de agentes de mensajeria y conserva compatibilidad con conversaciones anteriores.
 - Las tablas `meli_questions`, `meli_post_sale_conversations`, `meli_post_sale_messages` y `meli_communication_activities` separan los datos operativos, mensajes y auditoria.
