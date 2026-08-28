@@ -1960,18 +1960,19 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
 const syncMeliClaims = async (userId) => {
   const accessToken = await getValidAccessToken(userId);
   if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
-  const sellerId = await getMeliSellerId(userId);
-  if (!sellerId) throw new Error('No se pudo identificar la cuenta vendedora de Mercado Libre.');
-  const { data } = await axios.get(`${MELI_API_BASE_URL}/post-purchase/v1/claims/search`, {
-    params: {
-      'players.user_id': sellerId,
-      'players.role': 'respondent',
-      limit: 100,
-      sort: 'last_updated:desc',
+  const responses = await Promise.all(['opened', 'closed'].map((status) => axios.get(
+    `${MELI_API_BASE_URL}/post-purchase/v1/claims/search`,
+    {
+      params: { status, limit: 100, sort: 'last_updated:desc' },
+      headers: { Authorization: `Bearer ${accessToken}` },
     },
-    headers: { Authorization: `Bearer ${accessToken}` },
+  )));
+  const claimsById = new Map();
+  responses.forEach(({ data }) => {
+    const statusClaims = Array.isArray(data?.data) ? data.data : [];
+    statusClaims.forEach((claim) => claimsById.set(String(claim.id), claim));
   });
-  const results = Array.isArray(data?.data) ? data.data : [];
+  const results = [...claimsById.values()];
   const synced = [];
   for (let index = 0; index < results.length; index += 5) {
     const batch = results.slice(index, index + 5);
@@ -1981,7 +1982,8 @@ const syncMeliClaims = async (userId) => {
       else logger.warn(`[MercadoLibre] No se pudo sincronizar reclamo ${batch[batchIndex].id}: ${result.reason?.message}`);
     });
   }
-  return { count: synced.length, claims: synced, total: data?.paging?.total || results.length };
+  const total = responses.reduce((sum, { data }) => sum + Number(data?.paging?.total || 0), 0);
+  return { count: synced.length, claims: synced, total: total || results.length };
 };
 
 const sendMeliClaimMessage = async (userId, externalClaimId, { message, receiverRole }) => {
