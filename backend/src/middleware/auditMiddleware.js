@@ -16,7 +16,8 @@ export const auditMutations = (req, res, next) => {
     return next();
   }
   res.on('finish', () => {
-    if (!req.user && !req.auditActor && !/\/api\/users\/(login|logout)/.test(req.originalUrl)) return;
+    const publicAuthAttempt = /\/api\/(users\/(login|logout)|security\/2fa\/verify-login)/.test(req.originalUrl);
+    if (!req.user && !req.auditActor && !publicAuthAttempt) return;
     void writeAuditLog({
       req,
       category: categoryFor(req.originalUrl),
