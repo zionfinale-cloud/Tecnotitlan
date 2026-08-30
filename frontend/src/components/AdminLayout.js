@@ -28,6 +28,7 @@ const navGroups = [
         label: 'Atencion',
         links: [
             { to: '/admin/inbox', icon: 'fa-inbox', text: 'Bandeja unificada', anyPermission: ['support:read', 'order:read', 'whatsapp:chat'] },
+            { to: '/admin/returns', icon: 'fa-box-open', text: 'Devoluciones y cuarentena', anyPermission: ['support:read', 'order:read', 'product:read'] },
             { to: '/admin/whatsapp-chat', icon: 'fa-comments', text: 'WhatsApp', anyPermission: ['whatsapp:chat', 'support:update'] },
             { to: '/admin/tecatl', icon: 'fa-robot', text: 'Tecatl', anyPermission: ['tecatl:read', 'tecatl:reply', 'tecatl:knowledge'] },
             { to: '/mail', icon: 'fa-envelope', text: 'Correo', anyPermission: ['mail:read', 'mail:send'] },

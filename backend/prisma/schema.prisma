@@ -128,40 +128,40 @@ model UserPermissionDeny {
 }
 
 model Product {
-  id                      String               @id @default(cuid())
-  sku                     String               @unique
+  id                      String                 @id @default(cuid())
+  sku                     String                 @unique
   name                    String
-  shortDescription        String?              @map("short_description") @db.VarChar(280)
-  gtin                    String?              @db.VarChar(14)
-  description             String               @db.Text
+  shortDescription        String?                @map("short_description") @db.VarChar(280)
+  gtin                    String?                @db.VarChar(14)
+  description             String                 @db.Text
   price                   Float
-  costPrice               Float?               @default(0)
+  costPrice               Float?                 @default(0)
   brand                   String?
-  countInStock            Int                  @default(0)
-  productType             ProductType          @default(IN_HOUSE)
+  countInStock            Int                    @default(0)
+  productType             ProductType            @default(IN_HOUSE)
   supplierInfo            String?
-  supplierStock           Int                  @default(0) @map("supplier_stock")
-  supplierStockUnlimited  Boolean              @default(false) @map("supplier_stock_unlimited")
-  supplierLeadTimeMinutes Int                  @default(60) @map("supplier_lead_time_minutes")
-  shippingPayer           ShippingPayer        @default(CUSTOMER) @map("shipping_payer")
-  shippingCostEstimate    Float?               @default(0) @map("shipping_cost_estimate")
-  weightKg                Float?               @map("weight_kg")
-  lengthCm                Float?               @map("length_cm")
-  widthCm                 Float?               @map("width_cm")
-  heightCm                Float?               @map("height_cm")
-  isArchived              Boolean              @default(false)
-  rating                  Float                @default(0)
-  numReviews              Int                  @default(0)
-  meliItemId              String?              @unique
+  supplierStock           Int                    @default(0) @map("supplier_stock")
+  supplierStockUnlimited  Boolean                @default(false) @map("supplier_stock_unlimited")
+  supplierLeadTimeMinutes Int                    @default(60) @map("supplier_lead_time_minutes")
+  shippingPayer           ShippingPayer          @default(CUSTOMER) @map("shipping_payer")
+  shippingCostEstimate    Float?                 @default(0) @map("shipping_cost_estimate")
+  weightKg                Float?                 @map("weight_kg")
+  lengthCm                Float?                 @map("length_cm")
+  widthCm                 Float?                 @map("width_cm")
+  heightCm                Float?                 @map("height_cm")
+  isArchived              Boolean                @default(false)
+  rating                  Float                  @default(0)
+  numReviews              Int                    @default(0)
+  meliItemId              String?                @unique
   meliPublicationUrl      String?
-  youtubeUrl              String?              @db.Text
+  youtubeUrl              String?                @db.Text
   lastMeliSync            DateTime?
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
   // Relaciones
-  user                    User                 @relation(fields: [userId], references: [id])
+  user                    User                   @relation(fields: [userId], references: [id])
   userId                  String
-  category                Category             @relation(fields: [categoryId], references: [id])
+  category                Category               @relation(fields: [categoryId], references: [id])
   categoryId              String
   media                   Media[]
   characteristics         Characteristic[]
@@ -170,6 +170,7 @@ model Product {
   inventoryMovements      InventoryMovement[]
   marketplaceListings     MarketplaceListing[]
   meliQuestions           MeliQuestion[]
+  returnInspectionItems   ReturnInspectionItem[]
 
   @@map("products")
 }
@@ -316,53 +317,55 @@ model Order {
   meliClaims        MeliClaim[]
   meliConversations MeliPostSaleConversation[]
   inboxLinks        UnifiedInboxLink[]
+  returnInspections ReturnInspectionCase[]
 
   @@map("orders")
 }
 
 model MeliClaim {
-  id                   String              @id @default(cuid())
-  externalClaimId      String              @unique @map("external_claim_id")
-  externalOrderId      String?             @map("external_order_id")
-  sellerId             String?             @map("seller_id")
+  id                   String                @id @default(cuid())
+  externalClaimId      String                @unique @map("external_claim_id")
+  externalOrderId      String?               @map("external_order_id")
+  sellerId             String?               @map("seller_id")
   type                 String?
   stage                String?
   status               String
   resource             String?
-  resourceId           String?             @map("resource_id")
-  reasonId             String?             @map("reason_id")
-  reasonDetail         String?             @map("reason_detail") @db.Text
+  resourceId           String?               @map("resource_id")
+  reasonId             String?               @map("reason_id")
+  reasonDetail         String?               @map("reason_detail") @db.Text
   title                String?
-  description          String?             @db.Text
-  problem              String?             @db.Text
-  actionResponsible    String?             @map("action_responsible")
-  dueDate              DateTime?           @map("due_date")
-  affectsReputation    Boolean?            @map("affects_reputation")
-  returnId             String?             @map("return_id")
-  returnStatus         String?             @map("return_status")
-  returnShipmentId     String?             @map("return_shipment_id")
-  returnTrackingNumber String?             @map("return_tracking_number")
-  returnCost           Float?              @map("return_cost")
-  returnCurrency       String?             @map("return_currency")
-  refundAt             String?             @map("refund_at")
-  moneyStatus          String?             @map("money_status")
-  internalStatus       String              @default("PENDING_REVIEW") @map("internal_status")
-  priority             TicketPriority      @default(HIGH)
-  assignedTo           String?             @map("assigned_to")
-  inspectionStatus     String              @default("NOT_RECEIVED") @map("inspection_status")
-  inspectionNotes      String?             @map("inspection_notes") @db.Text
-  rawData              Json                @map("raw_data")
-  detailData           Json?               @map("detail_data")
-  messagesData         Json?               @map("messages_data")
-  returnData           Json?               @map("return_data")
-  historyData          Json?               @map("history_data")
-  resolutionsData      Json?               @map("resolutions_data")
-  lastSyncedAt         DateTime            @default(now()) @map("last_synced_at")
-  createdAt            DateTime            @default(now()) @map("created_at")
-  updatedAt            DateTime            @updatedAt @map("updated_at")
-  order                Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  orderId              String?             @map("order_id")
+  description          String?               @db.Text
+  problem              String?               @db.Text
+  actionResponsible    String?               @map("action_responsible")
+  dueDate              DateTime?             @map("due_date")
+  affectsReputation    Boolean?              @map("affects_reputation")
+  returnId             String?               @map("return_id")
+  returnStatus         String?               @map("return_status")
+  returnShipmentId     String?               @map("return_shipment_id")
+  returnTrackingNumber String?               @map("return_tracking_number")
+  returnCost           Float?                @map("return_cost")
+  returnCurrency       String?               @map("return_currency")
+  refundAt             String?               @map("refund_at")
+  moneyStatus          String?               @map("money_status")
+  internalStatus       String                @default("PENDING_REVIEW") @map("internal_status")
+  priority             TicketPriority        @default(HIGH)
+  assignedTo           String?               @map("assigned_to")
+  inspectionStatus     String                @default("NOT_RECEIVED") @map("inspection_status")
+  inspectionNotes      String?               @map("inspection_notes") @db.Text
+  rawData              Json                  @map("raw_data")
+  detailData           Json?                 @map("detail_data")
+  messagesData         Json?                 @map("messages_data")
+  returnData           Json?                 @map("return_data")
+  historyData          Json?                 @map("history_data")
+  resolutionsData      Json?                 @map("resolutions_data")
+  lastSyncedAt         DateTime              @default(now()) @map("last_synced_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  order                Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId              String?               @map("order_id")
   activities           MeliClaimActivity[]
+  returnInspection     ReturnInspectionCase?
 
   @@index([status, dueDate])
   @@index([internalStatus, priority])
@@ -510,18 +513,75 @@ model UnifiedInboxReply {
   @@map("unified_inbox_replies")
 }
 
+model ReturnInspectionCase {
+  id                 String                 @id @default(cuid())
+  caseNumber         String                 @unique @map("case_number")
+  source             String                 @default("MANUAL")
+  status             String                 @default("QUARANTINED")
+  quarantineLocation String                 @map("quarantine_location")
+  packageCondition   String?                @map("package_condition")
+  sealedPackage      Boolean?               @map("sealed_package")
+  receptionEvidence  Json?                  @map("reception_evidence")
+  notes              String?                @db.Text
+  receivedAt         DateTime               @default(now()) @map("received_at")
+  receivedById       String?                @map("received_by_id")
+  receivedBy         String?                @map("received_by")
+  finalizedAt        DateTime?              @map("finalized_at")
+  finalizedById      String?                @map("finalized_by_id")
+  finalizedBy        String?                @map("finalized_by")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  order              Order                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId            String                 @map("order_id")
+  claim              MeliClaim?             @relation(fields: [claimId], references: [id], onDelete: SetNull)
+  claimId            String?                @unique @map("claim_id")
+  items              ReturnInspectionItem[]
+
+  @@index([status, receivedAt])
+  @@index([orderId, createdAt])
+  @@map("return_inspection_cases")
+}
+
+model ReturnInspectionItem {
+  id             String               @id @default(cuid())
+  expectedQty    Int                  @map("expected_qty")
+  receivedQty    Int                  @map("received_qty")
+  inspectedQty   Int                  @default(0) @map("inspected_qty")
+  condition      String               @default("PENDING")
+  disposition    String               @default("HOLD")
+  serialNumbers  Json?                @map("serial_numbers")
+  evidenceUrls   Json?                @map("evidence_urls")
+  checklist      Json?
+  notes          String?              @db.Text
+  releasedQty    Int                  @default(0) @map("released_qty")
+  releasedAt     DateTime?            @map("released_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  inspectionCase ReturnInspectionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId         String               @map("case_id")
+  orderItem      OrderItem            @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  orderItemId    String               @map("order_item_id")
+  product        Product              @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productId      String               @map("product_id")
+
+  @@unique([caseId, orderItemId])
+  @@index([productId, disposition])
+  @@map("return_inspection_items")
+}
+
 model OrderItem {
-  id        String  @id @default(cuid())
-  name      String
-  qty       Int
-  image     String?
-  price     Float
-  unitCost  Float   @default(0) @map("unit_cost")
+  id                    String                 @id @default(cuid())
+  name                  String
+  qty                   Int
+  image                 String?
+  price                 Float
+  unitCost              Float                  @default(0) @map("unit_cost")
   // Relaciones
-  order     Order   @relation(fields: [orderId], references: [id])
-  orderId   String
-  product   Product @relation(fields: [productId], references: [id])
-  productId String
+  order                 Order                  @relation(fields: [orderId], references: [id])
+  orderId               String
+  product               Product                @relation(fields: [productId], references: [id])
+  productId             String
+  returnInspectionItems ReturnInspectionItem[]
 
   @@map("order_items")
 }

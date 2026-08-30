@@ -1404,3 +1404,13 @@ Protecciones implementadas:
 - Las respuestas se envian mediante el canal original y respetan sus reglas: WhatsApp, correo de soporte, respuestas preventa, mensajes posventa, reclamos o escalamiento Tecatl. El backend vuelve a validar permisos por origen y el estado que permita responder.
 - Las tablas `unified_inbox_links` y `unified_inbox_replies` conservan los vínculos confirmados y la trazabilidad de respuestas. Ninguna coincidencia parcial o difusa vincula automaticamente datos de clientes distintos.
 - El menu muestra un contador agregado de conversaciones pendientes y la bandeja se actualiza cada 30 segundos sin interrumpir el trabajo del operador.
+
+## Actualizacion 2026-08-30 - Inspeccion y cuarentena de devoluciones
+
+- La ruta **Atencion > Devoluciones y cuarentena** controla la recepcion fisica de devoluciones asociadas a un pedido y, cuando corresponde, a un reclamo de Mercado Libre.
+- Al recibir un paquete se registra ubicacion de cuarentena, condicion del empaque, sello, evidencia, notas y cantidades reales por producto. La recepcion no modifica `Product.countInStock` ni el stock de ningun marketplace.
+- Cada pieza conserva pedido, SKU, cantidad esperada y recibida, numeros de serie, evidencia fotografica, hallazgos y una lista obligatoria de verificacion: serie, accesorios, funcionamiento, estetica y empaque.
+- Los dictamenes disponibles son: mantener en cuarentena, reintegrar a bodega, reacondicionar, devolver a proveedor o dar de baja. No puede aplicarse un destino final mientras falten piezas por inspeccionar, condicion fisica, checklist o evidencia/notas suficientes.
+- Unicamente **Reintegrar a bodega** crea un movimiento `RETURN_IN` con `referenceType=RETURN_INSPECTION` y aumenta el stock Web/bodega. Dañados, incompletos, reacondicionamiento, proveedor y baja nunca se vuelven vendibles automaticamente.
+- La finalizacion es idempotente por pieza: repetir la solicitud no duplica inventario. El expediente guarda quién recibio, quién finalizo, fechas y ubicacion; el reclamo Mercado Libre recibe el resultado de inspeccion y una actividad de auditoria.
+- Las recepciones parciales estan permitidas, pero la suma de todos los expedientes nunca puede superar la cantidad vendida en el pedido.
