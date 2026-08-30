@@ -1414,3 +1414,16 @@ Protecciones implementadas:
 - Unicamente **Reintegrar a bodega** crea un movimiento `RETURN_IN` con `referenceType=RETURN_INSPECTION` y aumenta el stock Web/bodega. Dañados, incompletos, reacondicionamiento, proveedor y baja nunca se vuelven vendibles automaticamente.
 - La finalizacion es idempotente por pieza: repetir la solicitud no duplica inventario. El expediente guarda quién recibio, quién finalizo, fechas y ubicacion; el reclamo Mercado Libre recibe el resultado de inspeccion y una actividad de auditoria.
 - Las recepciones parciales estan permitidas, pero la suma de todos los expedientes nunca puede superar la cantidad vendida en el pedido.
+
+## Actualizacion 2026-08-30 - SLA, alertas, plantillas y calidad
+
+- Cada expediente de la bandeja unificada calcula un objetivo de primera respuesta según canal y prioridad. WhatsApp y Tecatl tienen ventanas cortas; soporte, preguntas, posventa y reclamos usan ventanas propias, ajustadas para prioridades alta y urgente.
+- El reloj sólo corre cuando existe un mensaje pendiente real (`unreadCount > 0`) y no hay una respuesta posterior. Los estados son `ON_TRACK`, `AT_RISK`, `BREACHED` y `MET`; las conversaciones ya leidas no generan falsos vencimientos.
+- Un monitor interno revisa la bandeja cada cinco minutos y registra alertas por vencer o vencidas en `NotificationLog`. La deduplicacion de doce horas evita inundar al equipo por el mismo expediente.
+- La pantalla **Atencion > SLA y calidad** muestra cumplimiento, primera respuesta promedio, vencimientos, riesgo y rendimiento por canal. La bandeja muestra el objetivo, tiempo restante y fecha limite junto a cada conversación.
+- Las plantillas se administran por canal y categoria. Admiten `customer_name`, `order_number`, `agent_name` y `agent_note`; siempre se insertan como borrador para que un agente revise el texto antes de enviarlo.
+- La calidad se evalua del 1 al 5 en claridad, empatia, exactitud, resolucion y cumplimiento. Cada revision guarda promedio, notas, revisor, canal, expediente y fecha para conservar trazabilidad.
+- Las tablas `inbox_response_templates` e `inbox_quality_reviews` separan contenido operativo y evaluaciones. La migracion incluye plantillas iniciales de seguimiento, reclamo, evidencia y cierre.
+- El dashboard ejecutivo incorpora analitica propia de vistas: total, vistas del dia, visitantes aproximados, paginas por visitante, paginas de entrada, fuente, referente, dispositivo y pais cuando el proxy entrega ese dato.
+- La medicion excluye rutas administrativas y robots, respeta `Do Not Track`, elimina parametros sensibles al guardar sólo `pathname` y deduplica recargas del mismo visitante/pagina durante 30 segundos.
+- La IP nunca se almacena. Para estimar visitantes se genera un hash SHA-256 diario con secreto del servidor, IP y agente de usuario; el identificador cambia cada dia y no permite recuperar la IP original.

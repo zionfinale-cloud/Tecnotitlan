@@ -5,6 +5,7 @@ import * as whatsappService from '../services/whatsappService.js';
 import * as mercadoLibreService from '../services/mercadoLibreService.js';
 import { sendTransactionalMail } from '../services/emailService.js';
 import { normalizeInboxValue, findAutomaticInboxOrder } from '../utils/unifiedInboxMatcher.js';
+import { evaluateInboxSla } from '../utils/inboxSla.js';
 
 const SOURCE_TYPES = new Set(['WHATSAPP', 'SUPPORT', 'MELI_QUESTION', 'MELI_POST_SALE', 'MELI_CLAIM', 'TECATL']);
 const canReplyToSource = (user, sourceType) => {
@@ -163,8 +164,10 @@ const buildInboxItems = ({ orders, explicitLinks, repliesBySource, whatsapp, tic
       deepLink: '/admin/tecatl', canReply: openHandoff,
     }, buildLink('TECATL', conversation.id, explicitLinks, automatic)));
   });
-  return items.sort((left, right) => new Date(right.timestamp || 0) - new Date(left.timestamp || 0));
+  return items.map((item) => ({ ...item, sla: evaluateInboxSla(item) })).sort((left, right) => new Date(right.timestamp || 0) - new Date(left.timestamp || 0));
 };
+
+const getInboxItemsSnapshot = async () => buildInboxItems(await loadInboxData());
 
 const getUnifiedInbox = asyncHandler(async (req, res) => {
   const data = await loadInboxData();
@@ -291,4 +294,4 @@ const replyUnifiedInbox = asyncHandler(async (req, res) => {
   res.status(201).json({ status: 'success', message: 'Respuesta enviada desde la bandeja unificada.', data: { result } });
 });
 
-export { getUnifiedInbox, getUnifiedInboxCounts, searchInboxOrders, linkInboxOrder, unlinkInboxOrder, replyUnifiedInbox };
+export { getUnifiedInbox, getUnifiedInboxCounts, searchInboxOrders, linkInboxOrder, unlinkInboxOrder, replyUnifiedInbox, getInboxItemsSnapshot };

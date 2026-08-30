@@ -1,0 +1,10 @@
+import express from 'express';
+import rateLimit from 'express-rate-limit';
+import { recordPageView, getAnalyticsDashboard } from '../controllers/analyticsController.js';
+import { protect } from '../middleware/authMiddleware.js';
+import { checkPermission } from '../middleware/permissionMiddleware.js';
+const router = express.Router();
+const viewLimiter = rateLimit({ windowMs: 60000, limit: 120, standardHeaders: true, legacyHeaders: false });
+router.post('/view', viewLimiter, recordPageView);
+router.get('/dashboard', protect, checkPermission('report:read', 'order:read'), getAnalyticsDashboard);
+export default router;

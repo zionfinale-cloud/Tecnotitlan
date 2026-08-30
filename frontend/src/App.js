@@ -60,6 +60,8 @@ import MercadoLibreClaimsScreen from './screens/admin/MercadoLibreClaimsScreen';
 import MercadoLibreCommunicationsScreen from './screens/admin/MercadoLibreCommunicationsScreen';
 import UnifiedInboxScreen from './screens/admin/UnifiedInboxScreen';
 import ReturnInspectionScreen from './screens/admin/ReturnInspectionScreen';
+import ServiceQualityScreen from './screens/admin/ServiceQualityScreen';
+import PageViewTracker from './components/PageViewTracker';
 import VerifyAccountScreen from './screens/VerifyAccountScreen';
 
 // --- Configuración de PayPal ---
@@ -79,6 +81,7 @@ function App() {
                             <NotificationProvider>
                                 <ToastProvider>
                                     <BrowserRouter>
+                                        <PageViewTracker />
                                         <Routes>
                                             {/* --- Rutas Públicas y de Cliente (Usan el Layout Principal) --- */}
                                             <Route path="/" element={<Layout />}>
@@ -133,6 +136,7 @@ function App() {
                                                 <Route path="meli-communications" element={<MercadoLibreCommunicationsScreen />} />
                                                 <Route path="inbox" element={<UnifiedInboxScreen />} />
                                                 <Route path="returns" element={<ReturnInspectionScreen />} />
+                                                <Route path="service-quality" element={<ServiceQualityScreen />} />
                                                 
                                                 {/* Sub-rutas de Configuración */}
                                                 <Route path="settings" element={<SettingsPage />}>

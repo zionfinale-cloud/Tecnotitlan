@@ -37,6 +37,9 @@ import tecatlAdminRoutes from './routes/tecatlAdminRoutes.js';
 import notificationLogRoutes from './routes/notificationLogRoutes.js';
 import unifiedInboxRoutes from './routes/unifiedInboxRoutes.js';
 import returnInspectionRoutes from './routes/returnInspectionRoutes.js';
+import serviceQualityRoutes from './routes/serviceQualityRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
+import { startSlaMonitor, stopSlaMonitor } from './services/serviceQualityService.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
@@ -172,6 +175,8 @@ app.use(express.json());
     app.use('/api/notification-logs', notificationLogRoutes);
     app.use('/api/unified-inbox', unifiedInboxRoutes);
     app.use('/api/return-inspections', returnInspectionRoutes);
+    app.use('/api/service-quality', serviceQualityRoutes);
+    app.use('/api/analytics', analyticsRoutes);
 
 // Los archivos de producto viven en el volumen persistente montado en /app/uploads.
 // `process.cwd()` es /app dentro del contenedor y D:\Tecnotitlan en desarrollo.
@@ -209,6 +214,7 @@ serverReadyPromise = startServer();
 
 serverReadyPromise.then(() => {
   whatsappService.startAutoConnectWatchdog();
+  startSlaMonitor();
 }).catch(() => {
   // startServer ya registra el error. Evitamos una promesa sin manejar en test/dev.
 });
@@ -218,6 +224,7 @@ serverReadyPromise.then(() => {
 const gracefulShutdown = async (signal) => {
   logger.info(`${signal} recibido. Cerrando servidor ordenadamente...`);
   await whatsappService.shutdown();
+  stopSlaMonitor();
   
   if (server) {
     await new Promise((resolve) => server.close(() => {

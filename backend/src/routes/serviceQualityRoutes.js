@@ -1,0 +1,13 @@
+import express from 'express';
+import { protect } from '../middleware/authMiddleware.js';
+import { checkPermission } from '../middleware/permissionMiddleware.js';
+import { getServiceQualityDashboard, getResponseTemplates, createResponseTemplate, updateResponseTemplate, reviewInboxQuality, scanServiceQualityAlerts } from '../controllers/serviceQualityController.js';
+const router = express.Router();
+router.use(protect);
+router.get('/dashboard', checkPermission('support:read', 'order:read'), getServiceQualityDashboard);
+router.get('/templates', checkPermission('support:read', 'order:read'), getResponseTemplates);
+router.post('/templates', checkPermission('support:update'), createResponseTemplate);
+router.put('/templates/:id', checkPermission('support:update'), updateResponseTemplate);
+router.post('/reviews/:sourceType/:sourceId', checkPermission('support:update'), reviewInboxQuality);
+router.post('/alerts/scan', checkPermission('support:update', 'order:update'), scanServiceQualityAlerts);
+export default router;

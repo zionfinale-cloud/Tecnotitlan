@@ -513,6 +513,61 @@ model UnifiedInboxReply {
   @@map("unified_inbox_replies")
 }
 
+model InboxResponseTemplate {
+  id         String   @id @default(cuid())
+  name       String
+  sourceType String?  @map("source_type")
+  category   String   @default("GENERAL")
+  body       String   @db.Text
+  isActive   Boolean  @default(true) @map("is_active")
+  createdBy  String?  @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([sourceType, isActive])
+  @@map("inbox_response_templates")
+}
+
+model InboxQualityReview {
+  id           String   @id @default(cuid())
+  sourceType   String   @map("source_type")
+  sourceId     String   @map("source_id")
+  clarity      Int
+  empathy      Int
+  accuracy     Int
+  resolution   Int
+  compliance   Int
+  overallScore Float    @map("overall_score")
+  notes        String?  @db.Text
+  reviewerId   String?  @map("reviewer_id")
+  reviewer     String?  @map("reviewer")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([sourceType, sourceId, createdAt])
+  @@index([overallScore, createdAt])
+  @@map("inbox_quality_reviews")
+}
+
+model PageView {
+  id           String   @id @default(cuid())
+  path         String
+  visitorHash  String   @map("visitor_hash")
+  referrerHost String?  @map("referrer_host")
+  source       String   @default("DIRECT")
+  campaign     String?
+  country      String?
+  region       String?
+  device       String?
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+
+  @@index([occurredAt])
+  @@index([path, occurredAt])
+  @@index([source, occurredAt])
+  @@index([country, occurredAt])
+  @@index([visitorHash, occurredAt])
+  @@map("page_views")
+}
+
 model ReturnInspectionCase {
   id                 String                 @id @default(cuid())
   caseNumber         String                 @unique @map("case_number")
