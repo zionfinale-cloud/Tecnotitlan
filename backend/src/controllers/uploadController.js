@@ -1,6 +1,5 @@
 import path from 'path';
 import multer from 'multer';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import asyncHandler from 'express-async-handler';
 import fs from 'fs';
 import { cloudinary, configureCloudinary } from '../config/cloudinary.js';
@@ -51,19 +50,14 @@ const localStorage = multer.diskStorage({
   },
 });
 
-// 2. Almacenamiento en Cloudinary
-const cloudinaryStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'tecnotitlan',
-    format: async (req, file) => 'webp', // Usar un formato moderno
-    public_id: (req, file) => `product-${file.fieldname}-${Date.now()}`,
-  },
-});
+// Cloudinary recibe el archivo desde memoria mediante su SDK oficial. Esto evita
+// depender de adaptadores desactualizados que fijan Cloudinary 1.x.
+const cloudinaryStorage = multer.memoryStorage();
 
 // --- Middleware de Multer Dinámico ---
 export const upload = multer({
   storage: getConfig().UPLOAD_STRATEGY === 'cloudinary' ? cloudinaryStorage : localStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: function (req, file, cb) {
     if (getConfig().UPLOAD_STRATEGY === 'cloudinary') {
       configureCloudinary(); // Solo configurar si la estrategia es cloudinary
@@ -87,11 +81,23 @@ export const uploadImage = asyncHandler(async (req, res) => {
     throw new Error('No se ha subido ningún archivo.');
   }
 
-  // Devolvemos la ruta pública para que el frontend pueda usarla.
-  // Si es Cloudinary, req.file.path es la URL completa.
-  // Si es local, construimos la ruta relativa.
-  const publicPath = getConfig().UPLOAD_STRATEGY === 'cloudinary'
-    ? req.file.path
+  let cloudinaryUrl = null;
+  if (getConfig().UPLOAD_STRATEGY === 'cloudinary') {
+    configureCloudinary();
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream({
+        folder: 'tecnotitlan',
+        format: 'webp',
+        public_id: `product-${req.file.fieldname}-${Date.now()}`,
+        resource_type: 'image',
+      }, (error, uploaded) => error ? reject(error) : resolve(uploaded));
+      stream.end(req.file.buffer);
+    });
+    cloudinaryUrl = result.secure_url;
+  }
+
+  const publicPath = cloudinaryUrl
+    ? cloudinaryUrl
     : req.file.path.includes(path.join('frontend', 'public'))
       ? req.file.path.split(path.join('frontend', 'public'))[1].replace(/\\/g, '/')
       : `/uploads/${req.file.filename}`;
