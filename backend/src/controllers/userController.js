@@ -1,6 +1,5 @@
 // backend/src/controllers/userController.js @userController.js
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia única de Prisma
@@ -8,13 +7,7 @@ import { AppError, BadRequestError, ForbiddenError, NotFoundError, UnauthorizedE
 import { verifyCaptcha } from '../services/captchaService.js';
 import { sendVerificationEmail } from '../services/emailService.js';
 import { getPermissionOverrideNames, toAuthUserPayload, userPermissionInclude } from '../utils/permissionUtils.js';
-
-// Función para generar un token JWT
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d', // El token expira en 30 días
-  });
-};
+import { generateAuthToken, generateTwoFactorChallenge } from '../utils/authTokens.js';
 
 const generateVerificationToken = () => crypto.randomBytes(32).toString('hex');
 
@@ -325,6 +318,7 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
 // @access  Public
 const loginUser = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
+  req.auditActorEmail = String(email || '').toLowerCase();
 
   // La validación de campos (email, password) ahora la hace el middleware.
   // 1. Buscar usuario por email.
@@ -344,11 +338,22 @@ const loginUser = asyncHandler(async (req, res, next) => {
     return next(new UnauthorizedError('No encontramos una cuenta con ese correo o la contrasena no coincide.'));
   }
 
+  req.auditActor = user;
+  if (user.twoFactorEnabled) {
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        twoFactorRequired: true,
+        challengeToken: generateTwoFactorChallenge(user),
+      },
+    });
+  }
+
   res.status(200).json({
     status: 'success',
     data: {
       ...toAuthUserPayload(user),
-      token: generateToken(user.id),
+      token: generateAuthToken(user),
     },
   });
 });
@@ -428,6 +433,7 @@ const updateUserProfile = asyncHandler(async (req, res, next) => {
   if (req.body.password) {
     const salt = await bcrypt.genSalt(10);
     dataToUpdate.password = await bcrypt.hash(req.body.password, salt);
+    dataToUpdate.tokenVersion = { increment: 1 };
   }
 
   const normalizedAddresses = Array.isArray(req.body.addresses)
@@ -459,7 +465,7 @@ const updateUserProfile = asyncHandler(async (req, res, next) => {
       status: 'success',
       data: {
         ...toAuthUserPayload(updatedUser),
-        token: generateToken(updatedUser.id), // Re-generar token
+        token: generateAuthToken(updatedUser), // Re-generar token
       },
     });
 });

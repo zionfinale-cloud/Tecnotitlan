@@ -4,6 +4,7 @@ import prisma from '../config/prisma.js';
 import { getConfig } from './configService.js';
 import { BadRequestError } from '../utils/errorUtils.js';
 import logger from '../utils/logger.js';
+import { encryptSecret, redactTokenPayload } from '../utils/secretCrypto.js';
 
 const secondsToDate = (seconds) => {
   const value = Number(seconds);
@@ -68,13 +69,13 @@ export const exchangeCodeForToken = async (authCode, connectedBy = null) => {
       sellerName: tokenData.seller_name || tokenData.sellerName || null,
       sellerId: tokenData.seller_id || tokenData.sellerId || null,
       shopName: tokenData.shop_name || tokenData.shopName || null,
-      shopCipher: tokenData.shop_cipher || tokenData.shopCipher || null,
-      accessToken,
-      refreshToken: tokenData.refresh_token || tokenData.refreshToken || null,
+      shopCipher: encryptSecret(tokenData.shop_cipher || tokenData.shopCipher || null),
+      accessToken: encryptSecret(accessToken),
+      refreshToken: encryptSecret(tokenData.refresh_token || tokenData.refreshToken || null),
       accessTokenExpiresAt: secondsToDate(tokenData.access_token_expire_in || tokenData.accessTokenExpireIn || tokenData.expires_in),
       refreshTokenExpiresAt: secondsToDate(tokenData.refresh_token_expire_in || tokenData.refreshTokenExpireIn),
       connectedBy,
-      rawData: tokenData,
+      rawData: redactTokenPayload(tokenData),
     };
 
     const existing = await prisma.tikTokShopIntegration.findFirst();
@@ -99,7 +100,6 @@ export const getStatus = async () => {
       sellerName: true,
       sellerId: true,
       shopName: true,
-      shopCipher: true,
       accessTokenExpiresAt: true,
       refreshTokenExpiresAt: true,
       connectedBy: true,
@@ -141,22 +141,24 @@ export const recordWebhookEvent = async ({ payload = {}, headers = {} }) => {
     payload.data?.messageId,
   );
 
+  const safePayload = redactTokenPayload(payload);
+  const safeHeaders = redactTokenPayload(headers);
   const data = {
     eventType: eventType ? String(eventType) : null,
     category: category ? String(category) : null,
     shopId: shopId ? String(shopId) : null,
     shopCipher: shopCipher ? String(shopCipher) : null,
     messageId: messageId ? String(messageId) : null,
-    payload,
-    headers,
+    payload: safePayload,
+    headers: safeHeaders,
   };
 
   if (data.messageId) {
     return prisma.tikTokShopWebhookEvent.upsert({
       where: { messageId: data.messageId },
       update: {
-        payload,
-        headers,
+        payload: safePayload,
+        headers: safeHeaders,
         eventType: data.eventType,
         category: data.category,
         shopId: data.shopId,

@@ -31,6 +31,10 @@ model User {
   postalCode                  String?                  @map("postal_code")
   isVerified                  Boolean                  @default(false) @map("is_verified")
   verificationToken           String?                  @map("verification_token")
+  twoFactorEnabled            Boolean                  @default(false) @map("two_factor_enabled")
+  twoFactorSecret             String?                  @map("two_factor_secret") @db.Text
+  twoFactorRecoveryCodes      String[]                 @default([]) @map("two_factor_recovery_codes")
+  tokenVersion                Int                      @default(0) @map("token_version")
   notificationEmailEnabled    Boolean                  @default(true) @map("notification_email_enabled")
   notificationWhatsappEnabled Boolean                  @default(false) @map("notification_whatsapp_enabled")
   notificationWhatsapp        String?                  @map("notification_whatsapp")
@@ -52,8 +56,34 @@ model User {
   permissionDenies            UserPermissionDeny[]
   meliIntegrations            MeliIntegration[]
   addresses                   CustomerAddress[]
+  auditLogs                   AuditLog[]               @relation("AuditActor")
 
   @@map("users")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?  @map("actor_id")
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorEmail String?  @map("actor_email")
+  action     String
+  category   String   @default("GENERAL")
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  outcome    String   @default("SUCCESS")
+  method     String?
+  path       String?
+  statusCode Int?     @map("status_code")
+  ipHash     String?  @map("ip_hash")
+  userAgent  String?  @map("user_agent") @db.Text
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([category, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
 }
 
 model CustomerAddress {

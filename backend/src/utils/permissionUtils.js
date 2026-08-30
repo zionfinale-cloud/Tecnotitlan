@@ -50,6 +50,7 @@ const toAuthUserPayload = (user) => {
     roleId: user.roleId,
     permissions,
     permissionOverrides: getPermissionOverrideNames(user),
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
   };
 };
 

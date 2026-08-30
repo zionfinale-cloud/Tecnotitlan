@@ -7,6 +7,7 @@ export const AuthContext = createContext({
     userInfo: null,
     loading: true, // Indica si la verificación inicial de Auth ha terminado
     login: () => {},
+    completeTwoFactorLogin: () => {},
     logout: () => {},
     register: () => {},
     verifyAccount: () => {},
@@ -57,7 +58,20 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
         try {
             const { data } = await api.post('/users/login', { email, password });
+            if (data.data?.twoFactorRequired) return data.data;
             setUserInfo(data.data); // FIX: El objeto de usuario está en data.data
+            localStorage.setItem('userInfo', JSON.stringify(data.data));
+            return data.data;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const completeTwoFactorLogin = async (challengeToken, code) => {
+        setLoading(true);
+        try {
+            const { data } = await api.post('/security/2fa/verify-login', { challengeToken, code });
+            setUserInfo(data.data);
             localStorage.setItem('userInfo', JSON.stringify(data.data));
             return data.data;
         } finally {
@@ -118,7 +132,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     return (
-        <AuthContext.Provider value={{ userInfo, loading, login, logout, register, updateProfile, verifyAccount, resendVerificationEmail }}>
+        <AuthContext.Provider value={{ userInfo, loading, login, completeTwoFactorLogin, logout, register, updateProfile, verifyAccount, resendVerificationEmail }}>
             {children}
         </AuthContext.Provider>
     );

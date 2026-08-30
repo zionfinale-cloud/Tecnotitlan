@@ -1427,3 +1427,13 @@ Protecciones implementadas:
 - El dashboard ejecutivo incorpora analitica propia de vistas: total, vistas del dia, visitantes aproximados, paginas por visitante, paginas de entrada, fuente, referente, dispositivo y pais cuando el proxy entrega ese dato.
 - La medicion excluye rutas administrativas y robots, respeta `Do Not Track`, elimina parametros sensibles al guardar sólo `pathname` y deduplica recargas del mismo visitante/pagina durante 30 segundos.
 - La IP nunca se almacena. Para estimar visitantes se genera un hash SHA-256 diario con secreto del servidor, IP y agente de usuario; el identificador cambia cada dia y no permite recuperar la IP original.
+
+## Actualizacion 2026-08-30 - Cifrado de tokens, auditoria y 2FA
+
+- Los tokens de acceso y renovacion de Mercado Libre y TikTok Shop se guardan con AES-256-GCM. Cada valor usa un nonce aleatorio y etiqueta de autenticidad; el prefijo versionado `enc:v1` permite rotaciones futuras sin confundir texto antiguo con ciphertext.
+- Al arrancar, la API migra de forma compatible cualquier token heredado en texto claro y elimina tokens, secretos y contrasenas duplicados dentro de `rawData`. Las conexiones existentes se conservan; la aplicacion descifra únicamente en memoria cuando llama al proveedor.
+- La clave se deriva de `TOKEN_ENCRYPTION_KEY`; como compatibilidad operativa usa `SESSION_SECRET` o `JWT_SECRET`. Cambiar la clave sin un proceso de rotacion vuelve ilegibles los tokens almacenados.
+- Cada usuario puede activar TOTP desde **Seguridad y 2FA** mediante QR o clave manual. La activacion exige la contrasena actual y un codigo valido; se entregan diez codigos de recuperacion de un solo uso, almacenados únicamente como hashes.
+- El login con 2FA usa un reto JWT de cinco minutos y no entrega una sesion completa hasta validar TOTP o un codigo de recuperacion. Activar/desactivar 2FA o cambiar la contrasena incrementa `tokenVersion` e invalida sesiones anteriores.
+- `audit_logs` registra mutaciones autenticadas, accesos y cambios de seguridad con actor, accion, categoria, resultado, ruta y fecha. No copia cuerpos de solicitudes, contrasenas ni tokens; la IP se convierte en una huella HMAC irreversible.
+- Cada usuario consulta su actividad reciente. El Super Admin dispone de **Administracion > Seguridad y auditoria** con los últimos eventos operativos y administrativos.

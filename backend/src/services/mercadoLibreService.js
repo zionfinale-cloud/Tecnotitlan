@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { URLSearchParams } from 'url';
 import { Prisma } from '@prisma/client';
 import logger from '../utils/logger.js';
+import { decryptSecret, encryptSecret, redactTokenPayload } from '../utils/secretCrypto.js';
 import { getConfig } from './configService.js';
 import prisma from '../config/prisma.js';
 import { listNotificationLogs, writeNotificationLog } from './notificationLogService.js';
@@ -527,21 +528,30 @@ const serializeIntegration = (integration) => {
 
 const getIntegration = async (userId = null) => {
   const where = userId ? { userId } : {};
-  return prisma.meliIntegration.findFirst({
+  const integration = await prisma.meliIntegration.findFirst({
     where,
     orderBy: { updatedAt: 'desc' },
   });
+  return integration ? {
+    ...integration,
+    accessToken: decryptSecret(integration.accessToken),
+    refreshToken: decryptSecret(integration.refreshToken),
+  } : null;
 };
 
 const getIntegrationByMeliUserId = async (meliUserId = null) => {
   if (!meliUserId) return getIntegration();
 
-  const integration = await prisma.meliIntegration.findFirst({
+  const storedIntegration = await prisma.meliIntegration.findFirst({
     where: { meliUserId: String(meliUserId) },
     orderBy: { updatedAt: 'desc' },
   });
 
-  return integration || getIntegration();
+  return storedIntegration ? {
+    ...storedIntegration,
+    accessToken: decryptSecret(storedIntegration.accessToken),
+    refreshToken: decryptSecret(storedIntegration.refreshToken),
+  } : getIntegration();
 };
 
 const getIntegrationStatus = async (userId = null) => {
@@ -579,18 +589,18 @@ const refreshAccessToken = async (integration) => {
     const updatedIntegration = await prisma.meliIntegration.update({
       where: { id: integration.id },
       data: {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token || integration.refreshToken,
+        accessToken: encryptSecret(data.access_token),
+        refreshToken: encryptSecret(data.refresh_token || integration.refreshToken),
         expiresIn: data.expires_in,
         expiresAt: toExpiresAt(data.expires_in),
         tokenType: data.token_type,
         scope: data.scope,
-        rawData: data,
+        rawData: redactTokenPayload(data),
       },
     });
 
     logger.success(`[Meli Service] Token refrescado para usuario Mercado Libre: ${updatedIntegration.meliUserId || updatedIntegration.userId}`);
-    return updatedIntegration.accessToken;
+    return data.access_token;
   } catch (error) {
     logger.error('[Meli Service] Error al refrescar token:', error.response?.data || error.message);
     throw new Error('No se pudo refrescar Mercado Libre. Reconecta la cuenta.');
@@ -639,27 +649,27 @@ const exchangeCodeForToken = async (code, codeVerifier, userId) => {
     const integration = await prisma.meliIntegration.upsert({
       where: { userId },
       update: {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
+        accessToken: encryptSecret(data.access_token),
+        refreshToken: encryptSecret(data.refresh_token),
         expiresIn: data.expires_in,
         expiresAt: toExpiresAt(data.expires_in),
         meliUserId: data.user_id ? String(data.user_id) : null,
         nickname: profile?.nickname || profile?.email || null,
         tokenType: data.token_type,
         scope: data.scope,
-        rawData: { token: data, profile },
+        rawData: { token: redactTokenPayload(data), profile },
       },
       create: {
         userId,
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
+        accessToken: encryptSecret(data.access_token),
+        refreshToken: encryptSecret(data.refresh_token),
         expiresIn: data.expires_in,
         expiresAt: toExpiresAt(data.expires_in),
         meliUserId: data.user_id ? String(data.user_id) : null,
         nickname: profile?.nickname || profile?.email || null,
         tokenType: data.token_type,
         scope: data.scope,
-        rawData: { token: data, profile },
+        rawData: { token: redactTokenPayload(data), profile },
       },
     });
 

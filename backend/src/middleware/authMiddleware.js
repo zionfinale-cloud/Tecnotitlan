@@ -17,6 +17,7 @@ const authenticate = async (req) => {
       firstName: true,
       lastName: true,
       email: true,
+      tokenVersion: true,
       role: {
         select: {
           id: true,
@@ -34,6 +35,9 @@ const authenticate = async (req) => {
   });
 
   if (!user) throw new UnauthorizedError('Usuario no encontrado.');
+  if ((decoded.scope && decoded.scope !== 'auth') || Number(decoded.ver || 0) !== user.tokenVersion) {
+    throw new UnauthorizedError('La sesion fue reemplazada por un cambio de seguridad.');
+  }
 
   req.user = applyEffectivePermissionsToUser({
     ...user,

@@ -63,6 +63,7 @@ import ReturnInspectionScreen from './screens/admin/ReturnInspectionScreen';
 import ServiceQualityScreen from './screens/admin/ServiceQualityScreen';
 import PageViewTracker from './components/PageViewTracker';
 import VerifyAccountScreen from './screens/VerifyAccountScreen';
+import SecurityScreen from './screens/SecurityScreen';
 
 // --- Configuración de PayPal ---
 const initialOptions = {
@@ -101,6 +102,7 @@ function App() {
                                                 {/* --- Rutas Protegidas de Cliente --- */}
                                                 <Route element={<ProtectedRoute />}>
                                                     <Route path="profile" element={<ProfileScreen />} />
+                                                    <Route path="security" element={<SecurityScreen />} />
                                                     <Route path="shipping" element={<ShippingScreen />} />
                                                     <Route path="payment" element={<PaymentScreen />} />
                                                     <Route path="placeorder" element={<PlaceOrderScreen />} />
@@ -137,6 +139,7 @@ function App() {
                                                 <Route path="inbox" element={<UnifiedInboxScreen />} />
                                                 <Route path="returns" element={<ReturnInspectionScreen />} />
                                                 <Route path="service-quality" element={<ServiceQualityScreen />} />
+                                                <Route path="security" element={<SecurityScreen admin />} />
                                                 
                                                 {/* Sub-rutas de Configuración */}
                                                 <Route path="settings" element={<SettingsPage />}>

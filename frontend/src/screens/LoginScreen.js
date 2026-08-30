@@ -10,10 +10,12 @@ const LoginScreen = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [challengeToken, setChallengeToken] = useState('');
+    const [securityCode, setSecurityCode] = useState('');
 
     const navigate = useNavigate();
     const location = useLocation();
-    const { userInfo, login, loading } = useContext(AuthContext);
+    const { userInfo, login, completeTwoFactorLogin, loading } = useContext(AuthContext);
     const { showNotification } = useContext(NotificationContext);
 
     const searchParams = new URLSearchParams(location.search);
@@ -29,7 +31,13 @@ const LoginScreen = () => {
         event.preventDefault();
 
         try {
-            await login(email, password);
+            const result = challengeToken
+                ? await completeTwoFactorLogin(challengeToken, securityCode)
+                : await login(email, password);
+            if (result?.twoFactorRequired) {
+                setChallengeToken(result.challengeToken);
+                setSecurityCode('');
+            }
         } catch (error) {
             showNotification(error.response?.data?.message || 'No pudimos iniciar sesion. Revisa tu correo y contrasena.', 'danger');
         }
@@ -39,12 +47,12 @@ const LoginScreen = () => {
         <div className={`${styles.pageContainer} d-flex justify-content-center align-items-center`} style={{ minHeight: '80vh' }}>
             <Card className={styles.loginCard}>
                 <Card.Body>
-                    <h1 className={styles.title}>Iniciar Sesion</h1>
+                    <h1 className={styles.title}>{challengeToken ? 'Verificacion de seguridad' : 'Iniciar Sesion'}</h1>
 
                     {loading && <LoadingSpinner />}
 
                     <Form onSubmit={submitHandler}>
-                        <Form.Group controlId="email" className="mb-3">
+                        {!challengeToken && <Form.Group controlId="email" className="mb-3">
                             <Form.Label className={styles.label}>Correo electronico</Form.Label>
                             <Form.Control
                                 type="email"
@@ -59,9 +67,9 @@ const LoginScreen = () => {
                                 inputMode="email"
                                 required
                             />
-                        </Form.Group>
+                        </Form.Group>}
 
-                        <Form.Group controlId="password" className="mb-4">
+                        {!challengeToken && <Form.Group controlId="password" className="mb-4">
                             <Form.Label className={styles.label}>Contrasena</Form.Label>
                             <div className={styles.passwordField}>
                                 <Form.Control
@@ -85,7 +93,21 @@ const LoginScreen = () => {
                                     <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                                 </button>
                             </div>
-                        </Form.Group>
+                        </Form.Group>}
+
+                        {challengeToken && <Form.Group controlId="securityCode" className="mb-4">
+                            <Form.Label className={styles.label}>Codigo de autenticacion o recuperacion</Form.Label>
+                            <Form.Control
+                                value={securityCode}
+                                onChange={(event) => setSecurityCode(event.target.value)}
+                                placeholder="000000 o XXXXX-XXXXX"
+                                autoComplete="one-time-code"
+                                inputMode="text"
+                                autoFocus
+                                required
+                            />
+                            <Form.Text>Abre tu aplicacion autenticadora. Tambien puedes usar uno de tus codigos de recuperacion.</Form.Text>
+                        </Form.Group>}
 
                         <Button
                             type="submit"
@@ -93,8 +115,11 @@ const LoginScreen = () => {
                             className={styles.submitButton}
                             disabled={loading}
                         >
-                            {loading ? 'Entrando...' : 'Entrar'}
+                            {loading ? 'Verificando...' : challengeToken ? 'Verificar y entrar' : 'Entrar'}
                         </Button>
+                        {challengeToken && <Button type="button" variant="link" className="w-100 mt-2" onClick={() => { setChallengeToken(''); setSecurityCode(''); }}>
+                            Volver a correo y contrasena
+                        </Button>}
                     </Form>
 
                     <div className={styles.linkRow}>

@@ -39,6 +39,10 @@ import unifiedInboxRoutes from './routes/unifiedInboxRoutes.js';
 import returnInspectionRoutes from './routes/returnInspectionRoutes.js';
 import serviceQualityRoutes from './routes/serviceQualityRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
+import securityRoutes from './routes/securityRoutes.js';
+import auditRoutes from './routes/auditRoutes.js';
+import { auditMutations } from './middleware/auditMiddleware.js';
+import { encryptStoredIntegrationTokens } from './services/tokenEncryptionService.js';
 import { startSlaMonitor, stopSlaMonitor } from './services/serviceQualityService.js';
 
 const app = express();
@@ -87,6 +91,7 @@ const startServer = async () => {
     }
     await initializeConfig();
     logger.info('Configuration loaded from DB.');
+    await encryptStoredIntegrationTokens();
 
     // Pasar la instancia de Socket.IO al servicio de WhatsApp
     whatsappService.setSocketIO(io);
@@ -95,6 +100,7 @@ const startServer = async () => {
     app.use('/api/stripe', stripeWebhookRoutes);
 
 app.use(express.json());
+	app.use(auditMutations);
     app.use(cors(corsOptions));
     app.use(helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -154,7 +160,8 @@ app.use(express.json());
     logger.info('Mounting API routes...');
     // Aplicar el limitador específicamente a las rutas de autenticación
     app.use('/api/users/login', authLimiter);
-    app.use('/api/users/register', authLimiter);
+	    app.use('/api/users/register', authLimiter);
+	    app.use('/api/security/2fa/verify-login', authLimiter);
     app.use('/api/products', productRoutes);
     app.use('/api/users', userRoutes);
     app.use('/api/orders', orderRoutes);
@@ -177,6 +184,8 @@ app.use(express.json());
     app.use('/api/return-inspections', returnInspectionRoutes);
     app.use('/api/service-quality', serviceQualityRoutes);
     app.use('/api/analytics', analyticsRoutes);
+    app.use('/api/security', securityRoutes);
+    app.use('/api/audit-logs', auditRoutes);
 
 // Los archivos de producto viven en el volumen persistente montado en /app/uploads.
 // `process.cwd()` es /app dentro del contenedor y D:\Tecnotitlan en desarrollo.

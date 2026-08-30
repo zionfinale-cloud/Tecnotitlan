@@ -57,6 +57,7 @@ const Header = () => {
               <Dropdown.Toggle as="button" className={styles.accountButton}><i className="fas fa-user-circle"></i><span>{user.name}</span></Dropdown.Toggle>
               <Dropdown.Menu className={styles.dropdownMenu}>
                 <Dropdown.Item as={Link} to="/profile">Mi cuenta</Dropdown.Item>
+                <Dropdown.Item as={Link} to="/security">Seguridad y 2FA</Dropdown.Item>
                 {canAccessPanel && <Dropdown.Item as={Link} to="/admin/dashboard">Panel de trabajo</Dropdown.Item>}
                 <Dropdown.Divider /><Dropdown.Item onClick={logoutHandler}>Cerrar sesión</Dropdown.Item>
               </Dropdown.Menu>

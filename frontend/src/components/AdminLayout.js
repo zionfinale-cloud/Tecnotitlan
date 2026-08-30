@@ -43,6 +43,7 @@ const navGroups = [
         links: [
             { to: '/admin/userlist', icon: 'fa-users', text: 'Usuarios', permission: 'user:read' },
             { to: '/admin/rolelist', icon: 'fa-lock', text: 'Roles', permission: 'role:read' },
+            { to: '/admin/security', icon: 'fa-user-shield', text: 'Seguridad y auditoria', superAdminOnly: true },
             { to: '/admin/settings', icon: 'fa-cogs', text: 'Configuracion', superAdminOnly: true },
         ],
     },
