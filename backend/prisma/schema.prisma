@@ -315,6 +315,7 @@ model Order {
   notificationLogs  NotificationLog[]
   meliClaims        MeliClaim[]
   meliConversations MeliPostSaleConversation[]
+  inboxLinks        UnifiedInboxLink[]
 
   @@map("orders")
 }
@@ -473,6 +474,40 @@ model MeliCommunicationActivity {
 
   @@index([entityType, externalId, createdAt])
   @@map("meli_communication_activities")
+}
+
+model UnifiedInboxLink {
+  id         String   @id @default(cuid())
+  sourceType String   @map("source_type")
+  sourceId   String   @map("source_id")
+  linkMethod String   @default("MANUAL") @map("link_method")
+  confidence Int      @default(100)
+  linkedById String?  @map("linked_by_id")
+  linkedBy   String?  @map("linked_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId    String   @map("order_id")
+
+  @@unique([sourceType, sourceId])
+  @@index([orderId])
+  @@map("unified_inbox_links")
+}
+
+model UnifiedInboxReply {
+  id             String   @id @default(cuid())
+  sourceType     String   @map("source_type")
+  sourceId       String   @map("source_id")
+  direction      String   @default("OUTBOUND")
+  text           String   @db.Text
+  deliveryStatus String   @default("SENT") @map("delivery_status")
+  actorId        String?  @map("actor_id")
+  actorName      String?  @map("actor_name")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([sourceType, sourceId, createdAt])
+  @@map("unified_inbox_replies")
 }
 
 model OrderItem {

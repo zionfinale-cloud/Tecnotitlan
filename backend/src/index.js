@@ -35,6 +35,7 @@ import tiktokShopRoutes from './routes/tiktokShopRoutes.js';
 import tecatlPublicRoutes from './routes/tecatlPublicRoutes.js';
 import tecatlAdminRoutes from './routes/tecatlAdminRoutes.js';
 import notificationLogRoutes from './routes/notificationLogRoutes.js';
+import unifiedInboxRoutes from './routes/unifiedInboxRoutes.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
@@ -168,6 +169,7 @@ app.use(express.json());
     app.use('/api/chat/tecatl', tecatlPublicRoutes);
     app.use('/api/admin/tecatl', tecatlAdminRoutes);
     app.use('/api/notification-logs', notificationLogRoutes);
+    app.use('/api/unified-inbox', unifiedInboxRoutes);
 
 // Los archivos de producto viven en el volumen persistente montado en /app/uploads.
 // `process.cwd()` es /app dentro del contenedor y D:\Tecnotitlan en desarrollo.

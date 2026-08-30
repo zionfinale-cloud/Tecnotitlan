@@ -27,6 +27,7 @@ const navGroups = [
     {
         label: 'Atencion',
         links: [
+            { to: '/admin/inbox', icon: 'fa-inbox', text: 'Bandeja unificada', anyPermission: ['support:read', 'order:read', 'whatsapp:chat'] },
             { to: '/admin/whatsapp-chat', icon: 'fa-comments', text: 'WhatsApp', anyPermission: ['whatsapp:chat', 'support:update'] },
             { to: '/admin/tecatl', icon: 'fa-robot', text: 'Tecatl', anyPermission: ['tecatl:read', 'tecatl:reply', 'tecatl:knowledge'] },
             { to: '/mail', icon: 'fa-envelope', text: 'Correo', anyPermission: ['mail:read', 'mail:send'] },
@@ -74,6 +75,7 @@ const AdminLayout = () => {
     const [collapsed, setCollapsed] = useState(() => localStorage.getItem('tecnotitlan-admin-sidebar') === 'collapsed');
     const [whatsappUnread, setWhatsappUnread] = useState(0);
     const [meliUnread, setMeliUnread] = useState(0);
+    const [unifiedUnread, setUnifiedUnread] = useState(0);
     const previousWhatsappUnread = useRef(0);
     const previousMeliUnread = useRef(0);
     const isSuperAdmin = checkIsSuperAdmin(userInfo);
@@ -101,6 +103,7 @@ const AdminLayout = () => {
 
     const canPollWhatsApp = visibleLinks.some((item) => item.to === '/admin/whatsapp-chat');
     const canPollMeli = visibleLinks.some((item) => item.to === '/admin/meli-communications');
+    const canPollUnified = visibleLinks.some((item) => item.to === '/admin/inbox');
 
     useEffect(() => {
         if (!canPollWhatsApp) return undefined;
@@ -154,10 +157,26 @@ const AdminLayout = () => {
         return () => window.clearInterval(timer);
     }, [canPollMeli]);
 
+    useEffect(() => {
+        if (!canPollUnified) return undefined;
+        const loadUnifiedUnread = async () => {
+            try {
+                const { data } = await api.get('/unified-inbox/counts');
+                setUnifiedUnread(Number(data.data?.total || 0));
+            } catch (error) {
+                // La navegacion sigue disponible aunque un canal este temporalmente fuera de linea.
+            }
+        };
+        loadUnifiedUnread();
+        const timer = window.setInterval(loadUnifiedUnread, 30000);
+        return () => window.clearInterval(timer);
+    }, [canPollUnified]);
+
     const renderLinkContent = (item) => {
         const unreadCount = item.to === '/admin/whatsapp-chat'
             ? whatsappUnread
-            : item.to === '/admin/meli-communications' ? meliUnread : 0;
+            : item.to === '/admin/meli-communications' ? meliUnread
+            : item.to === '/admin/inbox' ? unifiedUnread : 0;
         return (
             <>
                 <div className={styles.iconContainer}>

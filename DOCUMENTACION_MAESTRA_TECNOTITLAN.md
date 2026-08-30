@@ -1394,3 +1394,13 @@ Protecciones implementadas:
 - Los webhooks `messages` recuperan el mensaje notificado y resincronizan la conversacion completa. Como respaldo, la bandeja consulta preguntas y pendientes al abrirse. La interfaz muestra contador, alerta sonora disponible, responsable, estado interno y trazabilidad.
 - El texto posventa respeta el limite dinamico informado por Mercado Libre, normalmente 350 caracteres. La implementacion reconoce la ruta de agentes de mensajeria y conserva compatibilidad con conversaciones anteriores.
 - Las tablas `meli_questions`, `meli_post_sale_conversations`, `meli_post_sale_messages` y `meli_communication_activities` separan los datos operativos, mensajes y auditoria.
+
+## Actualizacion 2026-08-30 - Bandeja unificada ligada al pedido
+
+- La ruta administrativa **Atencion > Bandeja unificada** reúne WhatsApp, tickets de soporte y correo, preguntas y mensajes posventa de Mercado Libre, reclamos y conversaciones escaladas de Tecatl.
+- Cada expediente muestra en la misma vista el historial del canal, estado, prioridad, cliente y el contexto comercial del pedido: numero, estado, canal de venta, total y productos con SKU.
+- Los pedidos nativos de Mercado Libre quedan confirmados por su relacion de origen. En otros canales sólo se sugieren coincidencias exactas por usuario, correo completo o los 10 digitos del telefono; la sugerencia no se persiste ni se considera confirmada hasta que un operador la acepta.
+- El operador puede buscar por numero de pedido, cliente, telefono, SKU o folio externo, confirmar o cambiar el vínculo y quitar un vínculo manual. Un vínculo manual siempre tiene prioridad sobre cualquier sugerencia automatica.
+- Las respuestas se envian mediante el canal original y respetan sus reglas: WhatsApp, correo de soporte, respuestas preventa, mensajes posventa, reclamos o escalamiento Tecatl. El backend vuelve a validar permisos por origen y el estado que permita responder.
+- Las tablas `unified_inbox_links` y `unified_inbox_replies` conservan los vínculos confirmados y la trazabilidad de respuestas. Ninguna coincidencia parcial o difusa vincula automaticamente datos de clientes distintos.
+- El menu muestra un contador agregado de conversaciones pendientes y la bandeja se actualiza cada 30 segundos sin interrumpir el trabajo del operador.

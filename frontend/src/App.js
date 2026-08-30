@@ -58,6 +58,7 @@ import ContactScreen from './screens/ContactScreen';
 import SupportTicketsScreen from './screens/admin/SupportTicketsScreen';
 import MercadoLibreClaimsScreen from './screens/admin/MercadoLibreClaimsScreen';
 import MercadoLibreCommunicationsScreen from './screens/admin/MercadoLibreCommunicationsScreen';
+import UnifiedInboxScreen from './screens/admin/UnifiedInboxScreen';
 import VerifyAccountScreen from './screens/VerifyAccountScreen';
 
 // --- Configuración de PayPal ---
@@ -129,6 +130,7 @@ function App() {
                                                 <Route path="support" element={<SupportTicketsScreen />} />
                                                 <Route path="meli-claims" element={<MercadoLibreClaimsScreen />} />
                                                 <Route path="meli-communications" element={<MercadoLibreCommunicationsScreen />} />
+                                                <Route path="inbox" element={<UnifiedInboxScreen />} />
                                                 
                                                 {/* Sub-rutas de Configuración */}
                                                 <Route path="settings" element={<SettingsPage />}>
