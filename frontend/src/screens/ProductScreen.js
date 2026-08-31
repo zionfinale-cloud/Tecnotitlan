@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Container } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -9,6 +9,7 @@ import { CartContext } from '../context/CartContext';
 import { SettingsContext } from '../context/SettingsContext';
 import { ToastContext } from '../context/ToastContext';
 import api from '../services/apiService';
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
 import { getAvailabilityText, getItemAvailableStock, hasItemAvailability } from '../utils/productAvailability';
 import styles from './ProductScreen.module.css';
@@ -70,26 +71,29 @@ const ProductScreen = () => {
   const { settings } = useContext(SettingsContext);
   const currencySymbol = settings.currencySymbol || '$';
 
-  useEffect(() => {
-    const loadProduct = async () => {
-      setLoading(true);
+  const loadProduct = useCallback(async ({ silent = false } = {}) => {
+      if (!silent) setLoading(true);
       setError(null);
 
       try {
         const { data } = await api.get(`/products/${sku}`);
         const nextProduct = data.data.product;
         setProduct(nextProduct);
-        setActiveImage(resolveAssetUrl(nextProduct?.media?.[0]?.url, ''));
-        setShowVideo(false);
+        const nextImages = (nextProduct?.media || []).map((item) => resolveAssetUrl(item.url, ''));
+        setActiveImage((current) => current && nextImages.includes(current) ? current : nextImages[0] || '');
+        if (!silent) setShowVideo(false);
       } catch (err) {
-        setError(err.response?.data?.message || 'Producto no encontrado.');
+        if (!silent) setError(err.response?.data?.message || 'Producto no encontrado.');
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
-    };
-
-    loadProduct();
   }, [sku]);
+
+  useRealtimeRefresh(['products', 'catalog', 'inventory'], () => loadProduct({ silent: true }));
+
+  useEffect(() => {
+    loadProduct();
+  }, [loadProduct]);
 
   const image = activeImage || resolveAssetUrl(product?.image || product?.media?.[0]?.url);
   const isFallbackImage = image === fallbackImage;

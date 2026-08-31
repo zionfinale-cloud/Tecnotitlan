@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './MercadoLibreCommunicationsScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const dateTime = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 const statusLabels = {
@@ -37,6 +38,8 @@ const MercadoLibreCommunicationsScreen = () => {
       setError(err.response?.data?.message || 'No se pudo cargar la bandeja de Mercado Libre.');
     } finally { if (!silent) setLoading(false); }
   };
+
+  useRealtimeRefresh(['meli', 'inbox', 'messages'], () => load({ silent: true }));
 
   useEffect(() => {
     let active = true;

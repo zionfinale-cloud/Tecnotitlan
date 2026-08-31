@@ -3,6 +3,7 @@ import { NavLink, Outlet, Link } from 'react-router-dom';
 import styles from './AdminLayout.module.css';
 import { SettingsContext } from '../context/SettingsContext';
 import { AuthContext } from '../context/AuthContext';
+import { useRealtime } from '../context/RealtimeContext';
 import api from '../services/apiService';
 import { hasPermission, isSuperAdmin as checkIsSuperAdmin } from '../utils/permissions';
 
@@ -82,6 +83,8 @@ const AdminLayout = () => {
     const previousWhatsappUnread = useRef(0);
     const previousMeliUnread = useRef(0);
     const isSuperAdmin = checkIsSuperAdmin(userInfo);
+    const { connected: realtimeConnected, lastEvent } = useRealtime();
+    const realtimeInboxVersion = ['inbox', 'messages', 'meli', 'quality'].includes(lastEvent?.topic) ? lastEvent?.occurredAt : null;
 
     const toggleSidebar = () => {
         setCollapsed((current) => {
@@ -131,9 +134,9 @@ const AdminLayout = () => {
         };
 
         loadWhatsAppUnread();
-        const timer = window.setInterval(loadWhatsAppUnread, 15000);
+        const timer = window.setInterval(loadWhatsAppUnread, 300000);
         return () => window.clearInterval(timer);
-    }, [canPollWhatsApp]);
+    }, [canPollWhatsApp, realtimeInboxVersion]);
 
     useEffect(() => {
         if (!canPollMeli) return undefined;
@@ -156,9 +159,9 @@ const AdminLayout = () => {
             }
         };
         loadMeliUnread();
-        const timer = window.setInterval(loadMeliUnread, 30000);
+        const timer = window.setInterval(loadMeliUnread, 300000);
         return () => window.clearInterval(timer);
-    }, [canPollMeli]);
+    }, [canPollMeli, realtimeInboxVersion]);
 
     useEffect(() => {
         if (!canPollUnified) return undefined;
@@ -171,9 +174,9 @@ const AdminLayout = () => {
             }
         };
         loadUnifiedUnread();
-        const timer = window.setInterval(loadUnifiedUnread, 30000);
+        const timer = window.setInterval(loadUnifiedUnread, 300000);
         return () => window.clearInterval(timer);
-    }, [canPollUnified]);
+    }, [canPollUnified, realtimeInboxVersion]);
 
     const renderLinkContent = (item) => {
         const unreadCount = item.to === '/admin/whatsapp-chat'
@@ -215,6 +218,9 @@ const AdminLayout = () => {
                         )}
                         <small className={styles.backText}>VOLVER A LA TIENDA</small>
                     </Link>
+                    {!collapsed && <small style={{ display: 'block', textAlign: 'center', color: realtimeConnected ? '#22c55e' : '#f59e0b', marginTop: '.45rem' }}>
+                        ● {realtimeConnected ? 'Tiempo real activo' : 'Reconectando tiempo real'}
+                    </small>}
                 </div>
 
                 <nav>

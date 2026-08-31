@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './ProductListScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const lockedRoleNames = ['SUPER_ADMIN', 'USER'];
 
@@ -260,11 +261,13 @@ const RoleListScreen = () => {
     }
   };
 
+  useRealtimeRefresh(['users', 'security'], () => loadData({ silent: true }));
+
   useEffect(() => {
     loadData();
     const interval = setInterval(() => {
       loadData({ silent: true });
-    }, 30000);
+    }, 300000);
     return () => clearInterval(interval);
   }, []);
 

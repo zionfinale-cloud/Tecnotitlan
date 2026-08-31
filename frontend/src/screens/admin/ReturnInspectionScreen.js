@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import { resolveAssetUrl } from '../../utils/assetUrl';
 import styles from './ReturnInspectionScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const dateTime = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 const fmtDate = (value) => value ? dateTime.format(new Date(value)) : 'Pendiente';
@@ -33,6 +34,7 @@ const ReturnInspectionScreen = () => {
     finally { if (!silent) setLoading(false); }
   };
 
+  useRealtimeRefresh(['returns', 'orders', 'inventory', 'meli'], () => load({ silent: true }));
   useEffect(() => { load(); }, []);
   const selected = cases.find((entry) => entry.id === selectedId) || cases[0];
   const candidateOptions = useMemo(() => {

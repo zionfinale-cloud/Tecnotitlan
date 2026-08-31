@@ -15,6 +15,7 @@ import {
   isConditionalMercadoLibreAttribute,
 } from '../utils/mercadoLibreIdentifiers.js';
 import { BadRequestError, NotFoundError } from '../utils/errorUtils.js';
+import { emitRealtimeMany } from '../services/realtimeService.js';
 
 const oauthStates = new Map();
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -131,13 +132,23 @@ const handleWebhookNotification = asyncHandler(async (req, res) => {
 
   res.status(200).send('OK');
 
-  mercadoLibreService.processWebhookNotification(notification).catch((error) => {
-    logger.error('[Meli Webhook] Error procesando notificacion:', error.message);
-  });
+  mercadoLibreService.processWebhookNotification(notification)
+    .then(() => {
+      emitRealtimeMany(
+        ['meli', 'marketplaces', 'orders', 'inventory', 'products', 'inbox', 'returns', 'dashboard'],
+        'meli.webhook.processed',
+      );
+      emitRealtimeMany(['orders', 'products'], 'marketplace.updated', {}, { room: 'authenticated' });
+      emitRealtimeMany(['products', 'catalog'], 'catalog.updated', {}, { room: 'public' });
+    })
+    .catch((error) => {
+      logger.error('[Meli Webhook] Error procesando notificacion:', error.message);
+    });
 });
 
 const getMeliOrders = asyncHandler(async (req, res) => {
   const result = await mercadoLibreService.syncMeliOrders(req.user.id);
+  emitRealtimeMany(['meli', 'orders', 'inventory', 'products', 'dashboard'], 'meli.orders.synchronized');
 
   res.status(200).json({
     status: 'success',

@@ -1431,6 +1431,15 @@ Protecciones implementadas:
 ## Actualizacion 2026-08-30 - Cifrado de tokens, auditoria y 2FA
 
 - Los tokens de acceso y renovacion de Mercado Libre y TikTok Shop se guardan con AES-256-GCM. Cada valor usa un nonce aleatorio y etiqueta de autenticidad; el prefijo versionado `enc:v1` permite rotaciones futuras sin confundir texto antiguo con ciphertext.
+
+## Actualizacion 2026-08-30 - Sincronizacion en tiempo real sin recargar
+
+- El backend publica invalidaciones por Socket.IO despues de cada mutacion exitosa. Los temas separan Mercado Libre, pedidos, productos, inventario, devoluciones, bandeja, calidad, usuarios, seguridad, finanzas y dashboard.
+- Los webhooks de Mercado Libre avisan solamente despues de terminar su procesamiento; asi la interfaz no consulta datos anteriores mientras una orden, reclamo o cambio de publicacion sigue en proceso.
+- La interfaz vuelve a consultar por AJAX solamente los recursos afectados y agrupa eventos cercanos con una espera corta. No recarga la pagina completa ni pierde formularios, filtros o la imagen activa de un producto.
+- Catalogo, ficha de producto, pedidos del cliente y panel administrativo reciben cambios en vivo. Los sondeos quedan como respaldo cada cinco minutos para recuperarse de una desconexion prolongada.
+- Los sockets autentican el JWT y su version de sesion. Un evento solo contiene el tema y la accion; los datos reales se leen por los endpoints normales, donde aplican RBAC y pertenencia del pedido. El QR de WhatsApp se limita a superadministradores y nunca se transmite el contenido completo de un mensaje como invalidacion.
+- El panel muestra `Tiempo real activo` o `Reconectando` para que el operador sepa si esta recibiendo cambios inmediatos.
 - Al arrancar, la API migra de forma compatible cualquier token heredado en texto claro y elimina tokens, secretos y contrasenas duplicados dentro de `rawData`. Las conexiones existentes se conservan; la aplicacion descifra únicamente en memoria cuando llama al proveedor.
 - La clave se deriva de `TOKEN_ENCRYPTION_KEY`; como compatibilidad operativa usa `SESSION_SECRET` o `JWT_SECRET`. Cambiar la clave sin un proceso de rotacion vuelve ilegibles los tokens almacenados.
 - Cada usuario puede activar TOTP desde **Seguridad y 2FA** mediante QR o clave manual. La activacion exige la contrasena actual y un codigo valido; se entregan diez codigos de recuperacion de un solo uso, almacenados únicamente como hashes.

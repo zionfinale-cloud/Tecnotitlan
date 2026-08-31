@@ -4,6 +4,7 @@ import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/apiService';
 import { canViewCosts } from '../../utils/permissions';
 import styles from './ProductListScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const ProductListScreen = () => {
   const { userInfo } = useContext(AuthContext);
@@ -35,11 +36,13 @@ const ProductListScreen = () => {
     }
   };
 
+  useRealtimeRefresh(['products', 'inventory', 'meli', 'marketplaces'], () => loadProducts({ silent: true }));
+
   useEffect(() => {
     loadProducts();
     const interval = setInterval(() => {
       loadProducts({ silent: true });
-    }, 20000);
+    }, 300000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArchived]);

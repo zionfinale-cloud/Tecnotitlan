@@ -44,8 +44,16 @@ const WhatsappSettingsScreen = () => {
 
   useEffect(() => {
     loadStatus();
-    const timer = window.setInterval(loadStatus, 5000);
-    return () => window.clearInterval(timer);
+    const onStatus = (event) => setStatus(event.detail);
+    const onQr = (event) => setQr(event.detail || '');
+    window.addEventListener('tecnotitlan:whatsapp-status', onStatus);
+    window.addEventListener('tecnotitlan:whatsapp-qr', onQr);
+    const timer = window.setInterval(loadStatus, 300000);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('tecnotitlan:whatsapp-status', onStatus);
+      window.removeEventListener('tecnotitlan:whatsapp-qr', onQr);
+    };
   }, []);
 
   const start = async () => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './TecatlAdminScreen.module.css';
 
 const emptyArticle = {
@@ -122,6 +123,8 @@ const TecatlAdminScreen = () => {
     }
   };
 
+  useRealtimeRefresh(['inbox', 'messages'], loadConversationsSilent);
+
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,7 +133,7 @@ const TecatlAdminScreen = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       loadConversationsSilent();
-    }, 5000);
+    }, 300000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversation?.id]);

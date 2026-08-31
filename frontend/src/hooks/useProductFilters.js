@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/apiService';
+import { useRealtimeRefresh } from './useRealtimeRefresh';
 
 const COLLECTIONS = {
   offers: { title: 'Ofertas', endpoint: '/products', params: { sortBy: 'price_asc' } },
@@ -16,6 +17,7 @@ const useProductFilters = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pages, setPages] = useState(1);
+  const requestSequence = useRef(0);
   const page = Number(searchParams.get('page')) || 1;
   const selectedCategory = searchParams.get('category') || '';
   const collectionKey = searchParams.get('collection') || 'all';
@@ -29,34 +31,45 @@ const useProductFilters = () => {
     });
   }, [setSearchParams]);
 
-  useEffect(() => {
-    api.get('/categories')
+  const loadCategories = useCallback(() => api.get('/categories')
       .then(({ data }) => setCategories(data.data.categories || []))
-      .catch(() => setCategories([]));
-  }, []);
+      .catch(() => setCategories([])), []);
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
+  const loadProducts = useCallback(async ({ silent = false } = {}) => {
+    const sequence = ++requestSequence.current;
+    if (!silent) setLoading(true);
     setError('');
     const params = { ...collection.params, pageNumber: page, pageSize: 12, ...(selectedCategory ? { category: selectedCategory } : {}) };
 
-    api.get(collection.endpoint, { params })
-      .then(({ data }) => {
-        if (!active) return;
-        setProducts(data.data.products || []);
-        setPages(data.data.pages || 1);
-      })
-      .catch(() => {
-        if (!active) return;
+    try {
+      const { data } = await api.get(collection.endpoint, { params });
+      if (sequence !== requestSequence.current) return;
+      setProducts(data.data.products || []);
+      setPages(data.data.pages || 1);
+    } catch (error) {
+      if (sequence !== requestSequence.current) return;
+      if (!silent) {
         setProducts([]);
         setPages(1);
         setError('No pudimos cargar el catálogo. Estamos revisando la conexión.');
-      })
-      .finally(() => active && setLoading(false));
-
-    return () => { active = false; };
+      }
+    } finally {
+      if (sequence === requestSequence.current) setLoading(false);
+    }
   }, [collection, page, selectedCategory]);
+
+  useRealtimeRefresh(['products', 'catalog', 'inventory'], () => {
+    loadProducts({ silent: true });
+    loadCategories();
+  });
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
 
   return {
     products, loading, error, page, pages, categories, selectedCategory,

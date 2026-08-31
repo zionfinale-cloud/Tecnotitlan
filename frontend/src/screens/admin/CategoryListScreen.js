@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import styles from './ProductListScreen.module.css';
 
 const flattenCategories = (categories = [], depth = 0) =>
@@ -32,11 +33,13 @@ const CategoryListScreen = () => {
     }
   };
 
+  useRealtimeRefresh(['catalog', 'products'], () => loadCategories({ silent: true }));
+
   useEffect(() => {
     loadCategories();
     const interval = setInterval(() => {
       loadCategories({ silent: true });
-    }, 20000);
+    }, 300000);
     return () => clearInterval(interval);
   }, []);
 

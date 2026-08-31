@@ -1,6 +1,7 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useState, useEffect } from 'react';
 // Asumimos que apiService.js existe en src/services/
 import api from '../services/apiService'; 
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 
 // Valores por defecto: Aseguran que la aplicación siempre se vea bien incluso sin conexión.
 export const SettingsContext = createContext({
@@ -31,8 +32,7 @@ export const SettingsProvider = ({ children }) => {
     });
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchSettings = async () => {
+    const fetchSettings = useCallback(async () => {
             try {
                 // Cargar configuración de la API (endpoint público)
                 const { data } = await api.get('/settings/public');
@@ -60,9 +60,13 @@ export const SettingsProvider = ({ children }) => {
             } finally {
                 setLoading(false);
             }
-        };
-        fetchSettings();
     }, []);
+
+    useRealtimeRefresh(['settings', 'catalog'], fetchSettings);
+
+    useEffect(() => {
+        fetchSettings();
+    }, [fetchSettings]);
 
     const updateSettings = (newSettings) => {
         setSettings(prev => ({ ...prev, ...newSettings }));

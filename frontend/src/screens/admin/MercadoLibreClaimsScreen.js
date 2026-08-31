@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './MercadoLibreClaimsScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const dateTime = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
@@ -40,6 +41,7 @@ const MercadoLibreClaimsScreen = () => {
     }
   };
 
+  useRealtimeRefresh(['meli', 'orders', 'returns'], () => loadClaims({ silent: true }));
   useEffect(() => { loadClaims(); }, []);
   const selected = claims.find((claim) => claim.externalClaimId === selectedId) || claims[0];
   const openCount = claims.filter((claim) => claim.status === 'opened').length;

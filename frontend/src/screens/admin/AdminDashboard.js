@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './AdminDashboard.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState({ summary: {}, topPages: [], sources: [], countries: [], referrers: [], daily: [] });
   const [quality, setQuality] = useState({}); const [days, setDays] = useState(30); const [error, setError] = useState('');
-  useEffect(() => { Promise.all([api.get(`/analytics/dashboard?days=${days}`), api.get('/service-quality/dashboard')]).then(([views, service]) => { setAnalytics(views.data.data); setQuality(service.data.data.summary || {}); }).catch((err) => setError(err.response?.data?.message || 'No se pudieron cargar las métricas.')); }, [days]);
+  const load = useCallback(() => Promise.all([api.get(`/analytics/dashboard?days=${days}`), api.get('/service-quality/dashboard')]).then(([views, service]) => { setAnalytics(views.data.data); setQuality(service.data.data.summary || {}); }).catch((err) => setError(err.response?.data?.message || 'No se pudieron cargar las métricas.')), [days]);
+  useRealtimeRefresh(['dashboard', 'quality', 'orders', 'inventory'], load);
+  useEffect(() => { load(); }, [load]);
   const maxDaily = Math.max(...(analytics.daily || []).map((entry) => entry.count), 1);
   return <div className={styles.dashboard}><header><div><span>Vista ejecutiva</span><h1>Dashboard de administración</h1><p>Tráfico, origen de visitantes y calidad de atención en una sola lectura.</p></div><select value={days} onChange={(e) => setDays(Number(e.target.value))}><option value="7">7 días</option><option value="30">30 días</option><option value="90">90 días</option></select></header>{error && <div className={styles.error}>{error}</div>}
     <section className={styles.cards}><article><small>Vistas</small><strong>{analytics.summary.views || 0}</strong><span>{analytics.summary.viewsToday || 0} hoy</span></article><article><small>Visitantes aproximados</small><strong>{analytics.summary.visitors || 0}</strong><span>sin guardar IP</span></article><article><small>Páginas por visitante</small><strong>{analytics.summary.pagesPerVisitor || 0}</strong><span>promedio</span></article><article><small>SLA cumplido</small><strong>{quality.compliance == null ? '—' : `${quality.compliance}%`}</strong><span>{quality.breached || 0} vencidos</span></article><article><small>Calidad</small><strong>{quality.averageQuality == null ? '—' : `${quality.averageQuality}/5`}</strong><span>{quality.reviews || 0} revisiones</span></article></section>

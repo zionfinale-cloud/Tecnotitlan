@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './ServiceQualityScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const sourceLabels = { WHATSAPP: 'WhatsApp', SUPPORT: 'Soporte', MELI_QUESTION: 'Pregunta ML', MELI_POST_SALE: 'Posventa ML', MELI_CLAIM: 'Reclamo ML', TECATL: 'Tecatl' };
 const initialTemplate = { name: '', sourceType: '', category: 'GENERAL', body: '' };
@@ -12,7 +13,8 @@ const ServiceQualityScreen = () => {
   const [reviewTarget, setReviewTarget] = useState(null); const [review, setReview] = useState(initialReview);
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [success, setSuccess] = useState('');
   const load = async () => { try { const [dashboard, templateData] = await Promise.all([api.get('/service-quality/dashboard'), api.get('/service-quality/templates?all=true')]); setData(dashboard.data.data); setTemplates(templateData.data.data.templates || []); } catch (err) { setError(err.response?.data?.message || 'No se pudo cargar calidad de servicio.'); } };
-  useEffect(() => { load(); const timer = window.setInterval(load, 60000); return () => clearInterval(timer); }, []);
+  useRealtimeRefresh(['quality', 'inbox', 'messages'], load);
+  useEffect(() => { load(); const timer = window.setInterval(load, 300000); return () => clearInterval(timer); }, []);
   const run = async (request, message) => { setBusy(true); setError(''); setSuccess(''); try { await request(); await load(); setSuccess(message); return true; } catch (err) { setError(err.response?.data?.message || 'No se pudo completar la operación.'); return false; } finally { setBusy(false); } };
   const createTemplate = async (event) => { event.preventDefault(); const ok = await run(() => api.post('/service-quality/templates', form), 'Plantilla creada.'); if (ok) setForm(initialTemplate); };
   const saveReview = async (event) => { event.preventDefault(); if (!reviewTarget) return; const ok = await run(() => api.post(`/service-quality/reviews/${reviewTarget.sourceType}/${encodeURIComponent(reviewTarget.sourceId)}`, review), 'Evaluación de calidad guardada.'); if (ok) { setReviewTarget(null); setReview(initialReview); } };

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/apiService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const SupportTicketsScreen = () => {
   const [tickets, setTickets] = useState([]);
@@ -20,11 +21,13 @@ const SupportTicketsScreen = () => {
     }
   };
 
+  useRealtimeRefresh(['inbox', 'messages'], () => loadTickets({ silent: true }));
+
   useEffect(() => {
     loadTickets();
     const interval = setInterval(() => {
       loadTickets({ silent: true });
-    }, 10000);
+    }, 300000);
     return () => clearInterval(interval);
   }, []);
 

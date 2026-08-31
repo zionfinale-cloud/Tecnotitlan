@@ -630,14 +630,14 @@ const rotateActiveAuthDir = async () => {
 const emitStatus = () => {
     const payload = getStatus();
     if (!io) return;
-    io.emit('whatsapp:status', payload);
-    io.emit('status', payload.status);
+    io.to('admins').emit('whatsapp:status', payload);
+    io.to('admins').emit('status', payload.status);
 };
 
 const emitQr = (qr) => {
     if (!io) return;
-    io.emit('whatsapp:qr', qr);
-    io.emit('qr', qr);
+    io.to('super-admins').emit('whatsapp:qr', qr);
+    io.to('super-admins').emit('qr', qr);
 };
 
 const onlyDigits = (value = '') => String(value || '').replace(/\D/g, '');
@@ -1191,8 +1191,12 @@ const persistMessage = async ({
         });
 
         if (io) {
-            io.emit('whatsapp:message', savedMessage);
-            io.emit('whatsapp:chat-updated', savedMessage.chat);
+            io.to('admins').emit('data:changed', {
+                topic: 'inbox',
+                action: 'whatsapp.message',
+                data: {},
+                occurredAt: new Date().toISOString(),
+            });
         }
 
         return savedMessage;

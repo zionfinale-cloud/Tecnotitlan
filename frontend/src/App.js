@@ -11,6 +11,7 @@ import {
     NotificationProvider,
     ToastProvider,
     LoadingProvider,
+    RealtimeProvider,
 } from 'context';
 
 // --- LAYOUTS ---
@@ -77,6 +78,7 @@ function App() {
         <PayPalScriptProvider options={initialOptions}>
             <LoadingProvider>
                 <AuthProvider>
+                    <RealtimeProvider>
                     <SettingsProvider>
                         <CartProvider>
                             <NotificationProvider>
@@ -163,6 +165,7 @@ function App() {
                             </NotificationProvider>
                         </CartProvider>
                     </SettingsProvider>
+                    </RealtimeProvider>
                 </AuthProvider>
             </LoadingProvider>
         </PayPalScriptProvider>

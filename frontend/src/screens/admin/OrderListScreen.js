@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../../utils/assetUrl';
 import styles from './OrderListScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const currency = new Intl.NumberFormat('es-MX', {
   style: 'currency',
@@ -213,9 +214,11 @@ const OrderListScreen = () => {
     }
   }, [loadNotificationLogs]);
 
+  useRealtimeRefresh(['orders', 'meli', 'inventory'], () => loadOrders({ silent: true }));
+
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(() => loadOrders({ silent: true }), 10000);
+    const interval = setInterval(() => loadOrders({ silent: true }), 300000);
     return () => clearInterval(interval);
   }, [loadOrders]);
 

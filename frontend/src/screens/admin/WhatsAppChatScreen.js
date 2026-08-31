@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './WhatsAppChatScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const dateFormat = new Intl.DateTimeFormat('es-MX', {
   dateStyle: 'short',
@@ -49,6 +50,12 @@ const WhatsAppChatScreen = () => {
   const selectedChatRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
   const previousMessageCountRef = useRef(0);
+
+  useRealtimeRefresh(['inbox', 'messages'], () => {
+    loadChats({ silent: true });
+    const currentChat = selectedChatRef.current;
+    if (currentChat?.jid) loadMessages(currentChat);
+  });
 
   useEffect(() => {
     selectedChatRef.current = selectedChat;
@@ -108,7 +115,7 @@ const WhatsAppChatScreen = () => {
       if (currentChat?.jid) {
         loadMessages(currentChat);
       }
-    }, 3000);
+    }, 300000);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

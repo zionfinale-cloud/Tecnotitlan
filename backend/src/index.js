@@ -43,6 +43,8 @@ import securityRoutes from './routes/securityRoutes.js';
 import auditRoutes from './routes/auditRoutes.js';
 import { auditMutations } from './middleware/auditMiddleware.js';
 import { encryptStoredIntegrationTokens } from './services/tokenEncryptionService.js';
+import { configureRealtime } from './services/realtimeService.js';
+import { notifyRealtimeMutations } from './middleware/realtimeMiddleware.js';
 import { startSlaMonitor, stopSlaMonitor } from './services/serviceQualityService.js';
 
 const app = express();
@@ -66,6 +68,7 @@ const corsOptions = {
 };
 
 const io = new Server(server, { cors: corsOptions });
+configureRealtime(io);
 
 let serverReadyPromise;
 
@@ -101,6 +104,7 @@ const startServer = async () => {
 
 app.use(express.json());
 	app.use(auditMutations);
+	app.use(notifyRealtimeMutations);
     app.use(cors(corsOptions));
     app.use(helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },

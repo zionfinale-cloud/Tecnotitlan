@@ -5,6 +5,7 @@ import Message from '../../components/Message';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import api from '../../services/apiService';
 import styles from './UserListScreen.module.css'; // Importar CSS Module
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const UserListScreen = () => {
   const [users, setUsers] = useState([]);
@@ -23,11 +24,13 @@ const UserListScreen = () => {
     }
   };
 
+  useRealtimeRefresh(['users', 'security'], () => fetchUsers({ silent: true }));
+
   useEffect(() => {
     fetchUsers();
     const interval = setInterval(() => {
       fetchUsers({ silent: true });
-    }, 20000);
+    }, 300000);
     return () => clearInterval(interval);
   }, []);
 

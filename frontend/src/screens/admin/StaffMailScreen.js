@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../services/apiService';
 import { AuthContext } from '../../context/AuthContext';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 import mailStyles from './StaffMailScreen.module.css';
 
 const MAIL_DOMAIN = 'tecnotitlan.com.mx';
@@ -182,6 +183,10 @@ const StaffMailScreen = () => {
       if (!silent) setLoading(false);
     }
   };
+
+  useRealtimeRefresh(['inbox', 'messages'], () => {
+    if (canConnect && messages.length > 0) loadMailbox({ silent: true, mailbox: activeFolder });
+  });
 
   const connectMailbox = async (event) => {
     event.preventDefault();

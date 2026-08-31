@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Container } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import api from '../services/apiService';
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
 import styles from './OrderScreen.module.css';
 
@@ -109,11 +110,13 @@ const OrderScreen = () => {
     }
   };
 
+  useRealtimeRefresh(['orders'], () => loadOrder({ silent: true }));
+
   useEffect(() => {
     loadOrder();
     const interval = setInterval(() => {
       loadOrder({ silent: true });
-    }, 5000);
+    }, 300000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);

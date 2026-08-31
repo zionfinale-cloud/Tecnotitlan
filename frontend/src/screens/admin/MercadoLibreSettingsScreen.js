@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../services/apiService';
 import styles from './StorefrontSettingsScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const formatDate = (date) => {
   if (!date) return 'Sin dato';
@@ -91,6 +92,8 @@ const MercadoLibreSettingsScreen = () => {
       setLoading(false);
     }
   };
+
+  useRealtimeRefresh(['meli', 'marketplaces'], loadStatus);
 
   useEffect(() => {
     loadStatus();

@@ -5,6 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 import { NotificationContext } from '../context/NotificationContext';
 import api from '../services/apiService';
 import styles from './ProfileScreen.module.css';
+import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 
 const statusLabels = {
   PENDING_PAYMENT: 'Pendiente de pago',
@@ -91,13 +92,15 @@ const ProfileScreen = () => {
     }
   };
 
+  useRealtimeRefresh(['orders'], () => fetchMyOrders({ silent: true }));
+
   useEffect(() => {
     if (!userInfo) return;
     fetchProfile();
     fetchMyOrders();
     const interval = setInterval(() => {
       fetchMyOrders({ silent: true });
-    }, 15000);
+    }, 300000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userInfo]);

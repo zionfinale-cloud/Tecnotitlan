@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import { getAvailabilityText, getItemAvailableStock } from '../../utils/productAvailability';
 import styles from './ProductListScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const currency = new Intl.NumberFormat('es-MX', {
   style: 'currency',
@@ -75,6 +76,8 @@ const ChannelsScreen = () => {
       setLoading(false);
     }
   };
+
+  useRealtimeRefresh(['marketplaces', 'products', 'inventory', 'meli'], loadChannels);
 
   useEffect(() => {
     loadChannels();

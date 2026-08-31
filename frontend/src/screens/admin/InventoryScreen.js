@@ -3,6 +3,7 @@ import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/apiService';
 import { canViewCosts } from '../../utils/permissions';
 import styles from './ProductListScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const currency = new Intl.NumberFormat('es-MX', {
   style: 'currency',
@@ -298,11 +299,13 @@ const InventoryScreen = () => {
     movementFilters,
   ]);
 
+  useRealtimeRefresh(['inventory', 'products', 'orders', 'meli', 'returns'], () => loadInventory({ silent: true }));
+
   useEffect(() => {
     loadInventory();
     const interval = setInterval(() => {
       loadInventory({ silent: true });
-    }, 15000);
+    }, 300000);
     return () => clearInterval(interval);
   }, [loadInventory]);
 

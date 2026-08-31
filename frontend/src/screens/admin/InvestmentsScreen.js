@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './ProductListScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const currency = new Intl.NumberFormat('es-MX', {
   style: 'currency',
@@ -122,11 +123,13 @@ const InvestmentsScreen = () => {
     }
   }, []);
 
+  useRealtimeRefresh(['finance', 'inventory'], () => loadInvestments({ silent: true }));
+
   useEffect(() => {
     loadInvestments();
     const interval = setInterval(() => {
       loadInvestments({ silent: true });
-    }, 15000);
+    }, 300000);
     return () => clearInterval(interval);
   }, [loadInvestments]);
 

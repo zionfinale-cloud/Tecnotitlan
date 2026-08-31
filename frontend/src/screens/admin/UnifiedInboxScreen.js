@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './UnifiedInboxScreen.module.css';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const dateTime = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
@@ -40,9 +41,11 @@ const UnifiedInboxScreen = () => {
     } finally { if (!silent) setLoading(false); }
   };
 
+  useRealtimeRefresh(['inbox', 'messages', 'meli', 'quality', 'orders'], () => load({ silent: true }));
+
   useEffect(() => {
     load();
-    const timer = window.setInterval(() => load({ silent: true }), 30000);
+    const timer = window.setInterval(() => load({ silent: true }), 300000);
     return () => window.clearInterval(timer);
   }, []);
 
