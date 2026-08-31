@@ -9,9 +9,10 @@ import { getConfig } from './configService.js';
 import prisma from '../config/prisma.js';
 import { listNotificationLogs, writeNotificationLog } from './notificationLogService.js';
 import { applyPaidOrderInventoryMovements } from './orderInventoryService.js';
-import { notifyStaffOrderPaid } from './staffNotificationService.js';
+import { notifyStaffImportantInboxCase, notifyStaffOrderPaid } from './staffNotificationService.js';
 import { getProductAvailableStock, hasProductAvailability } from '../utils/productAvailability.js';
 import { findMeliOrderByShipment } from '../utils/meliClaimOutcome.js';
+import { shouldNotifyCancellation, shouldNotifyNewClaim } from '../utils/unifiedInboxClassification.js';
 
 const MELI_API_BASE_URL = 'https://api.mercadolibre.com';
 const MELI_CHANNEL = 'MERCADOLIBRE';
@@ -836,11 +837,19 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
   });
 
   if (existingExternalOrder?.order) {
+    const previousStatus = existingExternalOrder.order.status;
     const refreshedOrder = await refreshExistingMeliOrder(
       existingExternalOrder.order,
       existingExternalOrder,
       meliOrder
     );
+    if (notifyStaff && shouldNotifyCancellation(previousStatus, refreshedOrder?.status)) {
+      await notifyStaffImportantInboxCase({
+        event: 'meli_cancellation', externalId: externalOrderId, order: refreshedOrder,
+        title: 'Cancelación nueva de Mercado Libre',
+        message: `Mercado Libre canceló el pedido ${refreshedOrder.orderNumber}. Revisa reembolso, inventario y motivo de cancelación.`,
+      });
+    }
     return {
       action: 'refreshed',
       externalOrderId,
@@ -1068,6 +1077,13 @@ const importMeliOrder = async (meliOrder = {}, { userId = null, notifyStaff = tr
         `[MercadoLibre] Orden ${order.orderNumber} importada, pero fallo el aviso al equipo: ${notificationError.message}`
       );
     }
+  }
+  if (notifyStaff && order?.status === 'CANCELLED') {
+    await notifyStaffImportantInboxCase({
+      event: 'meli_cancellation', externalId: externalOrderId, order,
+      title: 'Cancelación nueva de Mercado Libre',
+      message: `Mercado Libre canceló el pedido ${order.orderNumber}. Revisa reembolso, inventario y motivo de cancelación.`,
+    });
   }
 
   return {
@@ -1892,6 +1908,7 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
   if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
   const claimId = String(externalClaimId || '').replace(/\D/g, '');
   if (!claimId) throw new Error('El identificador del reclamo no es valido.');
+  const previousClaim = await prisma.meliClaim.findUnique({ where: { externalClaimId: claimId } });
 
   const claim = await optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}`);
   if (!claim) throw new Error(`No se encontro el reclamo ${claimId} en Mercado Libre.`);
@@ -1927,7 +1944,7 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
   }
   const sellerPlayer = (claim.players || []).find((player) => player.role === 'respondent');
 
-  return prisma.meliClaim.upsert({
+  const syncedClaim = await prisma.meliClaim.upsert({
     where: { externalClaimId: claimId },
     create: {
       externalClaimId: claimId,
@@ -2006,6 +2023,15 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
       activities: { orderBy: { createdAt: 'desc' }, take: 30 },
     },
   });
+  const becameImportant = shouldNotifyNewClaim(previousClaim, claim);
+  if (becameImportant) {
+    await notifyStaffImportantInboxCase({
+      event: 'meli_claim_opened', externalId: claimId, order: syncedClaim.order,
+      title: 'Reclamo nuevo de Mercado Libre',
+      message: `${syncedClaim.title || syncedClaim.problem || `Reclamo ${claimId}`}. Revisa el caso y su fecha límite en la Bandeja unificada.`,
+    });
+  }
+  return syncedClaim;
 };
 
 const syncMeliClaims = async (userId) => {

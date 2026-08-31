@@ -1453,3 +1453,11 @@ Protecciones implementadas:
 - Cuando Mercado Libre relaciona un reclamo con un `shipment` en lugar de una orden, Tecnotitlan busca el pedido local por `shippingInfo.shippingId` y recupera su orden externa. Esto evita expedientes cerrados sin contexto comercial.
 - Un reclamo cerrado sin devolución física pendiente pasa a control interno `RESOLVED`. Los casos que todavía requieren recibir o inspeccionar mercancía conservan su flujo de cuarentena.
 - La bandeja no inventa un reembolso: muestra fecha o estado del dinero sólo si Mercado Libre los reporta. Si la orden cancelada deja de tener un pago vigente, lo expresa con ese alcance exacto.
+
+## Actualizacion 2026-08-31 - Secciones y alertas de la bandeja unificada
+
+- La Bandeja unificada se divide en **Casos importantes** y **Conversaciones**. La primera sección contiene reclamos, cancelaciones y devoluciones; la segunda reúne preguntas preventa y mensajes privados o posventa.
+- Cada expediente recibe una clasificación visible y contadores por sección y tipo. Los filtros conservan búsqueda, canal, estado pendiente, SLA y contexto del pedido.
+- Las cancelaciones de pedidos Mercado Libre aparecen aunque no exista un reclamo asociado. Si el reclamo ya está ligado al pedido cancelado se muestra un solo expediente, evitando duplicar el caso.
+- Los reclamos nuevos y las transiciones nuevas a pedido cancelado notifican a administradores, supervisores y personal de ventas. Se respeta la preferencia individual de correo y WhatsApp y cada destinatario se deduplica durante 24 horas por evento y expediente.
+- Las resincronizaciones o webhooks repetidos no generan avisos duplicados. La notificación lleva al operador directamente a la Bandeja unificada, donde puede revisar pedido, dinero, inventario y fechas límite.

@@ -614,3 +614,54 @@ export const notifyStaffOrderStatusChanged = async (order, context = {}) => {
     logger.warn(`[Staff Notifications] No se pudo avisar cambio de estado ${order.orderNumber}: ${error.message}`);
   }
 };
+
+export const notifyStaffImportantInboxCase = async ({ event, title, message, externalId, order = null } = {}) => {
+  try {
+    if (!event || !title || !message) return;
+    const staff = await getStaffRecipients();
+    const eventName = `important_inbox_${event}_${externalId || order?.id || 'unknown'}`;
+    const detailUrl = `${getConfig().WEB_URL || process.env.WEB_URL || 'https://tecnotitlan.com.mx'}/admin/inbox`;
+    const baseDetails = { externalId: externalId || null, caseEvent: event, detailUrl };
+    const emailRecipients = staff.filter((user) => user.notificationEmailEnabled !== false && user.email);
+
+    for (const user of emailRecipients) {
+      const recent = await findRecentNotificationLog({
+        channel: 'EMAIL', audience: 'STAFF', event: eventName, recipient: user.email,
+        order, sinceMs: 24 * 60 * 60 * 1000,
+      });
+      if (recent) continue;
+      try {
+        await sendTransactionalMail({
+          to: user.email,
+          subject: `[Atención requerida] ${title}`,
+          text: `${title}\n\n${message}\n${order?.orderNumber ? `Pedido: ${order.orderNumber}\n` : ''}Abrir Bandeja unificada: ${detailUrl}`,
+          html: `<div style="font-family:Arial,sans-serif;padding:24px;color:#172033"><h1 style="color:#b91c1c">${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p>${order?.orderNumber ? `<p><strong>Pedido:</strong> ${escapeHtml(order.orderNumber)}</p>` : ''}<p><a href="${escapeHtml(detailUrl)}">Abrir Bandeja unificada</a></p></div>`,
+        });
+        await writeNotificationLog({ channel: 'EMAIL', audience: 'STAFF', event: eventName, status: 'SENT', provider: 'smtp', recipient: user.email, order, message, details: baseDetails });
+      } catch (error) {
+        await writeNotificationLog({ channel: 'EMAIL', audience: 'STAFF', event: eventName, status: 'FAILED', provider: 'smtp', recipient: user.email, order, error: error.message, details: baseDetails });
+      }
+    }
+
+    const whatsappRecipients = staff
+      .filter((user) => user.notificationWhatsappEnabled === true)
+      .map((user) => ({ name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email, phone: normalizePhone(user.notificationWhatsapp || user.phone) }))
+      .filter((recipient, index, all) => recipient.phone && all.findIndex((candidate) => candidate.phone === recipient.phone) === index);
+    const whatsappMessage = `*${title}*\n${message}${order?.orderNumber ? `\nPedido: ${order.orderNumber}` : ''}\nBandeja: ${detailUrl}`;
+    for (const recipient of whatsappRecipients) {
+      const recent = await findRecentNotificationLog({
+        channel: 'WHATSAPP', audience: 'STAFF', event: eventName, recipient: recipient.phone,
+        order, sinceMs: 24 * 60 * 60 * 1000,
+      });
+      if (recent) continue;
+      try {
+        await whatsappService.sendMessage(recipient.phone, whatsappMessage, 'Sistema');
+        await writeNotificationLog({ channel: 'WHATSAPP', audience: 'STAFF', event: eventName, status: 'SENT', provider: 'baileys', recipient: recipient.phone, order, message: whatsappMessage, details: { ...baseDetails, recipientName: recipient.name } });
+      } catch (error) {
+        await writeNotificationLog({ channel: 'WHATSAPP', audience: 'STAFF', event: eventName, status: 'FAILED', provider: 'baileys', recipient: recipient.phone, order, error: error.message, details: { ...baseDetails, recipientName: recipient.name } });
+      }
+    }
+  } catch (error) {
+    logger.warn(`[Staff Notifications] No se pudo avisar caso importante ${externalId || ''}: ${error.message}`);
+  }
+};

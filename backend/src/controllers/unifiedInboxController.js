@@ -7,6 +7,7 @@ import { sendTransactionalMail } from '../services/emailService.js';
 import { normalizeInboxValue, findAutomaticInboxOrder } from '../utils/unifiedInboxMatcher.js';
 import { evaluateInboxSla } from '../utils/inboxSla.js';
 import { getMeliClaimOutcome } from '../utils/meliClaimOutcome.js';
+import { classifyInboxItem } from '../utils/unifiedInboxClassification.js';
 
 const SOURCE_TYPES = new Set(['WHATSAPP', 'SUPPORT', 'MELI_QUESTION', 'MELI_POST_SALE', 'MELI_CLAIM', 'TECATL']);
 const canReplyToSource = (user, sourceType) => {
@@ -155,7 +156,25 @@ const buildInboxItems = ({ orders, explicitLinks, repliesBySource, whatsapp, tic
       title: claim.title || claim.problem || `Reclamo ${claim.externalClaimId}`, customer: {}, preview: outcome?.summary || claim.description || claim.problem || '', unreadCount: claim.status === 'opened' ? 1 : 0,
       status: claim.status, priority: claim.priority, timestamp: claim.updatedAt,
       messages, deepLink: '/admin/meli-claims', canReply: claim.status === 'opened', claimStage: claim.stage, outcome,
+      returnId: claim.returnId, returnStatus: claim.returnStatus, returnShipmentId: claim.returnShipmentId,
     }, buildLink('MELI_CLAIM', claim.externalClaimId, explicitLinks, null, claim.order)));
+  });
+  const claimOrderIds = new Set(claims.map((claim) => claim.orderId).filter(Boolean));
+  orders.filter((order) => (
+    order.salesChannel === 'MERCADOLIBRE'
+    && order.status === 'CANCELLED'
+    && !claimOrderIds.has(order.id)
+  )).forEach((order) => {
+    const cancelledAt = order.updatedAt || order.createdAt;
+    items.push(attachOrder({
+      id: `ORDER_CANCELLATION:${order.id}`, sourceType: 'ORDER_CANCELLATION', sourceId: order.id,
+      channel: 'Mercado Libre', kind: 'Cancelación', title: `Cancelación ${order.orderNumber}`,
+      customer: orderSummary(order)?.customer || {},
+      preview: `El pedido ${order.orderNumber} fue cancelado en Mercado Libre. Revisa el pago, inventario y motivo de cancelación.`,
+      unreadCount: 0, status: 'CANCELLED', priority: 'URGENT', timestamp: cancelledAt,
+      messages: [{ id: `${order.id}:cancelled`, direction: 'SYSTEM', text: `Mercado Libre reportó la cancelación del pedido ${order.orderNumber}. Verifica el reembolso y la restitución del inventario.`, at: cancelledAt, status: 'CANCELADO' }],
+      deepLink: '/admin/orderlist', canReply: false, linkable: false,
+    }, { order, method: 'NATIVE_CHANNEL', confidence: 100, confirmed: true }));
   });
   tecatl.forEach((conversation) => {
     const automatic = findAutomaticOrder({ orders, userId: conversation.customerId, email: conversation.customerEmail, phone: conversation.customer?.phone });
@@ -169,7 +188,10 @@ const buildInboxItems = ({ orders, explicitLinks, repliesBySource, whatsapp, tic
       deepLink: '/admin/tecatl', canReply: openHandoff,
     }, buildLink('TECATL', conversation.id, explicitLinks, automatic)));
   });
-  return items.map((item) => ({ ...item, sla: evaluateInboxSla(item) })).sort((left, right) => new Date(right.timestamp || 0) - new Date(left.timestamp || 0));
+  return items.map((item) => {
+    const classified = { ...item, ...classifyInboxItem(item) };
+    return { ...classified, sla: evaluateInboxSla(classified) };
+  }).sort((left, right) => new Date(right.timestamp || 0) - new Date(left.timestamp || 0));
 };
 
 const getInboxItemsSnapshot = async () => buildInboxItems(await loadInboxData());
@@ -179,18 +201,24 @@ const getUnifiedInbox = asyncHandler(async (req, res) => {
   let items = buildInboxItems(data);
   const query = normalize(req.query.q);
   const channel = normalize(req.query.channel);
+  const section = String(req.query.section || '').toUpperCase();
+  const type = String(req.query.type || '').toUpperCase();
   const pending = String(req.query.pending || '') === 'true';
   if (query) items = items.filter((item) => normalize([
     item.title, item.preview, item.sourceId, item.customer?.name, item.customer?.email, item.customer?.phone,
     item.linkedOrder?.orderNumber, ...(item.linkedOrder?.items || []).flatMap((entry) => [entry.name, entry.sku]),
   ].join(' ')).includes(query));
   if (channel) items = items.filter((item) => normalize(item.channel).includes(channel));
+  if (section) items = items.filter((item) => item.section === section);
+  if (type) items = items.filter((item) => item.type === type);
   if (pending) items = items.filter((item) => item.unreadCount > 0 || ['OPEN', 'UNANSWERED', 'opened', 'HUMAN_REQUIRED'].includes(item.status));
   const counts = {
     total: items.length,
     pending: items.filter((item) => item.unreadCount > 0).length,
     unlinked: items.filter((item) => !item.linkedOrder).length,
     channels: items.reduce((result, item) => ({ ...result, [item.channel]: (result[item.channel] || 0) + 1 }), {}),
+    sections: items.reduce((result, item) => ({ ...result, [item.section]: (result[item.section] || 0) + 1 }), {}),
+    types: items.reduce((result, item) => ({ ...result, [item.type]: (result[item.type] || 0) + 1 }), {}),
   };
   res.json({ status: 'success', data: { items, counts } });
 });
