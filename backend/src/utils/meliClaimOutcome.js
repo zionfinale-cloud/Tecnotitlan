@@ -27,6 +27,11 @@ export const getMeliClaimOutcome = (claim = {}) => {
 
   const beneficiaries = asArray(resolution.benefited).map((role) => BENEFICIARY_LABELS[role] || role);
   const beneficiaryText = beneficiaries.length ? beneficiaries.join(' y ') : 'sin beneficiario informado';
+  const beneficiaryPhrase = beneficiaries.includes('comprador')
+    ? 'del comprador'
+    : beneficiaries.includes('vendedor')
+      ? 'del vendedor'
+      : `de ${beneficiaryText}`;
   const reason = CLOSE_REASON_LABELS[resolution.reason] || resolution.reason || 'resolución de Mercado Libre';
   const closedBy = BENEFICIARY_LABELS[resolution.closed_by] || resolution.closed_by || closedHistory?.change_by || 'Mercado Libre';
   const orderCancelled = String(claim.order?.status || '').toUpperCase() === 'CANCELLED';
@@ -35,7 +40,7 @@ export const getMeliClaimOutcome = (claim = {}) => {
   const refundedPayment = asArray(externalOrder?.rawData?.payments).find((payment) => (
     String(payment?.status || '').toLowerCase() === 'refunded'
   ));
-  const parts = [`Mercado Libre cerró el reclamo a favor de ${beneficiaryText} por ${reason}.`];
+  const parts = [`Mercado Libre cerró el reclamo a favor ${beneficiaryPhrase} por ${reason}.`];
 
   if (resolution.applied_coverage === true) parts.push('Mercado Libre indicó que aplicó cobertura.');
   if (orderCancelled) parts.push(`El pedido ${claim.order.orderNumber || ''} quedó cancelado.`.replace('  ', ' '));

@@ -18,6 +18,7 @@ test('explica un reclamo cerrado a favor del comprador con cobertura y cancelaci
     },
   });
   assert.equal(outcome.headline, 'Reclamo cerrado a favor del comprador');
+  assert.match(outcome.summary, /a favor del comprador/i);
   assert.match(outcome.summary, /aplicó cobertura/i);
   assert.match(outcome.summary, /quedó cancelado/i);
   assert.match(outcome.summary, /reembolso de \$1,070\.75/i);

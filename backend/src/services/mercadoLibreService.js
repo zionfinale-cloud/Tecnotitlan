@@ -1912,6 +1912,19 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
   const claimOrder = await resolveClaimOrder(claim, returnData);
   const externalOrderId = claimOrder.externalOrderId;
   const automaticallyResolved = claim.status === 'closed' && !returnData;
+  if (externalOrderId) {
+    try {
+      const remoteOrder = await getOrder(externalOrderId, userId);
+      if (remoteOrder) {
+        await prisma.externalOrder.update({
+          where: { channel_externalOrderId: { channel: MELI_CHANNEL, externalOrderId } },
+          data: { externalStatus: remoteOrder.status || null, rawData: remoteOrder },
+        });
+      }
+    } catch (error) {
+      logger.warn(`[MercadoLibre] Reclamo ${claimId} actualizado, pero no se pudo refrescar su orden ${externalOrderId}: ${error.message}`);
+    }
+  }
   const sellerPlayer = (claim.players || []).find((player) => player.role === 'respondent');
 
   return prisma.meliClaim.upsert({
