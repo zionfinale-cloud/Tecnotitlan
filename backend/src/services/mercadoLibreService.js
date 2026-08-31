@@ -13,6 +13,7 @@ import { notifyStaffImportantInboxCase, notifyStaffOrderPaid } from './staffNoti
 import { getProductAvailableStock, hasProductAvailability } from '../utils/productAvailability.js';
 import { findMeliOrderByShipment, getMeliClaimOutcome } from '../utils/meliClaimOutcome.js';
 import { shouldNotifyCancellation, shouldNotifyNewClaim } from '../utils/unifiedInboxClassification.js';
+import { ensureCriticalAlertAssignment } from './criticalInboxService.js';
 
 const MELI_API_BASE_URL = 'https://api.mercadolibre.com';
 const MELI_CHANNEL = 'MERCADOLIBRE';
@@ -1845,10 +1846,10 @@ const updatePriceAndStock = async (userId, meliItemId, { price, stock }) => {
   }
 };
 
-const optionalMeliGet = async (accessToken, path, params = undefined) => {
+const optionalMeliGet = async (accessToken, path, params = undefined, extraHeaders = {}) => {
   try {
     const { data } = await axios.get(`${MELI_API_BASE_URL}${path}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}`, ...extraHeaders },
       ...(params ? { params } : {}),
     });
     return data;
@@ -1936,9 +1937,13 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
     try {
       const remoteOrder = await getOrder(externalOrderId, userId);
       if (remoteOrder) {
+        const shipmentId = remoteOrder.shipping?.id || remoteOrder.shipping?.shipment_id;
+        const shippingCosts = shipmentId
+          ? await optionalMeliGet(accessToken, `/shipments/${shipmentId}/costs`, undefined, { 'x-format-new': 'true' })
+          : null;
         await prisma.externalOrder.update({
           where: { channel_externalOrderId: { channel: MELI_CHANNEL, externalOrderId } },
-          data: { externalStatus: remoteOrder.status || null, rawData: remoteOrder },
+          data: { externalStatus: remoteOrder.status || null, rawData: { ...remoteOrder, tecnotitlan_shipping_costs: shippingCosts } },
         });
       }
     } catch (error) {
@@ -2028,6 +2033,7 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
   });
   const becameImportant = shouldNotifyNewClaim(previousClaim, claim);
   if (becameImportant) {
+    await ensureCriticalAlertAssignment(claimId, 'CLAIM').catch((error) => logger.warn(`[MercadoLibre] No se pudo autoasignar reclamo ${claimId}: ${error.message}`));
     await notifyStaffImportantInboxCase({
       event: 'meli_claim_opened', externalId: claimId, order: syncedClaim.order,
       title: 'Reclamo nuevo de Mercado Libre',
@@ -2036,6 +2042,7 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
   }
   const currentOutcome = getMeliClaimOutcome(syncedClaim);
   if (currentOutcome?.refunded) {
+    await ensureCriticalAlertAssignment(claimId, 'REFUND').catch((error) => logger.warn(`[MercadoLibre] No se pudo autoasignar reembolso ${claimId}: ${error.message}`));
     await notifyStaffImportantInboxCase({
       event: 'meli_refund_confirmed', externalId: claimId, order: syncedClaim.order,
       title: 'Reembolso confirmado por Mercado Libre',

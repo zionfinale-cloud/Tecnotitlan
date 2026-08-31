@@ -615,11 +615,16 @@ export const notifyStaffOrderStatusChanged = async (order, context = {}) => {
   }
 };
 
-export const notifyStaffImportantInboxCase = async ({ event, title, message, externalId, order = null } = {}) => {
+export const notifyStaffImportantInboxCase = async ({ event, title, message, externalId, order = null, recipientUserIds = [], recipientRoles = [] } = {}) => {
   try {
     if (!event || !title || !message) return;
-    const staff = (await getStaffRecipients())
-      .filter((user) => OPERATIONAL_ROLES.includes(user.role?.name));
+    const requestedUsers = new Set(recipientUserIds.filter(Boolean));
+    const requestedRoles = new Set(recipientRoles.filter(Boolean));
+    const staff = (await getStaffRecipients()).filter((user) => (
+      OPERATIONAL_ROLES.includes(user.role?.name)
+      && (!requestedUsers.size || requestedUsers.has(user.id))
+      && (!requestedRoles.size || requestedRoles.has(user.role?.name))
+    ));
     const eventName = `important_inbox_${event}_${externalId || order?.id || 'unknown'}`;
     const detailUrl = `${getConfig().WEB_URL || process.env.WEB_URL || 'https://tecnotitlan.com.mx'}/admin/inbox`;
     const baseDetails = { externalId: externalId || null, caseEvent: event, detailUrl };

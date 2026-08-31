@@ -38,6 +38,49 @@
   background: #fee2e2;
   color: #991b1b;
 }
+.channelHealth {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+.channelHealth > div {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid;
+  border-radius: 13px;
+}
+.channelHealth > div > i {
+  font-size: 1.5rem;
+}
+.channelHealth span {
+  display: grid;
+  flex: 1;
+}
+.channelHealth small {
+  opacity: 0.8;
+}
+.channelHealth a,
+.channelHealth button {
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.75);
+  font-weight: 900;
+  text-decoration: none;
+}
+.channelOk {
+  border-color: #86efac !important;
+  color: #166534;
+  background: #f0fdf4;
+}
+.channelWarning {
+  border-color: #fbbf24 !important;
+  color: #92400e;
+  background: #fffbeb;
+}
 .criticalAlerts {
   padding: 1rem;
   border: 2px solid #dc2626;
@@ -84,6 +127,9 @@
 .alertList article > div {
   min-width: 0;
 }
+.alertBody {
+  flex: 1;
+}
 .alertList p {
   color: #7f1d1d;
   overflow: hidden;
@@ -94,11 +140,57 @@
   color: #991b1b;
   font-weight: 800;
 }
-.alertList article > span {
+.alertActions,
+.alertActions > span {
   display: flex;
   align-items: center;
   gap: 0.45rem;
   flex-shrink: 0;
+}
+.alertActions {
+  align-items: flex-end;
+  flex-direction: column;
+}
+.assignment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr)) auto;
+  gap: 0.4rem;
+  align-items: end;
+}
+.assignment label {
+  display: grid;
+  gap: 0.15rem;
+  color: #7f1d1d;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.assignment select {
+  max-width: 190px;
+  padding: 0.45rem;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff;
+}
+.reconciliation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.7rem;
+  margin-top: 0.65rem;
+  padding: 0.65rem;
+  border-radius: 10px;
+  color: #334155;
+  background: #fff7ed;
+}
+.reconciliation > b {
+  grid-column: 1 / -1;
+  color: #9a3412;
+}
+.reconciliation span {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.74rem;
 }
 .alertList a,
 .alertList button,
@@ -108,6 +200,26 @@
   border-radius: 9px;
   font-weight: 900;
   text-decoration: none;
+}
+.incidentCards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+.incidentCards article {
+  display: grid;
+  padding: 0.85rem;
+  border: 1px solid #fecaca;
+  border-radius: 13px;
+  background: #fff;
+}
+.incidentCards small,
+.incidentCards span {
+  color: #64748b;
+}
+.incidentCards strong {
+  color: #991b1b;
+  font-size: 1.45rem;
 }
 .alertList a,
 .viewAll {
@@ -231,21 +343,37 @@
   .tables {
     grid-template-columns: repeat(2, 1fr);
   }
+  .incidentCards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .alertList article {
+    flex-direction: column;
+  }
+  .alertActions {
+    align-items: stretch;
+  }
 }
 @media (max-width: 650px) {
   .dashboard > header {
     flex-direction: column;
   }
   .cards,
-  .tables {
+  .tables,
+  .channelHealth,
+  .incidentCards,
+  .assignment,
+  .reconciliation {
     grid-template-columns: 1fr;
   }
   .bars small {
     display: none;
   }
   .alertList article,
-  .alertList article > span {
+  .alertActions > span {
     align-items: stretch;
     flex-direction: column;
+  }
+  .assignment select {
+    max-width: none;
   }
 }

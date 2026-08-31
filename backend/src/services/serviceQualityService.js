@@ -1,6 +1,9 @@
 import { getInboxItemsSnapshot } from '../controllers/unifiedInboxController.js';
 import { findRecentNotificationLog, writeNotificationLog } from './notificationLogService.js';
 import logger from '../utils/logger.js';
+import prisma from '../config/prisma.js';
+import { buildCriticalClaimAlerts, getCriticalEscalationLevel } from '../utils/criticalInboxAlerts.js';
+import { notifyStaffImportantInboxCase } from './staffNotificationService.js';
 
 let timer = null;
 
@@ -24,9 +27,48 @@ const scanSlaAlerts = async () => {
   return { scanned: items.length, activeAlerts: alerts.length, created };
 };
 
+const scanCriticalInboxEscalations = async () => {
+  const claims = await prisma.meliClaim.findMany({
+    include: { activities: true, order: { include: { externalOrders: true, orderItems: true } } },
+    orderBy: { updatedAt: 'desc' }, take: 200,
+  });
+  const alerts = claims.flatMap((claim) => buildCriticalClaimAlerts(claim).map((alert) => ({ ...alert, claim })));
+  let escalated = 0;
+  for (const alert of alerts) {
+    const ageMinutes = Math.max(0, Math.floor((Date.now() - new Date(alert.at || alert.claim.createdAt).getTime()) / 60000));
+    const level = getCriticalEscalationLevel(ageMinutes);
+    if (!level) continue;
+    const alreadyEscalated = alert.claim.activities.some((activity) => (
+      activity.action === 'DASHBOARD_ALERT_ESCALATED'
+      && String(activity.details?.alertKind || '').toUpperCase() === alert.kind
+      && activity.details?.level === level
+    ));
+    if (alreadyEscalated) continue;
+    const assignedIds = [alert.assignment?.primaryUserId, alert.assignment?.backupUserId].filter(Boolean);
+    await notifyStaffImportantInboxCase({
+      event: `escalation_${level.toLowerCase()}_${alert.kind.toLowerCase()}`,
+      externalId: alert.claimId, order: alert.claim.order,
+      title: level === 'LEVEL_2' ? `Escalamiento administrativo: ${alert.title}` : `Caso sin atender: ${alert.title}`,
+      message: `${alert.message} Lleva ${ageMinutes} minutos sin acuse de revisión.`,
+      ...(level === 'LEVEL_2'
+        ? { recipientRoles: ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR'] }
+        : assignedIds.length ? { recipientUserIds: assignedIds } : {}),
+    });
+    await prisma.meliClaimActivity.create({ data: {
+      claimId: alert.claim.id, action: 'DASHBOARD_ALERT_ESCALATED', actorName: 'Monitor SLA',
+      details: { alertKind: alert.kind, level, ageMinutes, escalatedAt: new Date().toISOString(), assignedIds },
+    } });
+    escalated += 1;
+  }
+  return { scanned: alerts.length, escalated };
+};
+
 const startSlaMonitor = () => {
   if (timer || process.env.NODE_ENV === 'test') return;
-  const run = () => scanSlaAlerts().catch((error) => logger.warn(`[SLA] No se pudo completar el escaneo: ${error.message}`));
+  const run = async () => {
+    try { await Promise.all([scanSlaAlerts(), scanCriticalInboxEscalations()]); }
+    catch (error) { logger.warn(`[SLA] No se pudo completar el escaneo: ${error.message}`); }
+  };
   setTimeout(run, 30000);
   timer = setInterval(run, 5 * 60 * 1000);
   timer.unref?.();
@@ -34,4 +76,4 @@ const startSlaMonitor = () => {
 
 const stopSlaMonitor = () => { if (timer) clearInterval(timer); timer = null; };
 
-export { scanSlaAlerts, startSlaMonitor, stopSlaMonitor };
+export { scanSlaAlerts, scanCriticalInboxEscalations, startSlaMonitor, stopSlaMonitor };

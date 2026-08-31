@@ -8,9 +8,10 @@ import { normalizeInboxValue, findAutomaticInboxOrder } from '../utils/unifiedIn
 import { evaluateInboxSla } from '../utils/inboxSla.js';
 import { getMeliClaimOutcome } from '../utils/meliClaimOutcome.js';
 import { classifyInboxItem } from '../utils/unifiedInboxClassification.js';
-import { buildCriticalClaimAlerts } from '../utils/criticalInboxAlerts.js';
+import { buildCriticalClaimAlerts, buildRefundReconciliation } from '../utils/criticalInboxAlerts.js';
 
 const SOURCE_TYPES = new Set(['WHATSAPP', 'SUPPORT', 'MELI_QUESTION', 'MELI_POST_SALE', 'MELI_CLAIM', 'TECATL']);
+const CRITICAL_RECIPIENT_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'VENDEDOR', 'SELLER', 'SALES'];
 const canReplyToSource = (user, sourceType) => {
   if (user?.role?.name === 'SUPER_ADMIN') return true;
   const permissions = new Set((user?.role?.permissions || []).map((permission) => permission.name));
@@ -244,14 +245,72 @@ const getCriticalInboxAlerts = asyncHandler(async (req, res) => {
   const claims = await prisma.meliClaim.findMany({
     include: {
       activities: { orderBy: { createdAt: 'desc' } },
-      order: { include: { externalOrders: true } },
+      order: { include: { externalOrders: true, orderItems: true, returnInspections: { include: { items: true } } } },
     },
     orderBy: { updatedAt: 'desc' },
     take: 200,
   });
+  const orderIds = claims.map((claim) => claim.orderId).filter(Boolean);
+  const movements = orderIds.length ? await prisma.inventoryMovement.findMany({
+    where: { referenceId: { in: orderIds }, type: 'RETURN_IN' },
+    select: { type: true, quantity: true, referenceId: true },
+  }) : [];
+  claims.forEach((claim) => { claim.inventoryMovements = movements.filter((entry) => entry.referenceId === claim.orderId); });
   const alerts = claims.flatMap(buildCriticalClaimAlerts)
     .sort((left, right) => new Date(right.at || 0) - new Date(left.at || 0));
-  res.json({ status: 'success', data: { alerts, count: alerts.length } });
+  const assignees = await prisma.user.findMany({
+    where: { role: { name: { in: CRITICAL_RECIPIENT_ROLES } } },
+    select: { id: true, firstName: true, lastName: true, email: true, role: { select: { name: true } } },
+    orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+  });
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const recentClaims = claims.filter((claim) => new Date(claim.updatedAt) >= since);
+  const refunds = recentClaims.filter((claim) => getMeliClaimOutcome(claim)?.refunded);
+  const acknowledgedActivities = recentClaims.flatMap((claim) => claim.activities
+    .filter((activity) => activity.action === 'DASHBOARD_ALERT_ACKNOWLEDGED')
+    .map((activity) => ({ claim, activity })));
+  const acknowledgementMinutes = acknowledgedActivities.map(({ claim, activity }) => Math.max(0, Math.round((new Date(activity.createdAt) - new Date(claim.createdAt)) / 60000)));
+  const hasSavedWhatsappSession = await whatsappService.hasSavedSession();
+  const whatsappStatus = whatsappService.getStatus();
+  res.json({ status: 'success', data: {
+    alerts, count: alerts.length, assignees,
+    metrics: {
+      claims30d: recentClaims.length,
+      refunds30d: refunds.length,
+      refundAmount30d: refunds.reduce((sum, claim) => sum + buildRefundReconciliation(claim).refundAmount, 0),
+      averageAcknowledgeMinutes: acknowledgementMinutes.length ? Math.round(acknowledgementMinutes.reduce((sum, value) => sum + value, 0) / acknowledgementMinutes.length) : null,
+      unassigned: alerts.filter((alert) => !alert.assignment?.primaryUserId).length,
+      escalated: recentClaims.filter((claim) => claim.activities.some((activity) => activity.action === 'DASHBOARD_ALERT_ESCALATED')).length,
+    },
+    notificationHealth: { whatsapp: { connected: Boolean(whatsappStatus.connected), status: whatsappStatus.status, hasSavedSession: hasSavedWhatsappSession } },
+  } });
+});
+
+const assignCriticalInboxAlert = asyncHandler(async (req, res) => {
+  const claimId = String(req.params.claimId || '');
+  const alertKind = String(req.params.kind || '').toUpperCase();
+  const primaryUserId = String(req.body.primaryUserId || '');
+  const backupUserId = String(req.body.backupUserId || '') || null;
+  if (!['CLAIM', 'REFUND'].includes(alertKind)) throw new BadRequestError('Tipo de alerta crítica inválido.');
+  if (!primaryUserId) throw new BadRequestError('Selecciona un responsable principal.');
+  if (backupUserId === primaryUserId) throw new BadRequestError('El suplente debe ser distinto del responsable principal.');
+  const [claim, users] = await Promise.all([
+    prisma.meliClaim.findUnique({ where: { externalClaimId: claimId }, select: { id: true } }),
+    prisma.user.findMany({ where: { id: { in: [primaryUserId, backupUserId].filter(Boolean) }, role: { name: { in: CRITICAL_RECIPIENT_ROLES } } }, select: { id: true, firstName: true, lastName: true, email: true } }),
+  ]);
+  if (!claim) throw new NotFoundError('Reclamo no encontrado.');
+  const primary = users.find((user) => user.id === primaryUserId);
+  const backup = users.find((user) => user.id === backupUserId);
+  if (!primary || (backupUserId && !backup)) throw new BadRequestError('Responsable o suplente inválido.');
+  const label = (user) => user ? ([user.firstName, user.lastName].filter(Boolean).join(' ') || user.email) : null;
+  await prisma.$transaction([
+    prisma.meliClaim.update({ where: { id: claim.id }, data: { assignedTo: primary.email } }),
+    prisma.meliClaimActivity.create({ data: {
+      claimId: claim.id, action: 'DASHBOARD_ALERT_ASSIGNED', actorId: req.user.id, actorName: req.user.email,
+      details: { alertKind, primaryUserId, primaryName: label(primary), backupUserId, backupName: label(backup), assignedAt: new Date().toISOString() },
+    } }),
+  ]);
+  res.json({ status: 'success', message: 'Responsable y suplente asignados.' });
 });
 
 const acknowledgeCriticalInboxAlert = asyncHandler(async (req, res) => {
@@ -362,4 +421,4 @@ const replyUnifiedInbox = asyncHandler(async (req, res) => {
   res.status(201).json({ status: 'success', message: 'Respuesta enviada desde la bandeja unificada.', data: { result } });
 });
 
-export { getUnifiedInbox, getUnifiedInboxCounts, getCriticalInboxAlerts, acknowledgeCriticalInboxAlert, searchInboxOrders, linkInboxOrder, unlinkInboxOrder, replyUnifiedInbox, getInboxItemsSnapshot };
+export { getUnifiedInbox, getUnifiedInboxCounts, getCriticalInboxAlerts, assignCriticalInboxAlert, acknowledgeCriticalInboxAlert, searchInboxOrders, linkInboxOrder, unlinkInboxOrder, replyUnifiedInbox, getInboxItemsSnapshot };

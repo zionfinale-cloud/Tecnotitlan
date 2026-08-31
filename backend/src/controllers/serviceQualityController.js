@@ -2,7 +2,7 @@ import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js';
 import { BadRequestError, NotFoundError } from '../utils/errorUtils.js';
 import { getInboxItemsSnapshot } from './unifiedInboxController.js';
-import { scanSlaAlerts } from '../services/serviceQualityService.js';
+import { scanSlaAlerts, scanCriticalInboxEscalations } from '../services/serviceQualityService.js';
 
 const SOURCE_TYPES = new Set(['WHATSAPP', 'SUPPORT', 'MELI_QUESTION', 'MELI_POST_SALE', 'MELI_CLAIM', 'TECATL']);
 const clean = (value, max = 5000) => String(value || '').trim().slice(0, max);
@@ -71,6 +71,8 @@ const reviewInboxQuality = asyncHandler(async (req, res) => {
   const review = await prisma.inboxQualityReview.create({ data: { sourceType, sourceId, ...scores, overallScore, notes: clean(req.body.notes) || null, reviewerId: req.user.id, reviewer: req.user.email } });
   res.status(201).json({ status: 'success', data: { review } });
 });
-const scanServiceQualityAlerts = asyncHandler(async (req, res) => res.json({ status: 'success', data: await scanSlaAlerts() }));
+const scanServiceQualityAlerts = asyncHandler(async (req, res) => res.json({ status: 'success', data: {
+  sla: await scanSlaAlerts(), critical: await scanCriticalInboxEscalations(),
+} }));
 
 export { getServiceQualityDashboard, getResponseTemplates, createResponseTemplate, updateResponseTemplate, reviewInboxQuality, scanServiceQualityAlerts };

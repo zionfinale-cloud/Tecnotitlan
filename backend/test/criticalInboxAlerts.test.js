@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCriticalClaimAlerts } from '../src/utils/criticalInboxAlerts.js';
+import { buildCriticalClaimAlerts, buildRefundReconciliation, getCriticalEscalationLevel } from '../src/utils/criticalInboxAlerts.js';
 
 test('mantiene visible un reclamo abierto hasta que alguien lo revisa', () => {
   const claim = { externalClaimId: '10', status: 'opened', title: 'Producto no recibido', activities: [] };
@@ -28,4 +28,47 @@ test('el acuse de reclamo no oculta una alerta posterior de reembolso', () => {
     order: { status: 'CANCELLED', externalOrders: [{ rawData: { payments: [{ status: 'refunded', transaction_amount: 100 }] } }] },
   };
   assert.deepEqual(buildCriticalClaimAlerts(claim).map((alert) => alert.kind), ['REFUND']);
+});
+
+test('concilia monto, cargos e inventario sin declarar recuperaciones no confirmadas', () => {
+  const reconciliation = buildRefundReconciliation({
+    returnId: 'return-1', inventoryMovements: [{ type: 'RETURN_IN', quantity: 1 }],
+    order: {
+      paymentFee: 155.26, shippingPrice: 103, orderItems: [{ qty: 1, unitCost: 350 }],
+      externalOrders: [{ channel: 'MERCADOLIBRE', rawData: { payments: [{ status: 'refunded', transaction_amount: 1070.75 }] } }],
+    },
+  });
+  assert.equal(reconciliation.refundAmount, 1070.75);
+  assert.equal(reconciliation.estimatedExposure, 258.26);
+  assert.equal(reconciliation.inventoryStatus, 'RESTOCKED');
+  assert.equal(reconciliation.commissionRecoveryStatus, 'PENDING_BILLING_CREDIT');
+});
+
+test('lee la comisión por artículo y suma el costo mientras el producto no regresa', () => {
+  const reconciliation = buildRefundReconciliation({
+    order: {
+      paymentFee: 0, shippingPrice: 103, orderItems: [{ qty: 1, unitCost: 350 }],
+      externalOrders: [{ channel: 'MERCADOLIBRE', rawData: { order_items: [{ sale_fee: 155.26 }], payments: [{ status: 'refunded', transaction_amount: 1070.75 }] } }],
+    },
+  });
+  assert.equal(reconciliation.commissionAtRisk, 155.26);
+  assert.equal(reconciliation.inventoryCostAtRisk, 350);
+  assert.equal(reconciliation.estimatedExposure, 608.26);
+});
+
+test('incluye responsable y suplente de la asignación más reciente', () => {
+  const alerts = buildCriticalClaimAlerts({
+    externalClaimId: '13', status: 'opened', activities: [
+      { action: 'DASHBOARD_ALERT_ASSIGNED', createdAt: '2026-08-30', details: { alertKind: 'CLAIM', primaryUserId: 'old' } },
+      { action: 'DASHBOARD_ALERT_ASSIGNED', createdAt: '2026-08-31', details: { alertKind: 'CLAIM', primaryUserId: 'new', backupUserId: 'backup' } },
+    ],
+  });
+  assert.equal(alerts[0].assignment.primaryUserId, 'new');
+  assert.equal(alerts[0].assignment.backupUserId, 'backup');
+});
+
+test('escala al responsable a los 15 minutos y a administración a los 30', () => {
+  assert.equal(getCriticalEscalationLevel(14), null);
+  assert.equal(getCriticalEscalationLevel(15), 'LEVEL_1');
+  assert.equal(getCriticalEscalationLevel(30), 'LEVEL_2');
 });

@@ -1468,3 +1468,14 @@ Protecciones implementadas:
 - Las alertas llegan en tiempo real, muestran pedido y resumen del evento, y enlazan con la Bandeja unificada para atender el expediente.
 - **Marcar revisado** registra actor, fecha y tipo de alerta en la actividad del reclamo. El acuse sólo indica que un integrante del equipo vio el evento; no cambia el estado del reclamo ni lo declara resuelto.
 - Reclamo y reembolso usan acuses independientes. Haber revisado el reclamo no oculta un reembolso que Mercado Libre confirme posteriormente.
+
+## Actualizacion 2026-08-31 - Operacion completa de incidencias críticas
+
+- Cada reclamo o reembolso se autoasigna al vendedor con menor carga de asignaciones durante los últimos 30 días. Si no hay vendedores, se asigna a un rol administrativo. Un administrador distinto queda como suplente cuando existe y ambos responsables se pueden cambiar desde el dashboard.
+- El monitor operativo escala un caso sin acuse a los 15 minutos hacia responsable y suplente. A los 30 minutos genera una segunda escalación para `SUPER_ADMIN`, `ADMIN` y `SUPERVISOR`. Cada nivel se registra una sola vez en la actividad del reclamo.
+- El dashboard incorpora métricas de los últimos 30 días: reclamos, reembolsos, importe reembolsado, casos sin responsable, tiempo promedio de acuse y expedientes escalados.
+- La conciliación automática separa el reembolso al comprador de la exposición del vendedor. Muestra comisión de venta, costo real o estimado de envío, costo de devolución, costo del inventario aún no reintegrado y exposición máxima estimada.
+- Para el envío se consulta `/shipments/{shipment_id}/costs` y se utiliza `senders[].cost`, que representa el cargo final del vendedor. La comisión se obtiene de `sale_fee` por artículo cuando el resumen local no la contiene.
+- Una comisión o envío no se presenta como recuperado hasta que exista evidencia de abono en la facturación de Mercado Libre. Mientras tanto aparece como pendiente de conciliación, evitando registrar una ganancia inexistente.
+- El panel muestra la salud de WhatsApp y enlaza a la configuración protegida cuando no existe sesión. También permite activar avisos del navegador; con permiso concedido, una alerta crítica nueva produce sonido, notificación y contador rojo en Dashboard aun si el operador navega en otro módulo del panel.
+- Sin una sesión WhatsApp guardada no se intenta generar QR de manera repetitiva. El Super Admin debe abrir **Configuración > WhatsApp**, iniciar la conexión y escanear el QR desde el teléfono una sola vez.

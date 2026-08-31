@@ -80,11 +80,13 @@ const AdminLayout = () => {
     const [whatsappUnread, setWhatsappUnread] = useState(0);
     const [meliUnread, setMeliUnread] = useState(0);
     const [unifiedUnread, setUnifiedUnread] = useState(0);
+    const [criticalUnread, setCriticalUnread] = useState(0);
     const previousWhatsappUnread = useRef(0);
     const previousMeliUnread = useRef(0);
+    const previousCriticalIds = useRef(new Set());
     const isSuperAdmin = checkIsSuperAdmin(userInfo);
     const { connected: realtimeConnected, lastEvent } = useRealtime();
-    const realtimeInboxVersion = ['inbox', 'messages', 'meli', 'quality'].includes(lastEvent?.topic) ? lastEvent?.occurredAt : null;
+    const realtimeInboxVersion = ['inbox', 'messages', 'meli', 'quality', 'dashboard', 'orders'].includes(lastEvent?.topic) ? lastEvent?.occurredAt : null;
 
     const toggleSidebar = () => {
         setCollapsed((current) => {
@@ -178,11 +180,41 @@ const AdminLayout = () => {
         return () => window.clearInterval(timer);
     }, [canPollUnified, realtimeInboxVersion]);
 
+    useEffect(() => {
+        if (!canPollUnified) return undefined;
+        const loadCriticalAlerts = async () => {
+            try {
+                const { data } = await api.get('/unified-inbox/critical-alerts');
+                const alerts = data.data?.alerts || [];
+                const nextIds = new Set(alerts.map((alert) => alert.id));
+                const newAlerts = alerts.filter((alert) => !previousCriticalIds.current.has(alert.id));
+                if (previousCriticalIds.current.size > 0 && newAlerts.length > 0) {
+                    playNotificationSound();
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        const first = newAlerts[0];
+                        new Notification(first.title || 'Atención inmediata en Tecnotitlan', {
+                            body: first.message || `${newAlerts.length} caso(s) crítico(s) requieren revisión.`,
+                            tag: first.id,
+                        });
+                    }
+                }
+                previousCriticalIds.current = nextIds;
+                setCriticalUnread(alerts.length);
+            } catch (error) {
+                // Los avisos críticos no deben bloquear la navegación administrativa.
+            }
+        };
+        loadCriticalAlerts();
+        const timer = window.setInterval(loadCriticalAlerts, 60000);
+        return () => window.clearInterval(timer);
+    }, [canPollUnified, realtimeInboxVersion]);
+
     const renderLinkContent = (item) => {
         const unreadCount = item.to === '/admin/whatsapp-chat'
             ? whatsappUnread
             : item.to === '/admin/meli-communications' ? meliUnread
-            : item.to === '/admin/inbox' ? unifiedUnread : 0;
+            : item.to === '/admin/inbox' ? unifiedUnread
+            : item.to === '/admin/dashboard' ? criticalUnread : 0;
         return (
             <>
                 <div className={styles.iconContainer}>
