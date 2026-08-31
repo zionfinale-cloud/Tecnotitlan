@@ -11,7 +11,7 @@ import { listNotificationLogs, writeNotificationLog } from './notificationLogSer
 import { applyPaidOrderInventoryMovements } from './orderInventoryService.js';
 import { notifyStaffImportantInboxCase, notifyStaffOrderPaid } from './staffNotificationService.js';
 import { getProductAvailableStock, hasProductAvailability } from '../utils/productAvailability.js';
-import { findMeliOrderByShipment } from '../utils/meliClaimOutcome.js';
+import { findMeliOrderByShipment, getMeliClaimOutcome } from '../utils/meliClaimOutcome.js';
 import { shouldNotifyCancellation, shouldNotifyNewClaim } from '../utils/unifiedInboxClassification.js';
 
 const MELI_API_BASE_URL = 'https://api.mercadolibre.com';
@@ -1908,7 +1908,10 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
   if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
   const claimId = String(externalClaimId || '').replace(/\D/g, '');
   if (!claimId) throw new Error('El identificador del reclamo no es valido.');
-  const previousClaim = await prisma.meliClaim.findUnique({ where: { externalClaimId: claimId } });
+  const previousClaim = await prisma.meliClaim.findUnique({
+    where: { externalClaimId: claimId },
+    include: { order: { include: { externalOrders: true } } },
+  });
 
   const claim = await optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}`);
   if (!claim) throw new Error(`No se encontro el reclamo ${claimId} en Mercado Libre.`);
@@ -2019,7 +2022,7 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
       lastSyncedAt: new Date(),
     },
     include: {
-      order: { select: { id: true, orderNumber: true, status: true, totalPrice: true } },
+      order: { include: { externalOrders: true } },
       activities: { orderBy: { createdAt: 'desc' }, take: 30 },
     },
   });
@@ -2029,6 +2032,14 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
       event: 'meli_claim_opened', externalId: claimId, order: syncedClaim.order,
       title: 'Reclamo nuevo de Mercado Libre',
       message: `${syncedClaim.title || syncedClaim.problem || `Reclamo ${claimId}`}. Revisa el caso y su fecha límite en la Bandeja unificada.`,
+    });
+  }
+  const currentOutcome = getMeliClaimOutcome(syncedClaim);
+  if (currentOutcome?.refunded) {
+    await notifyStaffImportantInboxCase({
+      event: 'meli_refund_confirmed', externalId: claimId, order: syncedClaim.order,
+      title: 'Reembolso confirmado por Mercado Libre',
+      message: currentOutcome.summary,
     });
   }
   return syncedClaim;

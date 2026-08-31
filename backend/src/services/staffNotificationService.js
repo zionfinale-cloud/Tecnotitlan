@@ -618,7 +618,8 @@ export const notifyStaffOrderStatusChanged = async (order, context = {}) => {
 export const notifyStaffImportantInboxCase = async ({ event, title, message, externalId, order = null } = {}) => {
   try {
     if (!event || !title || !message) return;
-    const staff = await getStaffRecipients();
+    const staff = (await getStaffRecipients())
+      .filter((user) => OPERATIONAL_ROLES.includes(user.role?.name));
     const eventName = `important_inbox_${event}_${externalId || order?.id || 'unknown'}`;
     const detailUrl = `${getConfig().WEB_URL || process.env.WEB_URL || 'https://tecnotitlan.com.mx'}/admin/inbox`;
     const baseDetails = { externalId: externalId || null, caseEvent: event, detailUrl };
@@ -627,7 +628,7 @@ export const notifyStaffImportantInboxCase = async ({ event, title, message, ext
     for (const user of emailRecipients) {
       const recent = await findRecentNotificationLog({
         channel: 'EMAIL', audience: 'STAFF', event: eventName, recipient: user.email,
-        order, sinceMs: 24 * 60 * 60 * 1000,
+        order, sinceMs: 365 * 24 * 60 * 60 * 1000,
       });
       if (recent) continue;
       try {
@@ -651,7 +652,7 @@ export const notifyStaffImportantInboxCase = async ({ event, title, message, ext
     for (const recipient of whatsappRecipients) {
       const recent = await findRecentNotificationLog({
         channel: 'WHATSAPP', audience: 'STAFF', event: eventName, recipient: recipient.phone,
-        order, sinceMs: 24 * 60 * 60 * 1000,
+        order, sinceMs: 365 * 24 * 60 * 60 * 1000,
       });
       if (recent) continue;
       try {

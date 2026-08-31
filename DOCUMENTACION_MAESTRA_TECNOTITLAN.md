@@ -1459,5 +1459,12 @@ Protecciones implementadas:
 - La Bandeja unificada se divide en **Casos importantes** y **Conversaciones**. La primera sección contiene reclamos, cancelaciones y devoluciones; la segunda reúne preguntas preventa y mensajes privados o posventa.
 - Cada expediente recibe una clasificación visible y contadores por sección y tipo. Los filtros conservan búsqueda, canal, estado pendiente, SLA y contexto del pedido.
 - Las cancelaciones de pedidos Mercado Libre aparecen aunque no exista un reclamo asociado. Si el reclamo ya está ligado al pedido cancelado se muestra un solo expediente, evitando duplicar el caso.
-- Los reclamos nuevos y las transiciones nuevas a pedido cancelado notifican a administradores, supervisores y personal de ventas. Se respeta la preferencia individual de correo y WhatsApp y cada destinatario se deduplica durante 24 horas por evento y expediente.
+- Los reclamos nuevos, las transiciones nuevas a pedido cancelado y los reembolsos confirmados notifican a administradores, supervisores y personal de ventas. Se respeta la preferencia individual de correo y WhatsApp y cada destinatario se deduplica por evento y expediente.
 - Las resincronizaciones o webhooks repetidos no generan avisos duplicados. La notificación lleva al operador directamente a la Bandeja unificada, donde puede revisar pedido, dinero, inventario y fechas límite.
+
+## Actualizacion 2026-08-31 - Alertas críticas en dashboard
+
+- El dashboard administrativo muestra una tarjeta roja pulsante cuando existe un reclamo abierto o un reembolso confirmado pendiente de revisión. La animación respeta `prefers-reduced-motion` para accesibilidad.
+- Las alertas llegan en tiempo real, muestran pedido y resumen del evento, y enlazan con la Bandeja unificada para atender el expediente.
+- **Marcar revisado** registra actor, fecha y tipo de alerta en la actividad del reclamo. El acuse sólo indica que un integrante del equipo vio el evento; no cambia el estado del reclamo ni lo declara resuelto.
+- Reclamo y reembolso usan acuses independientes. Haber revisado el reclamo no oculta un reembolso que Mercado Libre confirme posteriormente.

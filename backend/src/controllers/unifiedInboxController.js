@@ -8,6 +8,7 @@ import { normalizeInboxValue, findAutomaticInboxOrder } from '../utils/unifiedIn
 import { evaluateInboxSla } from '../utils/inboxSla.js';
 import { getMeliClaimOutcome } from '../utils/meliClaimOutcome.js';
 import { classifyInboxItem } from '../utils/unifiedInboxClassification.js';
+import { buildCriticalClaimAlerts } from '../utils/criticalInboxAlerts.js';
 
 const SOURCE_TYPES = new Set(['WHATSAPP', 'SUPPORT', 'MELI_QUESTION', 'MELI_POST_SALE', 'MELI_CLAIM', 'TECATL']);
 const canReplyToSource = (user, sourceType) => {
@@ -239,6 +240,40 @@ const getUnifiedInboxCounts = asyncHandler(async (req, res) => {
   res.json({ status: 'success', data: { ...byChannel, total: Object.values(byChannel).reduce((sum, value) => sum + value, 0) } });
 });
 
+const getCriticalInboxAlerts = asyncHandler(async (req, res) => {
+  const claims = await prisma.meliClaim.findMany({
+    include: {
+      activities: { orderBy: { createdAt: 'desc' } },
+      order: { include: { externalOrders: true } },
+    },
+    orderBy: { updatedAt: 'desc' },
+    take: 200,
+  });
+  const alerts = claims.flatMap(buildCriticalClaimAlerts)
+    .sort((left, right) => new Date(right.at || 0) - new Date(left.at || 0));
+  res.json({ status: 'success', data: { alerts, count: alerts.length } });
+});
+
+const acknowledgeCriticalInboxAlert = asyncHandler(async (req, res) => {
+  const claimId = String(req.params.claimId || '');
+  const alertKind = String(req.params.kind || '').toUpperCase();
+  if (!['CLAIM', 'REFUND'].includes(alertKind)) throw new BadRequestError('Tipo de alerta crítica inválido.');
+  const claim = await prisma.meliClaim.findUnique({ where: { externalClaimId: claimId }, select: { id: true } });
+  if (!claim) throw new NotFoundError('Reclamo no encontrado.');
+  const acknowledgements = await prisma.meliClaimActivity.findMany({
+    where: { claimId: claim.id, action: 'DASHBOARD_ALERT_ACKNOWLEDGED' },
+  });
+  if (!acknowledgements.some((entry) => String(entry.details?.alertKind || '').toUpperCase() === alertKind)) {
+    await prisma.meliClaimActivity.create({
+      data: {
+        claimId: claim.id, action: 'DASHBOARD_ALERT_ACKNOWLEDGED', actorId: req.user.id,
+        actorName: req.user.email, details: { alertKind, acknowledgedAt: new Date().toISOString() },
+      },
+    });
+  }
+  res.json({ status: 'success', message: 'Alerta marcada como revisada.' });
+});
+
 const searchInboxOrders = asyncHandler(async (req, res) => {
   const query = normalize(req.query.q);
   const orders = await prisma.order.findMany({
@@ -327,4 +362,4 @@ const replyUnifiedInbox = asyncHandler(async (req, res) => {
   res.status(201).json({ status: 'success', message: 'Respuesta enviada desde la bandeja unificada.', data: { result } });
 });
 
-export { getUnifiedInbox, getUnifiedInboxCounts, searchInboxOrders, linkInboxOrder, unlinkInboxOrder, replyUnifiedInbox, getInboxItemsSnapshot };
+export { getUnifiedInbox, getUnifiedInboxCounts, getCriticalInboxAlerts, acknowledgeCriticalInboxAlert, searchInboxOrders, linkInboxOrder, unlinkInboxOrder, replyUnifiedInbox, getInboxItemsSnapshot };
