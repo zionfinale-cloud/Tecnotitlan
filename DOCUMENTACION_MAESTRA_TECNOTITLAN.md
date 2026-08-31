@@ -1446,3 +1446,10 @@ Protecciones implementadas:
 - El login con 2FA usa un reto JWT de cinco minutos y no entrega una sesion completa hasta validar TOTP o un codigo de recuperacion. Activar/desactivar 2FA o cambiar la contrasena incrementa `tokenVersion` e invalida sesiones anteriores.
 - `audit_logs` registra mutaciones autenticadas, accesos y cambios de seguridad con actor, accion, categoria, resultado, ruta y fecha. No copia cuerpos de solicitudes, contrasenas ni tokens; la IP se convierte en una huella HMAC irreversible.
 - Cada usuario consulta su actividad reciente. El Super Admin dispone de **Administracion > Seguridad y auditoria** con los últimos eventos operativos y administrativos.
+
+## Actualizacion 2026-08-31 - Desenlace de reclamos en bandeja unificada
+
+- Los reclamos cerrados de Mercado Libre muestran una resolución de sistema dentro de la conversación: beneficiario, motivo, quién cerró el caso, cobertura aplicada, cancelación del pedido y estado monetario disponible.
+- Cuando Mercado Libre relaciona un reclamo con un `shipment` en lugar de una orden, Tecnotitlan busca el pedido local por `shippingInfo.shippingId` y recupera su orden externa. Esto evita expedientes cerrados sin contexto comercial.
+- Un reclamo cerrado sin devolución física pendiente pasa a control interno `RESOLVED`. Los casos que todavía requieren recibir o inspeccionar mercancía conservan su flujo de cuarentena.
+- La bandeja no inventa un reembolso: muestra fecha o estado del dinero sólo si Mercado Libre los reporta. Si la orden cancelada deja de tener un pago vigente, lo expresa con ese alcance exacto.

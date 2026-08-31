@@ -11,6 +11,7 @@ import { listNotificationLogs, writeNotificationLog } from './notificationLogSer
 import { applyPaidOrderInventoryMovements } from './orderInventoryService.js';
 import { notifyStaffOrderPaid } from './staffNotificationService.js';
 import { getProductAvailableStock, hasProductAvailability } from '../utils/productAvailability.js';
+import { findMeliOrderByShipment } from '../utils/meliClaimOutcome.js';
 
 const MELI_API_BASE_URL = 'https://api.mercadolibre.com';
 const MELI_CHANNEL = 'MERCADOLIBRE';
@@ -1857,6 +1858,35 @@ const getClaimExternalOrderId = (claim = {}, returnData = null) => {
   return returnOrder?.order_id ? String(returnOrder.order_id) : null;
 };
 
+const resolveClaimOrder = async (claim = {}, returnData = null) => {
+  const directExternalOrderId = getClaimExternalOrderId(claim, returnData);
+  if (directExternalOrderId) {
+    const externalOrder = await prisma.externalOrder.findUnique({
+      where: { channel_externalOrderId: { channel: MELI_CHANNEL, externalOrderId: directExternalOrderId } },
+      select: { orderId: true },
+    });
+    return { externalOrderId: directExternalOrderId, orderId: externalOrder?.orderId || null };
+  }
+
+  if (claim.resource !== 'shipment' || !claim.resource_id) return { externalOrderId: null, orderId: null };
+  const shipmentId = String(claim.resource_id);
+  const candidates = await prisma.order.findMany({
+    where: { salesChannel: MELI_CHANNEL },
+    select: {
+      id: true,
+      shippingInfo: true,
+      externalOrders: { where: { channel: MELI_CHANNEL }, select: { externalOrderId: true }, take: 1 },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 300,
+  });
+  const localOrder = findMeliOrderByShipment(candidates, shipmentId);
+  return {
+    externalOrderId: localOrder?.externalOrders?.[0]?.externalOrderId || null,
+    orderId: localOrder?.id || null,
+  };
+};
+
 const syncMeliClaimById = async (userId, externalClaimId) => {
   const accessToken = await getValidAccessToken(userId);
   if (!accessToken) throw new Error('No hay token valido de Mercado Libre.');
@@ -1879,13 +1909,9 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
   const returnCostData = returnData
     ? await optionalMeliGet(accessToken, `/post-purchase/v1/claims/${claimId}/charges/return-cost`)
     : null;
-  const externalOrderId = getClaimExternalOrderId(claim, returnData);
-  const externalOrder = externalOrderId
-    ? await prisma.externalOrder.findUnique({
-      where: { channel_externalOrderId: { channel: MELI_CHANNEL, externalOrderId } },
-      select: { orderId: true },
-    })
-    : null;
+  const claimOrder = await resolveClaimOrder(claim, returnData);
+  const externalOrderId = claimOrder.externalOrderId;
+  const automaticallyResolved = claim.status === 'closed' && !returnData;
   const sellerPlayer = (claim.players || []).find((player) => player.role === 'respondent');
 
   return prisma.meliClaim.upsert({
@@ -1923,7 +1949,8 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
       returnData: nullableJson(returnData),
       historyData: nullableJson(history),
       resolutionsData: nullableJson(resolutions),
-      orderId: externalOrder?.orderId || null,
+      orderId: claimOrder.orderId,
+      ...(automaticallyResolved ? { internalStatus: 'RESOLVED' } : {}),
     },
     update: {
       externalOrderId,
@@ -1957,7 +1984,8 @@ const syncMeliClaimById = async (userId, externalClaimId) => {
       returnData: nullableJson(returnData),
       historyData: nullableJson(history),
       resolutionsData: nullableJson(resolutions),
-      orderId: externalOrder?.orderId || null,
+      orderId: claimOrder.orderId,
+      ...(automaticallyResolved ? { internalStatus: 'RESOLVED' } : {}),
       lastSyncedAt: new Date(),
     },
     include: {

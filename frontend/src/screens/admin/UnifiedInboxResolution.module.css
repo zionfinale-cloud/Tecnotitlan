@@ -1,0 +1,13 @@
+.system {
+  justify-self: stretch !important;
+  width: 100% !important;
+  border: 1px solid #86efac;
+  color: #14532d;
+  background: #f0fdf4;
+}
+
+.outcome {
+  display: block;
+  margin-top: 0.55rem;
+  color: #15803d;
+}

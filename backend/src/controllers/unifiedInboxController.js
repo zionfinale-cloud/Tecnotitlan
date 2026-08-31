@@ -6,6 +6,7 @@ import * as mercadoLibreService from '../services/mercadoLibreService.js';
 import { sendTransactionalMail } from '../services/emailService.js';
 import { normalizeInboxValue, findAutomaticInboxOrder } from '../utils/unifiedInboxMatcher.js';
 import { evaluateInboxSla } from '../utils/inboxSla.js';
+import { getMeliClaimOutcome } from '../utils/meliClaimOutcome.js';
 
 const SOURCE_TYPES = new Set(['WHATSAPP', 'SUPPORT', 'MELI_QUESTION', 'MELI_POST_SALE', 'MELI_CLAIM', 'TECATL']);
 const canReplyToSource = (user, sourceType) => {
@@ -23,6 +24,7 @@ const orderSummary = (order) => order ? ({
   id: order.id,
   orderNumber: order.orderNumber,
   status: order.status,
+  isPaid: order.isPaid,
   salesChannel: order.salesChannel,
   totalPrice: order.totalPrice,
   createdAt: order.createdAt,
@@ -144,12 +146,15 @@ const buildInboxItems = ({ orders, explicitLinks, repliesBySource, whatsapp, tic
   });
   claims.forEach((claim) => {
     const claimMessages = Array.isArray(claim.messagesData) ? claim.messagesData : claim.messagesData?.messages || [];
+    const outcome = getMeliClaimOutcome(claim);
+    const messages = claimMessages.map((entry, index) => ({ id: entry.id || `${claim.id}:${index}`, direction: entry.sender_role === 'respondent' ? 'OUTBOUND' : 'INBOUND', text: messageText(entry.message || entry.text), at: entry.date_created || entry.date }));
+    if (outcome) messages.push({ id: `${claim.id}:outcome`, direction: 'SYSTEM', text: outcome.summary, at: outcome.at, status: 'RESOLUCIÓN' });
+    messages.sort((left, right) => new Date(left.at || 0) - new Date(right.at || 0));
     items.push(attachOrder({
       id: `MELI_CLAIM:${claim.externalClaimId}`, sourceType: 'MELI_CLAIM', sourceId: claim.externalClaimId, channel: 'Mercado Libre', kind: 'Reclamo',
-      title: claim.title || claim.problem || `Reclamo ${claim.externalClaimId}`, customer: {}, preview: claim.description || claim.problem || '', unreadCount: claim.status === 'opened' ? 1 : 0,
+      title: claim.title || claim.problem || `Reclamo ${claim.externalClaimId}`, customer: {}, preview: outcome?.summary || claim.description || claim.problem || '', unreadCount: claim.status === 'opened' ? 1 : 0,
       status: claim.status, priority: claim.priority, timestamp: claim.updatedAt,
-      messages: claimMessages.map((entry, index) => ({ id: entry.id || `${claim.id}:${index}`, direction: entry.sender_role === 'respondent' ? 'OUTBOUND' : 'INBOUND', text: messageText(entry.message || entry.text), at: entry.date_created || entry.date })),
-      deepLink: '/admin/meli-claims', canReply: claim.status === 'opened', claimStage: claim.stage,
+      messages, deepLink: '/admin/meli-claims', canReply: claim.status === 'opened', claimStage: claim.stage, outcome,
     }, buildLink('MELI_CLAIM', claim.externalClaimId, explicitLinks, null, claim.order)));
   });
   tecatl.forEach((conversation) => {
