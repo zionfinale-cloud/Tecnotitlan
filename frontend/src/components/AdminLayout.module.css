@@ -232,6 +232,7 @@
   min-height: 85vh;
   border: 1px solid #dbe4ee;
 }
+.mobileBar,.backdrop{display:none}
 
 .contentCard :global(h1),
 .contentCard :global(h2),
@@ -247,12 +248,23 @@
 }
 
 @media (max-width: 767px) {
+  .sidebar{position:fixed;inset:0 auto 0 0;width:min(86vw,320px);z-index:1002;transform:translateX(-105%);transition:transform .22s ease;overflow-y:auto}
+  .sidebar.mobileOpen{transform:translateX(0)}
+  .sidebarCollapsed{width:min(86vw,320px)}
+  .sidebarCollapsed .navGroupLabel{width:auto;height:auto;padding:.45rem .9rem;opacity:1}
+  .sidebarCollapsed .navLink{justify-content:flex-start;padding:.75rem 1rem}
+  .sidebarCollapsed .iconContainer{margin-right:12px}.sidebarCollapsed .linkText{width:auto;opacity:1}
+  .collapseButton{display:none}.backdrop{display:block;position:fixed;inset:0;border:0;background:rgba(2,6,23,.62);z-index:1001}
   .mainContent {
-    padding: 1rem;
+    padding: 0;
+    width:100%;
   }
 
+  .mobileBar{display:flex;position:sticky;top:0;z-index:900;align-items:center;justify-content:space-between;gap:.75rem;padding:.7rem 1rem;background:#101827;color:#fff;box-shadow:0 8px 20px rgba(15,23,42,.18)}
+  .mobileBar button,.mobileBar>a{width:42px;height:42px;border-radius:10px;border:1px solid rgba(125,211,252,.22);background:#172033;color:#75f238;display:grid;place-items:center;text-decoration:none}.mobileBar div{display:grid;text-align:center}.mobileBar span{font-size:.72rem;color:#94a3b8;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
   .contentCard {
-    padding: 1.25rem;
+    margin:1rem;padding: 1rem;
     min-height: auto;
   }
 }

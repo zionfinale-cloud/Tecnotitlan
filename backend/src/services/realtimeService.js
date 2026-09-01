@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
+import { readAuthCookieHeader } from '../utils/authCookies.js';
 
 let socketServer = null;
 
@@ -8,7 +9,8 @@ export const configureRealtime = (io) => {
   socketServer = io;
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth?.token;
+      const legacyToken = process.env.NODE_ENV === 'production' ? null : socket.handshake.auth?.token;
+      const token = readAuthCookieHeader(socket.handshake.headers?.cookie) || legacyToken;
       if (!token) {
         socket.join('public');
         return next();

@@ -2,6 +2,8 @@ import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js'; // Importar la instancia Singleton
 import { BadRequestError } from '../utils/errorUtils.js';
 import { loadConfigFromDB } from '../services/configService.js';
+import { sanitizeLegalHtml } from '../utils/sanitizeHtml.js';
+import { decryptSecret, encryptSecret, isEncryptedSecret } from '../utils/secretCrypto.js';
 
 const PUBLIC_SETTING_KEYS = [
     'site_name',
@@ -39,7 +41,13 @@ const SENSITIVE_SETTING_DEFINITIONS = [
     { key: 'ADMIN_WHATSAPP_NUMBER', label: 'WhatsApp administrador', type: 'string' },
     { key: 'API_PUBLIC_URL', label: 'URL publica de la API', type: 'string' },
     { key: 'SESSION_SECRET', label: 'Secreto estable para cifrar sesion WhatsApp', type: 'password' },
-    { key: 'WHATSAPP_PROVIDER', label: 'Proveedor WhatsApp (disabled/baileys)', type: 'string' },
+    { key: 'WHATSAPP_PROVIDER', label: 'Proveedor WhatsApp (disabled/baileys/cloud)', type: 'string' },
+    { key: 'WHATSAPP_ADMIN_GROUP_JID', label: 'Grupo administrativo Baileys (JID)', type: 'password' },
+    { key: 'WHATSAPP_CLOUD_PHONE_NUMBER_ID', label: 'Cloud API Phone Number ID', type: 'password' },
+    { key: 'WHATSAPP_CLOUD_ACCESS_TOKEN', label: 'Cloud API Access Token', type: 'password' },
+    { key: 'WHATSAPP_CLOUD_WEBHOOK_VERIFY_TOKEN', label: 'Cloud API Webhook Verify Token', type: 'password' },
+    { key: 'WHATSAPP_CLOUD_APP_SECRET', label: 'Meta App Secret', type: 'password' },
+    { key: 'WHATSAPP_CLOUD_API_VERSION', label: 'Version Graph API', type: 'string' },
     { key: 'WHATSAPP_AUTH_STORAGE', label: 'Almacenamiento sesion WhatsApp (database/file)', type: 'string' },
     { key: 'WHATSAPP_AUTH_DIR', label: 'Carpeta persistente WhatsApp', type: 'string' },
     { key: 'WHATSAPP_AUTO_CONNECT', label: 'WhatsApp auto conectar al iniciar', type: 'string' },
@@ -66,6 +74,13 @@ const SENSITIVE_SETTING_DEFINITIONS = [
 ];
 
 const SENSITIVE_SETTING_KEYS = new Set(SENSITIVE_SETTING_DEFINITIONS.map((setting) => setting.key));
+const ENCRYPTED_SETTING_KEYS = new Set(SENSITIVE_SETTING_DEFINITIONS
+    .filter((setting) => setting.type === 'password')
+    .map((setting) => setting.key));
+const HTML_SETTING_KEYS = new Set(['page_privacy_policy', 'page_terms_of_service']);
+const safeSettingValue = (setting) => HTML_SETTING_KEYS.has(setting.key)
+    ? sanitizeLegalHtml(setting.value)
+    : setting.value;
 const maskValue = (value = '', type = 'string') => {
     if (!value || type !== 'password') return value || '';
     return value.length <= 8 ? '********' : `${value.slice(0, 4)}********${value.slice(-4)}`;
@@ -76,7 +91,7 @@ const getPublicSettings = asyncHandler(async (req, res) => {
         where: { key: { in: PUBLIC_SETTING_KEYS } },
         select: { key: true, value: true, type: true },
     });
-    res.json({ status: 'success', data: settings });
+    res.json({ status: 'success', data: settings.map((setting) => ({ ...setting, value: safeSettingValue(setting) })) });
 });
 
 // @desc    Obtener todas las configuraciones
@@ -107,7 +122,12 @@ const getSystemSettings = asyncHandler(async (req, res) => {
         const setting = settingsMap[definition.key];
         return {
             ...definition,
-            value: maskValue(setting?.value || process.env[definition.key] || '', definition.type),
+            value: maskValue(
+                setting?.value
+                    ? (isEncryptedSecret(setting.value) ? decryptSecret(setting.value) : setting.value)
+                    : (process.env[definition.key] || ''),
+                definition.type,
+            ),
             hasValue: Boolean(setting?.value || process.env[definition.key]),
             source: setting?.value ? 'database' : (process.env[definition.key] ? 'environment' : 'empty'),
         };
@@ -132,12 +152,12 @@ const updateSettings = asyncHandler(async (req, res) => {
         prisma.setting.upsert({
             where: { key: setting.key },
             update: {
-                value: setting.value,
+                value: safeSettingValue(setting),
                 ...(setting.type ? { type: setting.type } : {}),
             },
             create: {
                 key: setting.key,
-                value: setting.value,
+                value: safeSettingValue(setting),
                 type: setting.type || 'string',
             },
         })
@@ -170,20 +190,24 @@ const updateSystemSettings = asyncHandler(async (req, res) => {
         return;
     }
 
-    await prisma.$transaction(updates.map((setting) => prisma.setting.upsert({
-        where: { key: setting.key },
-        update: {
-            value: String(setting.value),
-            type: setting.type || 'string',
-            isEditable: true,
-        },
-        create: {
-            key: setting.key,
-            value: String(setting.value),
-            type: setting.type || 'string',
-            isEditable: true,
-        },
-    })));
+    await prisma.$transaction(updates.map((setting) => {
+        const rawValue = String(setting.value);
+        const storedValue = ENCRYPTED_SETTING_KEYS.has(setting.key) ? encryptSecret(rawValue) : rawValue;
+        return prisma.setting.upsert({
+            where: { key: setting.key },
+            update: {
+                value: storedValue,
+                type: setting.type || 'string',
+                isEditable: true,
+            },
+            create: {
+                key: setting.key,
+                value: storedValue,
+                type: setting.type || 'string',
+                isEditable: true,
+            },
+        });
+    }));
 
     await loadConfigFromDB();
 

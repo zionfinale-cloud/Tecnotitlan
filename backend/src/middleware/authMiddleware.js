@@ -1,15 +1,19 @@
 import jwt from 'jsonwebtoken';
 import asyncHandler from 'express-async-handler';
 import prisma from '../config/prisma.js';
-import { UnauthorizedError } from '../utils/errorUtils.js';
+import { ForbiddenError, UnauthorizedError } from '../utils/errorUtils.js';
 import logger from '../utils/logger.js';
 import { applyEffectivePermissionsToUser } from '../utils/permissionUtils.js';
+import { AUTH_COOKIE_NAME } from '../utils/authCookies.js';
 
 const authenticate = async (req) => {
   const authorization = req.headers.authorization;
-  if (!authorization?.startsWith('Bearer ')) return false;
+  const bearerToken = authorization?.startsWith('Bearer ') ? authorization.split(' ')[1] : null;
+  const token = req.cookies?.[AUTH_COOKIE_NAME]
+    || (process.env.NODE_ENV === 'production' ? null : bearerToken);
+  if (!token) return false;
 
-  const decoded = jwt.verify(authorization.split(' ')[1], process.env.JWT_SECRET);
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
   const user = await prisma.user.findUnique({
     where: { id: decoded.id },
     select: {
@@ -18,6 +22,7 @@ const authenticate = async (req) => {
       lastName: true,
       email: true,
       tokenVersion: true,
+      twoFactorEnabled: true,
       role: {
         select: {
           id: true,
@@ -43,6 +48,13 @@ const authenticate = async (req) => {
     ...user,
     name: `${user.firstName} ${user.lastName}`.trim(),
   });
+  const isStaff = req.user.role?.name && req.user.role.name !== 'USER';
+  const enrollmentAllowed = /^\/api\/(security(?:\/|$)|users\/(profile|logout)(?:\/|$))/.test(req.originalUrl);
+  if (isStaff && !req.user.twoFactorEnabled && !enrollmentAllowed) {
+    const error = new ForbiddenError('Debes activar la autenticacion de dos factores antes de continuar.');
+    error.code = 'TWO_FACTOR_ENROLLMENT_REQUIRED';
+    throw error;
+  }
   return true;
 };
 
@@ -54,7 +66,7 @@ const protect = asyncHandler(async (req, res, next) => {
     return next();
   } catch (error) {
     logger.error('[Protect] Error de autenticacion:', error.message);
-    return next(error instanceof UnauthorizedError
+    return next(error instanceof UnauthorizedError || error instanceof ForbiddenError
       ? error
       : new UnauthorizedError('No autorizado, token invalido o expirado.'));
   }

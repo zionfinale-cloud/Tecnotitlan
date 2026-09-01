@@ -66,6 +66,23 @@ const normalizePhone = (value = '') => {
   return digits;
 };
 
+const dispatchAdministrativeWhatsApp = async (recipients, message) => {
+  try {
+    const delivery = await whatsappService.sendAdministrativeAlert({
+      recipients: recipients.map((recipient) => recipient.phone),
+      message,
+      sentBy: 'Sistema',
+    });
+    if (delivery.mode === 'official_fanout') {
+      return recipients.map((recipient) => delivery.results.find((item) => item.recipient === recipient.phone)
+        || { recipient: recipient.phone, status: 'rejected', reason: new Error('Sin resultado del proveedor oficial.') });
+    }
+    return recipients.map((recipient) => ({ recipient: recipient.phone, status: 'fulfilled', value: delivery }));
+  } catch (reason) {
+    return recipients.map((recipient) => ({ recipient: recipient.phone, status: 'rejected', reason }));
+  }
+};
+
 const getCustomerName = (order) => {
   const fullName = [order.user?.firstName, order.user?.lastName].filter(Boolean).join(' ');
   return fullName || order.user?.email || 'Cliente';
@@ -279,9 +296,7 @@ const sendStaffWhatsApp = async ({ order, message, event = 'staff_order_notifica
 
   if (recipientsToSend.length === 0) return;
 
-  const results = await Promise.allSettled(
-    recipientsToSend.map((recipient) => whatsappService.sendMessage(recipient.phone, message, 'Sistema'))
-  );
+  const results = await dispatchAdministrativeWhatsApp(recipientsToSend, message);
 
   results.forEach((result, index) => {
     const recipient = recipientsToSend[index];
@@ -491,9 +506,7 @@ const sendStaffOperationalWhatsApp = async ({ movement, message }) => {
 
   if (recipientsToSend.length === 0) return;
 
-  const results = await Promise.allSettled(
-    recipientsToSend.map((recipient) => whatsappService.sendMessage(recipient.phone, message, 'Sistema'))
-  );
+  const results = await dispatchAdministrativeWhatsApp(recipientsToSend, message);
 
   await Promise.all(results.map((result, index) => {
     const recipient = recipientsToSend[index];
@@ -654,18 +667,27 @@ export const notifyStaffImportantInboxCase = async ({ event, title, message, ext
       .map((user) => ({ name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email, phone: normalizePhone(user.notificationWhatsapp || user.phone) }))
       .filter((recipient, index, all) => recipient.phone && all.findIndex((candidate) => candidate.phone === recipient.phone) === index);
     const whatsappMessage = `*${title}*\n${message}${order?.orderNumber ? `\nPedido: ${order.orderNumber}` : ''}\nBandeja: ${detailUrl}`;
+    const whatsappRecipientsToSend = [];
     for (const recipient of whatsappRecipients) {
       const recent = await findRecentNotificationLog({
         channel: 'WHATSAPP', audience: 'STAFF', event: eventName, recipient: recipient.phone,
         order, sinceMs: 365 * 24 * 60 * 60 * 1000,
       });
       if (recent) continue;
-      try {
-        await whatsappService.sendMessage(recipient.phone, whatsappMessage, 'Sistema');
-        await writeNotificationLog({ channel: 'WHATSAPP', audience: 'STAFF', event: eventName, status: 'SENT', provider: 'baileys', recipient: recipient.phone, order, message: whatsappMessage, details: { ...baseDetails, recipientName: recipient.name } });
-      } catch (error) {
-        await writeNotificationLog({ channel: 'WHATSAPP', audience: 'STAFF', event: eventName, status: 'FAILED', provider: 'baileys', recipient: recipient.phone, order, error: error.message, details: { ...baseDetails, recipientName: recipient.name } });
-      }
+      whatsappRecipientsToSend.push(recipient);
+    }
+    const whatsappResults = await dispatchAdministrativeWhatsApp(whatsappRecipientsToSend, whatsappMessage);
+    for (let index = 0; index < whatsappResults.length; index += 1) {
+      const result = whatsappResults[index];
+      const recipient = whatsappRecipientsToSend[index];
+      const failed = result.status === 'rejected';
+      await writeNotificationLog({
+        channel: 'WHATSAPP', audience: 'STAFF', event: eventName,
+        status: failed ? 'FAILED' : 'SENT', provider: result.value?.provider || 'whatsapp',
+        recipient: recipient.phone, order, message: failed ? null : whatsappMessage,
+        error: failed ? (result.reason?.message || String(result.reason)) : null,
+        details: { ...baseDetails, recipientName: recipient.name, ...(failed ? {} : { whatsapp: result.value }) },
+      });
     }
   } catch (error) {
     logger.warn(`[Staff Notifications] No se pudo avisar caso importante ${externalId || ''}: ${error.message}`);

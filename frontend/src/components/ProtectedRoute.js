@@ -30,6 +30,10 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
     // Asumimos que 'access:admin_panel' es el permiso requerido.
     const canAccessAdmin = canAccessAdminPanel(user);
 
+    if (adminOnly && user.role !== 'USER' && !user.twoFactorEnabled && location.pathname !== '/admin/security') {
+        return <Navigate to="/admin/security" replace />;
+    }
+
     if (adminOnly && !canAccessAdmin) {
         // Si no tiene el permiso de admin, lo enviamos al Home.
         return <Navigate to="/" replace />;

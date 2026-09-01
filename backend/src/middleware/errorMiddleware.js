@@ -50,6 +50,7 @@ const errorHandler = (err, req, res, next) => {
   res.status(statusCode).json({
     status: status,
     message,
+    ...(err.code ? { code: err.code } : {}),
     // Solo mostrar el stack de error en modo de desarrollo
     stack: process.env.NODE_ENV === 'production' ? null : err.stack,
   });

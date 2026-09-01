@@ -1,11 +1,12 @@
 import axios from 'axios';
 // Se recomienda centralizar constantes para evitar "magic strings" y facilitar el mantenimiento.
 import { AUTH_STORAGE_KEY, SESSION_EXPIRED_EVENT } from '../constants';
+import { env } from '../config/runtimeEnv';
 
 // Usamos la variable de entorno REACT_APP_API_URL o localhost por defecto
 // Esta es la URL base del backend (ej: http://localhost:5000)
 // El prefijo /api se añade en la configuración de axios más abajo.
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_BASE_URL = env('REACT_APP_API_URL', 'http://localhost:5000');
 
 // MEJORA: Usar el constructor URL para unir la base y el path de forma segura.
 // Esto evita problemas si API_BASE_URL accidentalmente termina con una barra (/).
@@ -13,6 +14,7 @@ const apiURL = new URL('/api', API_BASE_URL).href;
 
 const api = axios.create({
     baseURL: apiURL,
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -27,28 +29,6 @@ api.interceptors.request.use(
             config.url = config.url.replace(/^\/api/, '');
         }
 
-        // Obtenemos la información de sesión del almacenamiento local
-        const userInfo = localStorage.getItem(AUTH_STORAGE_KEY); // No change here, just for context
-        // Verificamos que userInfo exista y no sea la cadena "undefined" (error común)
-        if (userInfo) {
-            if (userInfo === 'undefined') {
-                // FIX: Si detectamos la cadena "undefined", limpiamos inmediatamente para evitar crash
-                localStorage.removeItem(AUTH_STORAGE_KEY);
-                return config;
-            }
-
-            try {
-                const { token } = JSON.parse(userInfo);
-                if (token) {
-                    // Si hay token, lo adjuntamos como Bearer Token en el header
-                    config.headers.Authorization = `Bearer ${token}`;
-                }
-            } catch (e) {
-                console.error("Error al parsear el token de usuario:", e);
-                // Si el JSON es inválido, limpiamos el storage para evitar persistencia del error
-                localStorage.removeItem(AUTH_STORAGE_KEY);
-            }
-        }
         return config;
     },
     (error) => Promise.reject(error)
@@ -62,7 +42,7 @@ api.interceptors.response.use(
     (error) => {
         // Si el backend devuelve un error 401, significa que el token es inválido o expiró.
         // CRÍTICO: Nos aseguramos de que el error no provenga de un intento de login fallido.
-        const isLoginAttempt = error.config.url.includes('/users/login');
+        const isLoginAttempt = error.config?.url?.includes('/users/login') === true;
 
         if (error.response && error.response.status === 401 && !isLoginAttempt) {
             console.warn("Sesión expirada o no autorizada (401). Limpiando sesión local.");

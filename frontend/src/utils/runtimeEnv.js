@@ -1,8 +1,6 @@
-const runtimeEnv = typeof window !== 'undefined' && window.__TECNOTITLAN_ENV__
-  ? window.__TECNOTITLAN_ENV__
-  : {};
+import { env } from '../config/runtimeEnv';
 
-const getRuntimeEnv = (key) => runtimeEnv[key] || process.env[key] || '';
+const getRuntimeEnv = (key) => env(key);
 
 export const stripePublishableKey = getRuntimeEnv('REACT_APP_STRIPE_PUBLISHABLE_KEY');
 

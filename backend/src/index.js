@@ -7,6 +7,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import pgSimple from 'connect-pg-simple';
 import session from 'express-session';
 import prisma from './config/prisma.js'; // <-- IMPORTACIÓN CORREGIDA
@@ -41,6 +42,7 @@ import serviceQualityRoutes from './routes/serviceQualityRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import securityRoutes from './routes/securityRoutes.js';
 import auditRoutes from './routes/auditRoutes.js';
+import myWorkRoutes from './routes/myWorkRoutes.js';
 import { auditMutations } from './middleware/auditMiddleware.js';
 import { encryptStoredIntegrationTokens } from './services/tokenEncryptionService.js';
 import { configureRealtime } from './services/realtimeService.js';
@@ -102,7 +104,12 @@ const startServer = async () => {
         // Stripe necesita el body crudo para validar la firma del webhook.
     app.use('/api/stripe', stripeWebhookRoutes);
 
-app.use(express.json());
+app.use(express.json({
+      verify: (req, res, buffer) => {
+        if (req.originalUrl?.startsWith('/api/integrations/whatsapp/webhook')) req.rawBody = buffer;
+      },
+    }));
+    app.use(cookieParser());
 	app.use(auditMutations);
 	app.use(notifyRealtimeMutations);
     app.use(cors(corsOptions));
@@ -190,6 +197,7 @@ app.use(express.json());
     app.use('/api/analytics', analyticsRoutes);
     app.use('/api/security', securityRoutes);
     app.use('/api/audit-logs', auditRoutes);
+    app.use('/api/my-work', myWorkRoutes);
 
 // Los archivos de producto viven en el volumen persistente montado en /app/uploads.
 // `process.cwd()` es /app dentro del contenedor y D:\Tecnotitlan en desarrollo.

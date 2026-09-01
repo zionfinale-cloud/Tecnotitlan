@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import api from '../../services/apiService';
 import styles from './WhatsAppChatScreen.module.css';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { env } from '../../config/runtimeEnv';
 
 const dateFormat = new Intl.DateTimeFormat('es-MX', {
   dateStyle: 'short',
   timeStyle: 'short',
 });
 
-const API_ORIGIN = (process.env.REACT_APP_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const API_ORIGIN = env('REACT_APP_API_URL', 'http://localhost:5000').replace(/\/$/, '');
 
 const getJidUser = (jid = '') => String(jid || '').split('@')[0] || '';
 const isLidJid = (jid = '') => String(jid || '').endsWith('@lid');

@@ -8,6 +8,7 @@ import { verifyCaptcha } from '../services/captchaService.js';
 import { sendVerificationEmail } from '../services/emailService.js';
 import { getPermissionOverrideNames, toAuthUserPayload, userPermissionInclude } from '../utils/permissionUtils.js';
 import { generateAuthToken, generateTwoFactorChallenge } from '../utils/authTokens.js';
+import { clearAuthCookie, setAuthCookie } from '../utils/authCookies.js';
 
 const generateVerificationToken = () => crypto.randomBytes(32).toString('hex');
 
@@ -167,9 +168,9 @@ const registerUser = asyncHandler(async (req, res, next) => {
     return next(new BadRequestError('El formato del correo electrónico no es válido.'));
   }
 
-  // 2. Validar seguridad de contraseña (mínimo 8 caracteres)
-  if (!password || password.length < 8) {
-    return next(new BadRequestError('La contraseña debe tener al menos 8 caracteres para ser segura.'));
+  // 2. Validar seguridad de contraseña (mínimo 12 caracteres)
+  if (!password || password.length < 12) {
+    return next(new BadRequestError('La contraseña debe tener al menos 12 caracteres para ser segura.'));
   }
 
   // La validación de campos (name, email, password) ahora la hace el middleware.
@@ -349,11 +350,12 @@ const loginUser = asyncHandler(async (req, res, next) => {
     });
   }
 
+  setAuthCookie(res, generateAuthToken(user));
   res.status(200).json({
     status: 'success',
     data: {
       ...toAuthUserPayload(user),
-      token: generateAuthToken(user),
+      requiresTwoFactorSetup: user.role?.name !== 'USER',
     },
   });
 });
@@ -365,7 +367,10 @@ const getUserProfile = asyncHandler(async (req, res, next) => {
   // req.user es añadido por el middleware 'protect'
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
-    include: { addresses: { orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] } },
+    include: {
+      ...userPermissionInclude,
+      addresses: { orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] },
+    },
     // No se necesita `select` o `include` si queremos todos los campos escalares.
     // La contraseña se excluye automáticamente si no se solicita explícitamente.
   });
@@ -374,9 +379,8 @@ const getUserProfile = asyncHandler(async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: {
+        ...toAuthUserPayload(user),
         // Devolvemos todos los campos necesarios para poblar el formulario de perfil
-        id: user.id,
-        customerNumber: user.customerNumber,
         firstName: user.firstName,
         lastName: user.lastName,
         secondLastName: user.secondLastName,
@@ -431,6 +435,9 @@ const updateUserProfile = asyncHandler(async (req, res, next) => {
   }
 
   if (req.body.password) {
+    if (req.body.password.length < 12) {
+      return next(new BadRequestError('La contraseña debe tener al menos 12 caracteres para ser segura.'));
+    }
     const salt = await bcrypt.genSalt(10);
     dataToUpdate.password = await bcrypt.hash(req.body.password, salt);
     dataToUpdate.tokenVersion = { increment: 1 };
@@ -461,12 +468,10 @@ const updateUserProfile = asyncHandler(async (req, res, next) => {
     return savedUser;
   });
 
+    if (req.body.password) setAuthCookie(res, generateAuthToken(updatedUser));
     res.status(200).json({
       status: 'success',
-      data: {
-        ...toAuthUserPayload(updatedUser),
-        token: generateAuthToken(updatedUser), // Re-generar token
-      },
+      data: toAuthUserPayload(updatedUser),
     });
 });
 
@@ -630,8 +635,8 @@ const deleteUser = asyncHandler(async (req, res, next) => {
 // @route   POST /api/users/logout
 // @access  Public
 const logoutUser = asyncHandler(async (req, res) => {
-  // Al ser JWT en localStorage, el backend principalmente confirma la acción.
-  // Si usáramos cookies HTTP-Only, aquí las limpiaríamos: res.clearCookie('jwt');
+  await prisma.user.update({ where: { id: req.user.id }, data: { tokenVersion: { increment: 1 } } });
+  clearAuthCookie(res);
   res.status(200).json({ status: 'success', message: 'Sesión cerrada correctamente' });
 });
 

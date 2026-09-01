@@ -22,7 +22,7 @@ router.post('/register', registerUser); // FIX: Ruta explícita para que coincid
 router.post('/resend-verification', resendVerificationEmail);
 router.get('/confirm/:token', verifyEmail);
 router.post('/login', loginUser);
-router.post('/logout', logoutUser); // Nueva ruta para evitar el 404
+router.post('/logout', protect, logoutUser);
 
 router.route('/')
   .get(protect, checkPermission('user:read'), getUsers);

@@ -5,6 +5,7 @@ import * as whatsappService from '../services/whatsappService.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
 import { ForbiddenError } from '../utils/errorUtils.js';
+import { verifyCloudSignature, verifyCloudWebhook } from '../services/whatsappCloudService.js';
 
 const router = express.Router();
 const mediaUpload = multer({
@@ -18,6 +19,23 @@ const superAdminOnly = (req, res, next) => {
 };
 
 const canAttendWhatsApp = checkPermission('whatsapp:chat', 'support:update');
+
+router.get('/webhook', (req, res, next) => {
+  try {
+    const challenge = verifyCloudWebhook({
+      mode: req.query['hub.mode'], token: req.query['hub.verify_token'], challenge: req.query['hub.challenge'],
+    });
+    res.status(200).send(challenge);
+  } catch (error) { next(error); }
+});
+
+router.post('/webhook', asyncHandler(async (req, res) => {
+  if (!verifyCloudSignature(req.rawBody || Buffer.from(''), req.headers['x-hub-signature-256'] || '')) {
+    throw new ForbiddenError('Firma de webhook de WhatsApp invalida.');
+  }
+  const result = await whatsappService.ingestCloudWebhook(req.body);
+  res.status(200).json(result);
+}));
 
 router.use(protect);
 

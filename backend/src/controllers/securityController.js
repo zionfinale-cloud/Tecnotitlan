@@ -14,6 +14,7 @@ import {
 } from '../utils/totp.js';
 import { generateAuthToken, verifyTwoFactorChallenge } from '../utils/authTokens.js';
 import { toAuthUserPayload } from '../utils/permissionUtils.js';
+import { setAuthCookie } from '../utils/authCookies.js';
 
 const setupToken = (userId, secret) => jwt.sign(
   { id: userId, secret, scope: '2fa-setup' },
@@ -83,16 +84,20 @@ export const enableTwoFactor = asyncHandler(async (req, res) => {
       tokenVersion: { increment: 1 },
     },
   });
+  setAuthCookie(res, generateAuthToken(user));
   res.json({
     status: 'success',
     message: 'Autenticacion de dos factores activada.',
-    data: { recoveryCodes, token: generateAuthToken(user), twoFactorEnabled: true },
+    data: { recoveryCodes, twoFactorEnabled: true },
   });
 });
 
 export const disableTwoFactor = asyncHandler(async (req, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const user = await prisma.user.findUnique({ where: { id: req.user.id }, include: { role: true } });
   if (!user.twoFactorEnabled) throw new BadRequestError('El segundo factor no esta activo.');
+  if (user.role?.name && user.role.name !== 'USER') {
+    throw new BadRequestError('El segundo factor es obligatorio para administradores y trabajadores.');
+  }
   await verifyPassword(user, req.body.password);
   const verification = verifyUserCode(user, req.body.code);
   if (!verification.valid) throw new UnauthorizedError('El codigo 2FA o de recuperacion no es valido.');
@@ -105,7 +110,8 @@ export const disableTwoFactor = asyncHandler(async (req, res) => {
       tokenVersion: { increment: 1 },
     },
   });
-  res.json({ status: 'success', message: 'Autenticacion de dos factores desactivada.', data: { token: generateAuthToken(updated), twoFactorEnabled: false } });
+  setAuthCookie(res, generateAuthToken(updated));
+  res.json({ status: 'success', message: 'Autenticacion de dos factores desactivada.', data: { twoFactorEnabled: false } });
 });
 
 export const regenerateRecoveryCodes = asyncHandler(async (req, res) => {
@@ -139,8 +145,9 @@ export const completeTwoFactorLogin = asyncHandler(async (req, res) => {
   if (!verification.valid) throw new UnauthorizedError('El codigo 2FA o de recuperacion no es valido.');
   let recoveryCodesRemaining = user.twoFactorRecoveryCodes.length;
   if (verification.recovery) recoveryCodesRemaining = await consumeRecoveryCode(user, verification.index);
+  setAuthCookie(res, generateAuthToken(user));
   res.json({
     status: 'success',
-    data: { ...toAuthUserPayload(user), token: generateAuthToken(user), recoveryCodesRemaining },
+    data: { ...toAuthUserPayload(user), recoveryCodesRemaining },
   });
 });

@@ -1,8 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { AuthContext } from './AuthContext';
+import { env } from '../config/runtimeEnv';
 
-const API_ORIGIN = (process.env.REACT_APP_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const API_ORIGIN = env('REACT_APP_API_URL', 'http://localhost:5000').replace(/\/$/, '');
 
 export const RealtimeContext = createContext({
   connected: false,
@@ -23,7 +24,7 @@ export const RealtimeProvider = ({ children }) => {
 
   useEffect(() => {
     const socket = io(API_ORIGIN, {
-      auth: { token: userInfo?.token || null },
+      withCredentials: true,
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
@@ -44,7 +45,7 @@ export const RealtimeProvider = ({ children }) => {
       socket.disconnect();
       setConnected(false);
     };
-  }, [userInfo?.token]);
+  }, [userInfo?.id]);
 
   const value = useMemo(() => ({ connected, lastEvent, subscribe }), [connected, lastEvent, subscribe]);
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;

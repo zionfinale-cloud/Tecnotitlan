@@ -23,7 +23,7 @@ const LoginScreen = () => {
 
     useEffect(() => {
         if (userInfo) {
-            navigate(redirect);
+            navigate(userInfo.requiresTwoFactorSetup && !userInfo.twoFactorEnabled ? '/admin/security' : redirect);
         }
     }, [navigate, userInfo, redirect]);
 

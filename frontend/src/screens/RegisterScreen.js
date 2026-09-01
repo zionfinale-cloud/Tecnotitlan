@@ -6,6 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { NotificationContext } from '../context/NotificationContext';
 import styles from './RegisterScreen.module.css';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { env } from '../config/runtimeEnv';
 
 const RegisterFormContent = () => {
     const [name, setName] = useState('');
@@ -153,7 +154,7 @@ const RegisterFormContent = () => {
                                     autoCapitalize="none"
                                     autoCorrect="off"
                                     spellCheck={false}
-                                    minLength={8}
+                                    minLength={12}
                                     required
                                 />
                                 <button
@@ -180,7 +181,7 @@ const RegisterFormContent = () => {
                                     autoCapitalize="none"
                                     autoCorrect="off"
                                     spellCheck={false}
-                                    minLength={8}
+                                    minLength={12}
                                     required
                                 />
                                 <button
@@ -220,7 +221,7 @@ const RegisterFormContent = () => {
 };
 
 const RegisterScreen = () => {
-    const recaptchaKey = process.env.REACT_APP_RECAPTCHA_SITE_KEY;
+    const recaptchaKey = env('REACT_APP_RECAPTCHA_SITE_KEY');
 
     if (!recaptchaKey) {
         return <RegisterFormContent />;

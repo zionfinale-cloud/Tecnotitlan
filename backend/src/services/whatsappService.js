@@ -16,6 +16,7 @@ import {
     isProtectedWhatsAppDisconnect,
     isTransientWhatsAppDisconnect,
 } from './whatsappLifecyclePolicy.js';
+import { getCloudStatus, normalizeCloudWebhook, sendCloudText } from './whatsappCloudService.js';
 
 const {
     DisconnectReason,
@@ -99,10 +100,12 @@ const getWhatsAppProvider = () => {
     || process.env.WHATSAPP_PROVIDER
     || 'baileys',
     ).trim().toLowerCase();
-    return ['disabled', 'off', 'none'].includes(provider) ? 'disabled' : 'baileys';
+    if (['disabled', 'off', 'none'].includes(provider)) return 'disabled';
+    return ['cloud', 'meta', 'official'].includes(provider) ? 'cloud' : 'baileys';
 };
 
 const isWhatsAppDisabledProvider = () => getWhatsAppProvider() === 'disabled';
+const isCloudProvider = () => getWhatsAppProvider() === 'cloud';
 const getBaileysAuthStorage = () => String(
     getConfig().WHATSAPP_AUTH_STORAGE
     || process.env.WHATSAPP_AUTH_STORAGE
@@ -1492,7 +1495,7 @@ const getBaileysStatus = () => ({
 });
 
 export const hasSavedSession = async () => {
-    if (isWhatsAppDisabledProvider()) return false;
+    if (isWhatsAppDisabledProvider() || isCloudProvider()) return false;
     return hasPersistedBaileysSession();
 };
 
@@ -1508,17 +1511,20 @@ const getDisabledStatus = () => ({
 
 export const getStatus = () => {
     if (isWhatsAppDisabledProvider()) return getDisabledStatus();
+    if (isCloudProvider()) return getCloudStatus();
     return getBaileysStatus();
 };
 
 export const refreshProtectedPauseState = async () => {
     if (isWhatsAppDisabledProvider()) return getDisabledStatus();
+    if (isCloudProvider()) return getCloudStatus();
     await loadProtectedPauseFromDb();
     return getStatus();
 };
 
 export const clearProtectedPauseForManualRetry = async () => {
     if (isWhatsAppDisabledProvider()) return getDisabledStatus();
+    if (isCloudProvider()) return getCloudStatus();
 
     await clearProtectedPause();
     if (connectionStatus === 'PAUSED') {
@@ -1860,6 +1866,7 @@ const initializeInternal = async ({ allowQr = true, reason = 'manual' } = {}) =>
 };
 
 export const initialize = async (options = {}) => {
+    if (isCloudProvider()) return getCloudStatus();
     if (isSocketReady()) return getStatus();
 
     if (initializePromise) {
@@ -1922,6 +1929,10 @@ const attemptAutoConnect = async (reason = 'watchdog') => {
 };
 
 export const startAutoConnectWatchdog = () => {
+    if (isCloudProvider()) {
+        logger.info('[WhatsApp] Cloud API oficial configurada; no requiere watchdog de sesion Baileys.');
+        return;
+    }
     if (isWhatsAppDisabledProvider()) {
         connectionStatus = 'DISABLED';
         lastError = getDisabledStatus().lastError;
@@ -1998,6 +2009,7 @@ export const getClient = () => sock;
 
 export const resetSession = async () => {
     if (isWhatsAppDisabledProvider()) return getStatus();
+    if (isCloudProvider()) return getCloudStatus();
 
     resetInProgress = true;
     clearReconnectTimer();
@@ -2064,6 +2076,16 @@ export const sendMessage = async (number, message, sentBy = null) => {
         throw new BadRequestError('WhatsApp esta desactivado temporalmente. Usa correo o el panel de pedidos.');
     }
 
+    if (isCloudProvider()) {
+        const result = await enqueueOutboundSend(`mensaje Cloud a ${number}`, () => sendCloudText(number, message));
+        await persistMessage({
+            jid: `${result.recipientPhone}@s.whatsapp.net`, messageId: result.providerMessageId,
+            text: String(message || '').trim(), fromMe: true, createdAt: new Date(), sentBy,
+            phone: result.recipientPhone,
+        });
+        return result;
+    }
+
     const isReady = await ensureReadyForSend('envio de mensaje');
     if (!isReady || !sock) {
         throw new BadRequestError('WhatsApp no esta conectado. Se intento levantar la sesion guardada, pero no quedo lista.');
@@ -2117,6 +2139,44 @@ export const sendMessage = async (number, message, sentBy = null) => {
     };
 };
 
+export const sendAdministrativeAlert = async ({ recipients = [], message, sentBy = 'Sistema' }) => {
+    const uniqueRecipients = [...new Set(recipients.map((item) => String(item || '').replace(/\D/g, '')).filter(Boolean))];
+    if (uniqueRecipients.length === 0) return { mode: 'skipped', provider: getWhatsAppProvider(), recipients: [] };
+    const groupJid = String(getConfig().WHATSAPP_ADMIN_GROUP_JID || process.env.WHATSAPP_ADMIN_GROUP_JID || '').trim();
+    if (!isCloudProvider() && groupJid) {
+        if (!/@g\.us$/.test(groupJid)) throw new BadRequestError('WHATSAPP_ADMIN_GROUP_JID no tiene formato de grupo valido.');
+        const isReady = await ensureReadyForSend('alerta administrativa de grupo');
+        if (!isReady || !sock) throw new BadRequestError('WhatsApp no esta conectado.');
+        const result = await enqueueOutboundSend('alerta al grupo administrativo', () => sock.sendMessage(groupJid, { text: String(message || '') }));
+        return { mode: 'group', provider: 'baileys', providerMessageId: result?.key?.id || null, recipients: uniqueRecipients };
+    }
+    if (!isCloudProvider()) {
+        throw new BadRequestError('Configura WHATSAPP_ADMIN_GROUP_JID; el envio privado multiple por Baileys esta desactivado para proteger el numero.');
+    }
+    const results = [];
+    for (const recipient of uniqueRecipients) {
+        try {
+            results.push({ recipient, status: 'fulfilled', value: await sendMessage(recipient, message, sentBy) });
+        } catch (reason) {
+            results.push({ recipient, status: 'rejected', reason });
+        }
+    }
+    return { mode: 'official_fanout', provider: 'cloud', recipients: uniqueRecipients, results };
+};
+
+export const ingestCloudWebhook = async (payload = {}) => {
+    const messages = normalizeCloudWebhook(payload);
+    for (const message of messages) {
+        await persistMessage({
+            jid: `${message.from}@s.whatsapp.net`, messageId: message.messageId,
+            text: message.text || `[${message.type || 'mensaje'}]`, fromMe: false,
+            createdAt: message.timestamp ? new Date(Number(message.timestamp) * 1000) : new Date(),
+            sentBy: null, phone: message.from,
+        });
+    }
+    return { accepted: true, messages: messages.length };
+};
+
 const getOutgoingMediaPayload = (file, caption = '') => {
     const mimeType = file?.mimetype || 'application/octet-stream';
     const fileName = file?.originalname || 'archivo';
@@ -2145,6 +2205,9 @@ const getOutgoingMediaPayload = (file, caption = '') => {
 export const sendMediaMessage = async (number, file, caption = '', sentBy = null) => {
     if (isWhatsAppDisabledProvider()) {
         throw new BadRequestError('WhatsApp esta desactivado temporalmente. Usa correo o el panel de pedidos.');
+    }
+    if (isCloudProvider()) {
+        throw new BadRequestError('Los adjuntos por Cloud API se habilitaran al registrar las plantillas y medios oficiales.');
     }
 
     const isReady = await ensureReadyForSend('envio de adjunto');

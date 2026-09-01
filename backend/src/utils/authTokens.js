@@ -5,7 +5,7 @@ const secret = () => process.env.JWT_SECRET;
 export const generateAuthToken = (user) => jwt.sign(
   { id: user.id, ver: Number(user.tokenVersion || 0), scope: 'auth' },
   secret(),
-  { expiresIn: '30d' },
+  { expiresIn: '8h' },
 );
 
 export const generateTwoFactorChallenge = (user) => jwt.sign(

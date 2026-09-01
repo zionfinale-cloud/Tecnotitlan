@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
 import { config as envConfig } from '../config/env.js';
+import { decryptSecret, isEncryptedSecret } from '../utils/secretCrypto.js';
 
 /**
  * @file configService.js
@@ -24,7 +25,7 @@ export const loadConfigFromDB = async () => {
       const dbConfig = settings.reduce((acc, setting) => {
         // Convierte 'mi-clave' a 'MI_CLAVE' para consistencia
         const key = setting.key.toUpperCase().replace(/-/g, '_');
-        acc[key] = setting.value;
+        acc[key] = isEncryptedSecret(setting.value) ? decryptSecret(setting.value) : setting.value;
         return acc;
       }, {});
 

@@ -6,7 +6,7 @@ import styles from './SecurityScreen.module.css';
 const formatDate = (value) => value ? new Date(value).toLocaleString('es-MX') : '-';
 
 const SecurityScreen = ({ admin = false }) => {
-  const { updateProfile } = useContext(AuthContext);
+  const { userInfo, updateProfile } = useContext(AuthContext);
   const [status, setStatus] = useState(null);
   const [activity, setActivity] = useState([]);
   const [audit, setAudit] = useState([]);
@@ -34,7 +34,7 @@ const SecurityScreen = ({ admin = false }) => {
     try {
       const response = await operation();
       const data = response.data.data || {};
-      if (data.token) updateProfile({ token: data.token, twoFactorEnabled: data.twoFactorEnabled });
+      if (typeof data.twoFactorEnabled === 'boolean') updateProfile({ twoFactorEnabled: data.twoFactorEnabled });
       if (data.recoveryCodes) setRecoveryCodes(data.recoveryCodes);
       setMessage(success);
       setPassword(''); setCode('');
@@ -67,7 +67,7 @@ const SecurityScreen = ({ admin = false }) => {
         <div className={styles.cardTitle}><div><h2>Autenticacion de dos factores</h2><p>Estado: <b>{status.twoFactorEnabled ? 'Activa' : 'Inactiva'}</b></p></div><i className={`fas ${status.twoFactorEnabled ? 'fa-shield-alt' : 'fa-shield'}`} /></div>
         {!status.twoFactorEnabled && !setup && <><label>Confirma tu contrasena<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label><button disabled={busy || !password} onClick={beginSetup}>Configurar 2FA</button></>}
         {setup && <div className={styles.setup}><img src={setup.qrCodeDataUrl} alt="Codigo QR para configurar 2FA" /><p>Escanea con Google Authenticator, Microsoft Authenticator, 1Password o una aplicacion compatible.</p><details><summary>No puedo escanearlo</summary><code>{setup.secret}</code></details><label>Codigo de 6 digitos<input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" /></label><button disabled={busy || !code} onClick={enable}>Confirmar y activar</button></div>}
-        {status.twoFactorEnabled && <><p>Codigos de recuperacion disponibles: <b>{status.recoveryCodesRemaining}</b></p><label>Codigo 2FA o de recuperacion<input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" /></label><div className={styles.actions}><button disabled={busy || !code} onClick={regenerate}>Nuevos codigos</button><button className={styles.danger} disabled={busy || !code || !password} onClick={disable}>Desactivar</button></div><label>Contrasena actual para desactivar<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label></>}
+        {status.twoFactorEnabled && <><p>Codigos de recuperacion disponibles: <b>{status.recoveryCodesRemaining}</b></p><label>Codigo 2FA o de recuperacion<input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" /></label><div className={styles.actions}><button disabled={busy || !code} onClick={regenerate}>Nuevos codigos</button>{userInfo?.role === 'USER' && <button className={styles.danger} disabled={busy || !code || !password} onClick={disable}>Desactivar</button>}</div>{userInfo?.role === 'USER' ? <label>Contrasena actual para desactivar<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label> : <p>El segundo factor es obligatorio para cuentas de personal.</p>}</>}
       </article>
       <article className={styles.card}><h2>Controles activos</h2><ul><li>AES-256-GCM para tokens de Mercado Libre y TikTok.</li><li>Códigos TOTP de 30 segundos con tolerancia de reloj limitada.</li><li>Sesiones invalidadas después de cambios de contraseña o 2FA.</li><li>IP convertida a huella irreversible; contraseñas y cuerpos nunca se auditan.</li></ul></article>
     </section>

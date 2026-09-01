@@ -65,10 +65,12 @@ import ServiceQualityScreen from './screens/admin/ServiceQualityScreen';
 import PageViewTracker from './components/PageViewTracker';
 import VerifyAccountScreen from './screens/VerifyAccountScreen';
 import SecurityScreen from './screens/SecurityScreen';
+import MyWorkScreen from './screens/admin/MyWorkScreen';
+import { env } from './config/runtimeEnv';
 
 // --- Configuración de PayPal ---
 const initialOptions = {
-    clientId: process.env.REACT_APP_PAYPAL_CLIENT_ID || "sb", // Usamos "sb" para Sandbox si no está definido
+    clientId: env('REACT_APP_PAYPAL_CLIENT_ID', 'sb'),
     currency: "MXN",
     intent: "capture",
 };
@@ -120,6 +122,8 @@ function App() {
                                                 path="/admin" 
                                                 element={<ProtectedRoute adminOnly={true}><AdminLayout /></ProtectedRoute>}
                                             >
+                                                <Route index element={<Navigate to="my-work" replace />} />
+                                                <Route path="my-work" element={<MyWorkScreen />} />
                                                 <Route path="dashboard" element={<AdminDashboard />} />
                                                 <Route path="productlist" element={<ProductListScreen />} />
                                                 <Route path="investments" element={<InvestmentsScreen />} />

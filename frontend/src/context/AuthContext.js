@@ -20,21 +20,13 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const checkAuth = () => {
+        const checkAuth = async () => {
             try {
-                // Leer del almacenamiento local al inicio
-                const storedUserInfo = localStorage.getItem('userInfo');
-                
-                // FIX: Verificar que no sea la cadena "undefined" que rompe el JSON.parse
-                if (storedUserInfo && storedUserInfo !== 'undefined') {
-                    setUserInfo(JSON.parse(storedUserInfo));
-                } else if (storedUserInfo === 'undefined') {
-                    // Si es basura, limpiamos
-                    localStorage.removeItem('userInfo');
-                }
-            } catch (error) {
-                console.error("Error parsing user info from storage:", error);
                 localStorage.removeItem('userInfo');
+                const { data } = await api.get('/users/profile');
+                setUserInfo(data.data);
+            } catch (error) {
+                setUserInfo(null);
             } finally {
                 // CRÍTICO: Una vez que se intenta leer del storage, terminamos de cargar
                 setLoading(false); 
@@ -60,7 +52,6 @@ export const AuthProvider = ({ children }) => {
             const { data } = await api.post('/users/login', { email, password });
             if (data.data?.twoFactorRequired) return data.data;
             setUserInfo(data.data); // FIX: El objeto de usuario está en data.data
-            localStorage.setItem('userInfo', JSON.stringify(data.data));
             return data.data;
         } finally {
             setLoading(false);
@@ -72,7 +63,6 @@ export const AuthProvider = ({ children }) => {
         try {
             const { data } = await api.post('/security/2fa/verify-login', { challengeToken, code });
             setUserInfo(data.data);
-            localStorage.setItem('userInfo', JSON.stringify(data.data));
             return data.data;
         } finally {
             setLoading(false);
@@ -90,7 +80,6 @@ export const AuthProvider = ({ children }) => {
             }
 
             setUserInfo(data.data.user);
-            localStorage.setItem('userInfo', JSON.stringify(data.data.user));
             return { success: true, user: data.data.user };
         } finally {
             setLoading(false);
@@ -126,7 +115,6 @@ export const AuthProvider = ({ children }) => {
         // MEJORA 2: Usar la forma funcional para garantizar la consistencia del estado
         setUserInfo(prevUserInfo => {
             const newUserInfo = { ...prevUserInfo, ...updatedUser };
-            localStorage.setItem('userInfo', JSON.stringify(newUserInfo));
             return newUserInfo;
         });
     }

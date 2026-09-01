@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Container, Spinner } from 'react-bootstrap';
 import useApi from '../hooks/useApi';
+import DOMPurify from 'dompurify';
 
 const defaultPrivacyPolicy = `
   <p><strong>Ultima actualizacion:</strong> 5 de julio de 2026</p>
@@ -78,7 +79,7 @@ const PrivacyPolicy = () => {
           </Spinner>
         </div>
       ) : (
-        <div dangerouslySetInnerHTML={{ __html: content }} />
+        <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }} />
       )}
     </Container>
   );

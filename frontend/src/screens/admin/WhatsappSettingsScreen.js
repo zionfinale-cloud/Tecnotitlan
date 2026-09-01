@@ -111,6 +111,7 @@ const WhatsappSettingsScreen = () => {
   if (loading) return <div>Cargando WhatsApp...</div>;
 
   const isDisabled = status?.provider === 'disabled';
+  const isCloud = status?.provider === 'cloud';
   const isPaused = status?.status === 'PAUSED';
   const needsRelink = ['QR_REQUIRED', 'LOGGED_OUT'].includes(status?.status);
   const isWaitingLock = status?.status === 'WAITING_FOR_SESSION_LOCK';
@@ -133,17 +134,17 @@ const WhatsappSettingsScreen = () => {
               : 'Vincula el numero operativo escaneando el QR. Esta seccion es solo para Super Admin. La sesion queda cifrada en la base de datos para evitar reescaneos.'}
           </p>
         </div>
-        <button className={styles.primaryButton} type="button" onClick={start} disabled={starting || isDisabled || isWaitingLock}>
+        {!isCloud && <button className={styles.primaryButton} type="button" onClick={start} disabled={starting || isDisabled || isWaitingLock}>
           {startButtonLabel}
-        </button>
+        </button>}
         {isPaused && (
           <button className={styles.secondaryButton} type="button" onClick={clearPause} disabled={clearingPause || starting || resetting || isDisabled}>
             {clearingPause ? 'Liberando...' : 'Liberar pausa'}
           </button>
         )}
-        <button className={styles.secondaryButton} type="button" onClick={reset} disabled={resetting || starting || isDisabled}>
+        {!isCloud && <button className={styles.secondaryButton} type="button" onClick={reset} disabled={resetting || starting || isDisabled}>
           {resetting ? 'Reiniciando...' : 'Borrar sesion y pedir QR'}
-        </button>
+        </button>}
       </div>
 
       {message && <div className={`${styles.notice} ${message.type === 'success' ? styles.success : styles.error}`}>{message.text}</div>}
@@ -169,7 +170,7 @@ const WhatsappSettingsScreen = () => {
         <section className={styles.card}>
           <h3 className={styles.cardTitle}>Estado de conexion</h3>
           <div style={{ display: 'grid', gap: '.75rem' }}>
-            <p><strong>Proveedor:</strong> {isDisabled ? 'Desactivado' : 'Baileys local'}</p>
+            <p><strong>Proveedor:</strong> {isDisabled ? 'Desactivado' : isCloud ? 'WhatsApp Business Cloud API' : 'Baileys local'}</p>
             <p><strong>Estado:</strong> {statusLabels[status?.status] || status?.status || 'Sin estado'}</p>
             <p><strong>Conectado:</strong> {status?.connected ? 'Si' : 'No'}</p>
             <p><strong>Sesion guardada:</strong> {status?.hasSavedSession ? 'Si' : 'No'}</p>
@@ -178,7 +179,9 @@ const WhatsappSettingsScreen = () => {
             {status?.authStorage && <p><strong>Almacenamiento:</strong> {status.authStorage === 'database' ? 'Base de datos cifrada' : status.authStorage}</p>}
             {status?.authDir && <p><strong>Sesion activa:</strong> <code>{status.authDir}</code></p>}
             <p className={styles.subtitle}>
-              {isDisabled
+              {isCloud
+                ? <>Canal oficial configurado mediante Meta. El token permanece en el servidor y el webhook valida la firma de cada evento.</>
+                : isDisabled
                 ? <>No se intentara conectar ni generar QR mientras <code>WHATSAPP_PROVIDER=disabled</code>. Las notificaciones seguiran saliendo por correo.</>
                 : <>La sesion y las llaves de mensajes se guardan cifradas en PostgreSQL cuando <code>WHATSAPP_AUTH_STORAGE=database</code>. No cambies <code>SESSION_SECRET</code> sin cerrar primero la sesion.</>}
             </p>
@@ -187,14 +190,18 @@ const WhatsappSettingsScreen = () => {
 
         <section className={styles.card}>
           <h3 className={styles.cardTitle}>QR de vinculacion</h3>
-          {qr ? (
+          {isCloud ? (
+            <div className={`${styles.notice} ${status?.connected ? styles.success : styles.error}`}>
+              {status?.connected ? 'Cloud API está configurada; no necesita código QR.' : 'Completa Phone Number ID, Access Token, Verify Token y App Secret en Configuración del sistema.'}
+            </div>
+          ) : qr ? (
             <div style={{ display: 'grid', placeItems: 'center', gap: '1rem', padding: '1rem' }}>
               {isQrImage ? (
                 <img src={qr} alt="QR WhatsApp" style={{ width: 260, height: 260, objectFit: 'contain' }} />
               ) : (
                 <QRCodeSVG value={qr} size={260} includeMargin />
               )}
-              <p className={styles.subtitle}>Abre WhatsApp en el telefono: Dispositivos vinculados -> Vincular dispositivo.</p>
+              <p className={styles.subtitle}>Abre WhatsApp en el teléfono: Dispositivos vinculados → Vincular dispositivo.</p>
             </div>
           ) : (
             <div className={`${styles.notice} ${status?.connected ? styles.success : styles.error}`}>

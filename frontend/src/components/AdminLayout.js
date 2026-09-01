@@ -9,9 +9,11 @@ import { hasPermission, isSuperAdmin as checkIsSuperAdmin } from '../utils/permi
 
 const navGroups = [
     {
-        label: 'Ventas',
+        label: 'Trabajo',
         links: [
+            { to: '/admin/my-work', icon: 'fa-clipboard-check', text: 'Mi trabajo' },
             { to: '/admin/dashboard', icon: 'fa-tachometer-alt', text: 'Dashboard' },
+            { to: '/admin/inbox', icon: 'fa-inbox', text: 'Bandeja unificada', anyPermission: ['support:read', 'order:read', 'whatsapp:chat'] },
             { to: '/admin/orderlist', icon: 'fa-shipping-fast', text: 'Pedidos', permission: 'order:read' },
             { to: '/admin/channels', icon: 'fa-store', text: 'Canales', permission: 'product:read' },
         ],
@@ -28,13 +30,17 @@ const navGroups = [
     {
         label: 'Atencion',
         links: [
-            { to: '/admin/inbox', icon: 'fa-inbox', text: 'Bandeja unificada', anyPermission: ['support:read', 'order:read', 'whatsapp:chat'] },
             { to: '/admin/returns', icon: 'fa-box-open', text: 'Devoluciones y cuarentena', anyPermission: ['support:read', 'order:read', 'product:read'] },
             { to: '/admin/service-quality', icon: 'fa-stopwatch', text: 'SLA y calidad', anyPermission: ['support:read', 'order:read'] },
+            { to: '/admin/support', icon: 'fa-headset', text: 'Soporte', permission: 'support:read' },
+        ],
+    },
+    {
+        label: 'Herramientas especializadas',
+        links: [
             { to: '/admin/whatsapp-chat', icon: 'fa-comments', text: 'WhatsApp', anyPermission: ['whatsapp:chat', 'support:update'] },
             { to: '/admin/tecatl', icon: 'fa-robot', text: 'Tecatl', anyPermission: ['tecatl:read', 'tecatl:reply', 'tecatl:knowledge'] },
             { to: '/mail', icon: 'fa-envelope', text: 'Correo', anyPermission: ['mail:read', 'mail:send'] },
-            { to: '/admin/support', icon: 'fa-headset', text: 'Soporte', permission: 'support:read' },
             { to: '/admin/meli-claims', icon: 'fa-undo-alt', text: 'Reclamos ML', anyPermission: ['support:read', 'order:read'] },
             { to: '/admin/meli-communications', icon: 'fa-comments-dollar', text: 'Mensajes ML', anyPermission: ['support:read', 'order:read'] },
         ],
@@ -77,6 +83,7 @@ const AdminLayout = () => {
     const { settings } = useContext(SettingsContext);
     const { userInfo } = useContext(AuthContext);
     const [collapsed, setCollapsed] = useState(() => localStorage.getItem('tecnotitlan-admin-sidebar') === 'collapsed');
+    const [mobileOpen, setMobileOpen] = useState(false);
     const [whatsappUnread, setWhatsappUnread] = useState(0);
     const [meliUnread, setMeliUnread] = useState(0);
     const [unifiedUnread, setUnifiedUnread] = useState(0);
@@ -230,7 +237,8 @@ const AdminLayout = () => {
 
     return (
         <div className={styles.container}>
-            <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''} d-none d-md-block`}>
+            {mobileOpen && <button type="button" aria-label="Cerrar menú administrativo" className={styles.backdrop} onClick={() => setMobileOpen(false)} />}
+            <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''} ${mobileOpen ? styles.mobileOpen : ''}`}>
                 <div className={styles.sidebarHeader}>
                     <button
                         className={styles.collapseButton}
@@ -275,6 +283,7 @@ const AdminLayout = () => {
                                             ) : (
                                                 <NavLink
                                                     to={item.to}
+                                                    onClick={() => setMobileOpen(false)}
                                                     className={({ isActive }) => `${styles.navLink} ${isActive ? styles.activeLink : ''}`}
                                                 >
                                                     {renderLinkContent(item)}
@@ -290,6 +299,11 @@ const AdminLayout = () => {
             </aside>
 
             <main className={styles.mainContent}>
+                <div className={styles.mobileBar}>
+                    <button type="button" onClick={() => setMobileOpen(true)} aria-label="Abrir menú administrativo"><i className="fas fa-bars" /></button>
+                    <div><strong>Administración</strong><span>{userInfo?.name || userInfo?.email}</span></div>
+                    <Link to="/admin/my-work" aria-label="Ir a Mi trabajo"><i className="fas fa-clipboard-check" /></Link>
+                </div>
                 <div>
                     <div className={styles.contentCard}>
                         <Outlet />

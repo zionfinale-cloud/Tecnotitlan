@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Form, Spinner, Alert } from 'react-bootstrap';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css'; // Estilos del editor
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import useApi from '../../hooks/useApi';
 
 const LegalPagesScreen = () => {

@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Container, Spinner, Alert } from 'react-bootstrap';
 import useApi from '../hooks/useApi';
+import DOMPurify from 'dompurify';
 
 const TermsOfService = () => {
   const { data, loading, error, request } = useApi();
@@ -33,7 +34,7 @@ const TermsOfService = () => {
       ) : error ? (
         <Alert variant="danger">{error}</Alert>
       ) : (
-        <div dangerouslySetInnerHTML={{ __html: content }} />
+        <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }} />
       )}
     </Container>
   );
