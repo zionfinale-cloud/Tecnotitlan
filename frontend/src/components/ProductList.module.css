@@ -1,9 +1,9 @@
 .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .85rem; }
 .emptyContainer { color: #8c9691; text-align: center; border: 1px dashed #293236; border-radius: 12px; padding: 4rem 1rem; }
 .emptyContainer i { color: var(--cta-color); font-size: 2rem; margin-bottom: 1rem; }
-.emptyContainer h4 { color: #cbd2ce; }
+.emptyContainer h3 { color: #cbd2ce; font-size: 1.15rem; }
 :global([data-theme="light"]) .emptyContainer { color: var(--muted); border-color: var(--line); background: #fff; }
-:global([data-theme="light"]) .emptyContainer h4 { color: var(--heading); }
+:global([data-theme="light"]) .emptyContainer h3 { color: var(--heading); }
 .pagination { display: flex; justify-content: center; margin-top: 2.5rem; }
 @media (max-width: 1199px) { .grid { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 991px) { .grid { grid-template-columns: repeat(3, 1fr); } }

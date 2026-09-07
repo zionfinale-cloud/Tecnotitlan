@@ -11,7 +11,8 @@
 .miniBenefits span { display: flex; align-items: center; gap: .45rem; }
 .miniBenefits i { color: var(--cta-color); font-size: .9rem; }
 .visual { height: 450px; position: relative; display: grid; place-items: center; }
-.visual img { width: min(680px, 115%); height: 100%; object-fit: cover; object-position: center; mask-image: radial-gradient(ellipse 68% 72% at center, #000 55%, transparent 100%); filter: saturate(1.08) contrast(1.04); }
+.heroPicture { width: min(680px, 115%); height: 100%; display: block; }
+.visual img { width: 100%; height: 100%; object-fit: cover; object-position: center; mask-image: radial-gradient(ellipse 68% 72% at center, #000 55%, transparent 100%); filter: saturate(1.08) contrast(1.04); }
 .glow { position: absolute; width: 420px; height: 240px; border-radius: 50%; background: rgba(70,255,126,.12); filter: blur(70px); }
 .promoCard { position: absolute; right: 1rem; bottom: 1.5rem; width: min(310px, 82vw); padding: 1rem; border: 1px solid rgba(117,242,56,.22); border-radius: 18px; background: rgba(8,12,13,.76); backdrop-filter: blur(18px); box-shadow: 0 22px 60px rgba(0,0,0,.28); color: #f7f9f8; display: grid; gap: .35rem; }
 .promoCard span { color: var(--cta-color); font-size: .62rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }

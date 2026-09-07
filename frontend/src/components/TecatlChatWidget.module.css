@@ -22,13 +22,15 @@
   gap: .55rem;
 }
 
-.bubbleAvatar {
+.bubbleAvatar,
+.bubbleIcon {
   width: 1.65rem;
   height: 1.65rem;
   border-radius: 999px;
   object-fit: cover;
   border: 1px solid rgba(6, 17, 31, .28);
 }
+.bubbleIcon { display:grid;place-items:center;border:0;font-size:1.05rem }
 
 .pulse {
   position: absolute;
@@ -87,6 +89,9 @@
   object-fit: cover;
   background: #00dca2;
   border: 1px solid rgba(0, 220, 162, .35);
+  display:grid;
+  place-items:center;
+  color:#06111f;
 }
 
 .messages {

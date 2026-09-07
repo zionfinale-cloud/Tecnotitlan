@@ -3,7 +3,7 @@
 describe('Estado operativo', () => {
   it('muestra los controles pendientes sin desbordar la pantalla móvil', () => {
     cy.viewport(390, 844);
-    cy.intercept('GET', '**/api/users/profile', {
+    cy.intercept('GET', '**/api/users/session', {
       status: 'success',
       data: { id: 'admin-1', name: 'Administración', email: 'admin@tecnotitlan.com.mx', role: 'SUPER_ADMIN', permissions: [], twoFactorEnabled: true },
     });

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.1.0",
     "@paypal/react-paypal-js": "^8.2.0",
     "@stripe/react-stripe-js": "^6.7.0",
     "@stripe/stripe-js": "^9.9.0",

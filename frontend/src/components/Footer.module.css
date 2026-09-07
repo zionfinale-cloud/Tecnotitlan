@@ -7,7 +7,7 @@
 .footerLink { color: #87918c; font-size: .75rem; text-decoration: none; }
 .footerLink:hover { color: var(--cta-color); }
 .paymentIcons { color: #7e8983; font-size: 1.8rem; }
-.copyright { border-top: 1px solid #20272b; padding-top: 1.25rem; color: #616a66; text-align: center; font-size: .68rem; }
+.copyright { border-top: 1px solid #20272b; padding-top: 1.25rem; color: #87918c; text-align: center; font-size: .72rem; }
 
 :global([data-theme="light"]) .footer { background: #fff; color: var(--heading); border-top-color: var(--line); }
 :global([data-theme="light"]) .footerTitle { color: var(--heading); }

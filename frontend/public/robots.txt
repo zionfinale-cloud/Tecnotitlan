@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /mail
+Sitemap: https://tecnotitlan.com.mx/sitemap.xml

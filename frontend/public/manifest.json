@@ -1,0 +1,19 @@
+{
+  "name": "Tecnotitlán",
+  "short_name": "Tecnotitlán",
+  "description": "Tecnología con raíces, poder sin límites.",
+  "lang": "es-MX",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020405",
+  "theme_color": "#071006",
+  "icons": [
+    {
+      "src": "/images/logo.webp",
+      "sizes": "80x80",
+      "type": "image/webp",
+      "purpose": "any"
+    }
+  ]
+}

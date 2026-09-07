@@ -7,7 +7,7 @@ export const isStaffUser = (user = {}) => {
 
 export const canUseRouteBeforeTwoFactorEnrollment = (url = '') => (
   /^\/api\/security\/(status|2fa\/(setup|enable))(?:\/|$)/.test(url)
-  || /^\/api\/users\/(profile|logout)(?:\/|$)/.test(url)
+  || /^\/api\/users\/(session|profile|logout)(?:\/|$)/.test(url)
 );
 
 export const requiresTwoFactorEnrollment = (user, url) => (

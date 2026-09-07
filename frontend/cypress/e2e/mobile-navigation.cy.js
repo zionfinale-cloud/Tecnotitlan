@@ -10,7 +10,7 @@ describe('Navegación móvil', () => {
   });
 
   it('mantiene visibles los accesos principales de la tienda y el contador del carrito', () => {
-    cy.intercept('GET', '**/api/users/profile', { statusCode: 401, body: { message: 'Sin sesión' } });
+    cy.intercept('GET', '**/api/users/session', { status: 'success', data: null });
     cy.visit('/', {
       onBeforeLoad(window) {
         window.localStorage.setItem('cartItems', JSON.stringify([{ product: 'demo', qty: 2 }]));
@@ -28,7 +28,7 @@ describe('Navegación móvil', () => {
   });
 
   it('permite recorrer el panel con accesos rápidos y cerrar el menú con Escape', () => {
-    cy.intercept('GET', '**/api/users/profile', {
+    cy.intercept('GET', '**/api/users/session', {
       status: 'success',
       data: { id: 'admin-1', name: 'Administración', email: 'admin@tecnotitlan.com.mx', role: 'SUPER_ADMIN', permissions: [], twoFactorEnabled: true },
     });

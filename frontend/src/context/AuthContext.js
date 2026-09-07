@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
         const checkAuth = async () => {
             try {
                 localStorage.removeItem('userInfo');
-                const { data } = await api.get('/users/profile');
+                const { data } = await api.get('/users/session');
                 setUserInfo(data.data);
             } catch (error) {
                 setUserInfo(null);

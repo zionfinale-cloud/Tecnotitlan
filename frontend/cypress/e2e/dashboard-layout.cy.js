@@ -2,7 +2,7 @@
 
 describe('Dashboard administrativo adaptable', () => {
   beforeEach(() => {
-    cy.intercept('GET', '**/api/users/profile', {
+    cy.intercept('GET', '**/api/users/session', {
       status: 'success',
       data: { id: 'admin-1', name: 'Administración', email: 'admin@tecnotitlan.com.mx', role: 'SUPER_ADMIN', permissions: [], twoFactorEnabled: true },
     });

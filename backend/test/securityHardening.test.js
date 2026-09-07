@@ -74,6 +74,7 @@ test('obliga 2FA al personal y sólo permite completar su enrolamiento', () => {
   const seller = { role: { name: 'VENDEDOR' }, twoFactorEnabled: false };
   assert.equal(requiresTwoFactorEnrollment(seller, '/api/orders'), true);
   assert.equal(canUseRouteBeforeTwoFactorEnrollment('/api/security/2fa/setup'), true);
+  assert.equal(canUseRouteBeforeTwoFactorEnrollment('/api/users/session'), true);
   assert.equal(requiresTwoFactorEnrollment(seller, '/api/security/activity'), true);
   assert.equal(requiresTwoFactorEnrollment({ ...seller, twoFactorEnabled: true }, '/api/orders'), false);
   assert.equal(requiresTwoFactorEnrollment({ role: { name: 'USER' }, twoFactorEnabled: false }, '/api/orders'), false);

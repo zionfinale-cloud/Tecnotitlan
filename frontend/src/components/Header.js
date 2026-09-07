@@ -26,7 +26,10 @@ const Header = () => {
   const totalCartItems = cartItems.reduce((acc, item) => acc + item.qty, 0);
   const canAccessPanel = canAccessAdminPanel(user);
   const siteName = (settings?.siteName || 'TECNOTITLÁN').toUpperCase();
-  const logoUrl = settings?.logoUrl || '/images/logo.png';
+  const configuredLogoUrl = settings?.logoUrl || '';
+  const logoUrl = !configuredLogoUrl || /\/images\/logo\.png(?:\?.*)?$/i.test(configuredLogoUrl)
+    ? '/images/logo.webp'
+    : configuredLogoUrl;
   const logoutHandler = () => { logout(); navigate('/login'); };
 
   return (
@@ -35,7 +38,7 @@ const Header = () => {
         <Link to="/" className={styles.brand}>
           <span className={styles.brandMark}>
             {logoUrl ? (
-              <img src={logoUrl} alt={siteName} className={styles.brandLogo} />
+              <img src={logoUrl} alt={siteName} className={styles.brandLogo} height="80" width="80" />
             ) : (
               <i className="fas fa-microchip"></i>
             )}
@@ -46,7 +49,7 @@ const Header = () => {
         <nav className={styles.actions}>
           <span className={styles.serviceItem}><i className="fas fa-truck"></i><span>Envíos a<br />todo México</span></span>
           <span className={styles.serviceItem}><i className="fas fa-shield-alt"></i><span>Compra<br />segura</span></span>
-          <Link to="/cart" className={`${styles.actionLink} ${isItemJustAdded ? styles.pulse : ''}`}>
+          <Link to="/cart" aria-label={`Carrito, ${totalCartItems} producto(s)`} className={`${styles.actionLink} ${isItemJustAdded ? styles.pulse : ''}`}>
             <i className="fas fa-shopping-cart"></i><span>Carrito</span>{totalCartItems > 0 && <b>{totalCartItems}</b>}
           </Link>
           <button className={styles.themeToggle} onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} aria-label={`Cambiar a tema ${theme === 'dark' ? 'claro' : 'oscuro'}`} title={`Cambiar a tema ${theme === 'dark' ? 'claro' : 'oscuro'}`}>
@@ -62,7 +65,7 @@ const Header = () => {
                 <Dropdown.Divider /><Dropdown.Item onClick={logoutHandler}>Cerrar sesión</Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
-          ) : <Link to="/login" className={styles.actionLink}><i className="fas fa-user"></i><span>Mi cuenta</span></Link>}
+          ) : <Link to="/login" aria-label="Ingresar a Mi cuenta" className={styles.actionLink}><i className="fas fa-user"></i><span>Mi cuenta</span></Link>}
         </nav>
       </Container>
       <Container className={styles.mobileSearch}><SearchBox /></Container>

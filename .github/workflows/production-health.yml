@@ -32,13 +32,13 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          response="$(curl --fail --silent --show-error --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 https://tecnotitlan.com.mx/health)"
+          response="$(curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 https://tecnotitlan.com.mx/health)"
           grep -q '"status":"ok"' <<<"$response"
 
       - name: Verify API and database
         shell: bash
         run: |
           set -Eeuo pipefail
-          response="$(curl --fail --silent --show-error --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 https://api.tecnotitlan.com.mx/health/ready)"
+          response="$(curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 https://api.tecnotitlan.com.mx/health/ready)"
           grep -q '"status":"ready"' <<<"$response"
           grep -q '"database":"connected"' <<<"$response"

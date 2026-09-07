@@ -99,7 +99,7 @@ const TecatlChatWidget = () => {
       {open && (
         <section className={styles.panel} aria-label="Chat de Tecatl">
           <header className={styles.header}>
-            <img className={styles.avatar} src="/images/tecatl-bot.png" alt="Tecatl" />
+            <span className={styles.avatar} aria-hidden="true"><i className="fas fa-robot" /></span>
             <div>
               <strong>Tecatl</strong>
               <span>Asesor de Tecnotitlan</span>
@@ -146,9 +146,9 @@ const TecatlChatWidget = () => {
         </section>
       )}
 
-      <button className={styles.bubble} type="button" onClick={() => setOpen((current) => !current)}>
+      <button className={styles.bubble} type="button" onClick={() => setOpen((current) => !current)} aria-label={open ? 'Cerrar asistente Tecatl' : 'Abrir asistente Tecatl'} aria-expanded={open}>
         <span className={styles.pulse}></span>
-        <img className={styles.bubbleAvatar} src="/images/tecatl-bot.png" alt="" aria-hidden="true" />
+        <i className={`fas fa-robot ${styles.bubbleIcon}`} aria-hidden="true" />
         <span>Asistente</span>
       </button>
     </div>

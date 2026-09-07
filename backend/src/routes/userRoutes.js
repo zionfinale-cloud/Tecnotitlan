@@ -12,8 +12,9 @@ import {
   deleteUser,
   logoutUser,
 } from '../controllers/userController.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { optionalProtect, protect } from '../middleware/authMiddleware.js';
 import { checkPermission } from '../middleware/permissionMiddleware.js';
+import { toAuthUserPayload } from '../utils/permissionUtils.js';
 
 const router = express.Router();
 
@@ -23,6 +24,10 @@ router.post('/resend-verification', resendVerificationEmail);
 router.get('/confirm/:token', verifyEmail);
 router.post('/login', loginUser);
 router.post('/logout', protect, logoutUser);
+router.get('/session', optionalProtect, (req, res) => res.json({
+  status: 'success',
+  data: req.user ? toAuthUserPayload(req.user) : null,
+}));
 
 router.route('/')
   .get(protect, checkPermission('user:read'), getUsers);

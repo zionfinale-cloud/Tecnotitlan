@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 
 // --- CONTEXTOS (Proveedores de Estado Global) ---
 // Importaciones centralizadas desde los archivos "barril" en /context y /components
@@ -15,69 +14,60 @@ import {
 } from 'context';
 
 // --- LAYOUTS ---
-import { Layout, AdminLayout, ProtectedRoute } from 'components';
+import { Layout, AdminLayout, ProtectedRoute, LoadingSpinner } from 'components';
 
 // --- SCREENS (Páginas) ---
 // Las pantallas se mantienen con rutas relativas, ya que no se agrupan en un barril.
 import HomeScreen from './screens/HomeScreen';
-import ProductScreen from './screens/ProductScreen';
-import CartScreen from './screens/CartScreen';
-import LoginScreen from './screens/LoginScreen';
-import RegisterScreen from './screens/RegisterScreen';
-import ProfileScreen from './screens/ProfileScreen';
-import ShippingScreen from './screens/ShippingScreen';
-import PaymentScreen from './screens/PaymentScreen';
-import PlaceOrderScreen from './screens/PlaceOrderScreen';
-import OrderScreen from './screens/OrderScreen';
-import StripePaymentScreen from './screens/StripePaymentScreen';
+const ProductScreen = lazy(() => import('./screens/ProductScreen'));
+const CartScreen = lazy(() => import('./screens/CartScreen'));
+const LoginScreen = lazy(() => import('./screens/LoginScreen'));
+const RegisterScreen = lazy(() => import('./screens/RegisterScreen'));
+const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
+const ShippingScreen = lazy(() => import('./screens/ShippingScreen'));
+const PaymentScreen = lazy(() => import('./screens/PaymentScreen'));
+const PlaceOrderScreen = lazy(() => import('./screens/PlaceOrderScreen'));
+const OrderScreen = lazy(() => import('./screens/OrderScreen'));
+const StripePaymentScreen = lazy(() => import('./screens/StripePaymentScreen'));
 // Admin Screens
-import AdminDashboard from './screens/admin/AdminDashboard';
-import ProductListScreen from './screens/admin/ProductListScreen';
-import InvestmentsScreen from './screens/admin/InvestmentsScreen';
-import InventoryScreen from './screens/admin/InventoryScreen';
-import ChannelsScreen from './screens/admin/ChannelsScreen';
-import OrderListScreen from './screens/admin/OrderListScreen';
-import StaffMailScreen from './screens/admin/StaffMailScreen';
-import UserListScreen from './screens/admin/UserListScreen';
-import ProductEditScreen from './screens/admin/ProductEditScreen';
-import UserEditScreen from './screens/admin/UserEditScreen';
-import CategoryListScreen from './screens/admin/CategoryListScreen';
-import RoleListScreen from './screens/admin/RoleListScreen';
-import WhatsappSettingsScreen from './screens/admin/WhatsappSettingsScreen';
-import WhatsAppChatScreen from './screens/admin/WhatsAppChatScreen';
-import TecatlAdminScreen from './screens/admin/TecatlAdminScreen';
-import TikTokShopSettingsScreen from './screens/admin/TikTokShopSettingsScreen';
-import MercadoLibreSettingsScreen from './screens/admin/MercadoLibreSettingsScreen';
-import SettingsPage from './screens/admin/SettingsPage'; // Contenedor de sub-rutas
-import SystemSettingsScreen from './screens/admin/SystemSettingsScreen';
-import StorefrontSettingsScreen from './screens/admin/StorefrontSettingsScreen';
-import LegalPagesScreen from './screens/admin/LegalPagesScreen';
-import NotificationLogsScreen from './screens/admin/NotificationLogsScreen';
-import PrivacyPolicy from './screens/PrivacyPolicy';
-import TermsOfService from './screens/TermsOfService';
-import ContactScreen from './screens/ContactScreen';
-import SupportTicketsScreen from './screens/admin/SupportTicketsScreen';
-import MercadoLibreClaimsScreen from './screens/admin/MercadoLibreClaimsScreen';
-import MercadoLibreCommunicationsScreen from './screens/admin/MercadoLibreCommunicationsScreen';
-import UnifiedInboxScreen from './screens/admin/UnifiedInboxScreen';
-import ReturnInspectionScreen from './screens/admin/ReturnInspectionScreen';
-import ServiceQualityScreen from './screens/admin/ServiceQualityScreen';
+const AdminDashboard = lazy(() => import('./screens/admin/AdminDashboard'));
+const ProductListScreen = lazy(() => import('./screens/admin/ProductListScreen'));
+const InvestmentsScreen = lazy(() => import('./screens/admin/InvestmentsScreen'));
+const InventoryScreen = lazy(() => import('./screens/admin/InventoryScreen'));
+const ChannelsScreen = lazy(() => import('./screens/admin/ChannelsScreen'));
+const OrderListScreen = lazy(() => import('./screens/admin/OrderListScreen'));
+const StaffMailScreen = lazy(() => import('./screens/admin/StaffMailScreen'));
+const UserListScreen = lazy(() => import('./screens/admin/UserListScreen'));
+const ProductEditScreen = lazy(() => import('./screens/admin/ProductEditScreen'));
+const UserEditScreen = lazy(() => import('./screens/admin/UserEditScreen'));
+const CategoryListScreen = lazy(() => import('./screens/admin/CategoryListScreen'));
+const RoleListScreen = lazy(() => import('./screens/admin/RoleListScreen'));
+const WhatsappSettingsScreen = lazy(() => import('./screens/admin/WhatsappSettingsScreen'));
+const WhatsAppChatScreen = lazy(() => import('./screens/admin/WhatsAppChatScreen'));
+const TecatlAdminScreen = lazy(() => import('./screens/admin/TecatlAdminScreen'));
+const TikTokShopSettingsScreen = lazy(() => import('./screens/admin/TikTokShopSettingsScreen'));
+const MercadoLibreSettingsScreen = lazy(() => import('./screens/admin/MercadoLibreSettingsScreen'));
+const SettingsPage = lazy(() => import('./screens/admin/SettingsPage'));
+const SystemSettingsScreen = lazy(() => import('./screens/admin/SystemSettingsScreen'));
+const StorefrontSettingsScreen = lazy(() => import('./screens/admin/StorefrontSettingsScreen'));
+const LegalPagesScreen = lazy(() => import('./screens/admin/LegalPagesScreen'));
+const NotificationLogsScreen = lazy(() => import('./screens/admin/NotificationLogsScreen'));
+const PrivacyPolicy = lazy(() => import('./screens/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./screens/TermsOfService'));
+const ContactScreen = lazy(() => import('./screens/ContactScreen'));
+const SupportTicketsScreen = lazy(() => import('./screens/admin/SupportTicketsScreen'));
+const MercadoLibreClaimsScreen = lazy(() => import('./screens/admin/MercadoLibreClaimsScreen'));
+const MercadoLibreCommunicationsScreen = lazy(() => import('./screens/admin/MercadoLibreCommunicationsScreen'));
+const UnifiedInboxScreen = lazy(() => import('./screens/admin/UnifiedInboxScreen'));
+const ReturnInspectionScreen = lazy(() => import('./screens/admin/ReturnInspectionScreen'));
+const ServiceQualityScreen = lazy(() => import('./screens/admin/ServiceQualityScreen'));
 import PageViewTracker from './components/PageViewTracker';
-import VerifyAccountScreen from './screens/VerifyAccountScreen';
-import SecurityScreen from './screens/SecurityScreen';
-import MyWorkScreen from './screens/admin/MyWorkScreen';
-import { env } from './config/runtimeEnv';
-
-// --- Configuración de PayPal ---
-const initialOptions = {
-    clientId: env('REACT_APP_PAYPAL_CLIENT_ID', 'sb'),
-    currency: "MXN",
-    intent: "capture",
-};
+const VerifyAccountScreen = lazy(() => import('./screens/VerifyAccountScreen'));
+const SecurityScreen = lazy(() => import('./screens/SecurityScreen'));
+const MyWorkScreen = lazy(() => import('./screens/admin/MyWorkScreen'));
 
 function App() {
     return (
-        <PayPalScriptProvider options={initialOptions}>
             <LoadingProvider>
                 <AuthProvider>
                     <RealtimeProvider>
@@ -87,7 +77,7 @@ function App() {
                                 <ToastProvider>
                                     <BrowserRouter>
                                         <PageViewTracker />
-                                        <Routes>
+                                        <Suspense fallback={<LoadingSpinner />}><Routes>
                                             {/* --- Rutas Públicas y de Cliente (Usan el Layout Principal) --- */}
                                             <Route path="/" element={<Layout />}>
                                                 <Route index element={<HomeScreen />} />
@@ -163,7 +153,7 @@ function App() {
 
                                             {/* Ruta 404/Not Found (opcional) */}
                                             <Route path="*" element={<>404 Not Found</>} />
-                                        </Routes>
+                                        </Routes></Suspense>
                                     </BrowserRouter>
                                 </ToastProvider>
                             </NotificationProvider>
@@ -172,7 +162,6 @@ function App() {
                     </RealtimeProvider>
                 </AuthProvider>
             </LoadingProvider>
-        </PayPalScriptProvider>
     );
 }
 

@@ -19,9 +19,12 @@ const authenticate = async (req) => {
     where: { id: decoded.id },
     select: {
       id: true,
+      customerNumber: true,
       firstName: true,
       lastName: true,
       email: true,
+      phone: true,
+      roleId: true,
       tokenVersion: true,
       twoFactorEnabled: true,
       role: {

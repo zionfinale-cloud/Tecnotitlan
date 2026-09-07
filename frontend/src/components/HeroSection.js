@@ -29,7 +29,10 @@ const HeroSection = () => {
   const heroTitle = settings.hero_title || 'Tecnologia con raices,';
   const heroHighlight = settings.hero_highlight || 'poder sin limites.';
   const heroSubtitle = settings.hero_subtitle || 'Descubre gadgets, accesorios y soluciones tecnologicas seleccionadas para mejorar tu dia a dia.';
-  const heroImage = settings.hero_image_url || '/images/dronbg.png';
+  const configuredHeroImage = settings.hero_image_url || '';
+  const usesLegacyHero = !configuredHeroImage
+    || /(?:dronbg(?:\.[a-z0-9]+)?|image-1783138373819-999799741\.png)(?:\?.*)?$/i.test(configuredHeroImage);
+  const heroImage = usesLegacyHero ? '/images/hero-products-v2.webp' : configuredHeroImage;
   const ctaText = settings.hero_cta_text || 'Explorar tienda';
   const ctaHref = settings.hero_cta_href || '#products';
 
@@ -49,7 +52,19 @@ const HeroSection = () => {
         </div>
         <div className={styles.visual}>
           <div className={styles.glow}></div>
-          <img src={heroImage} alt="Tecnologia Tecnotitlan" />
+          <picture className={styles.heroPicture}>
+            {usesLegacyHero && (
+              <source media="(max-width: 640px)" srcSet="/images/hero-products-mobile-v2.webp" />
+            )}
+            <img
+              src={heroImage}
+              alt="Reloj inteligente, audífonos, dron y accesorios de tecnología Tecnotitlán"
+              decoding="async"
+              fetchpriority="high"
+              height="853"
+              width="1280"
+            />
+          </picture>
           {promo && (
             <article className={styles.promoCard}>
               <span>{promo.kicker || 'Promo Tecnotitlan'}</span>
