@@ -1,4 +1,4 @@
-FROM node:20-slim AS deps
+FROM node:22-slim AS deps
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ COPY prisma ./prisma/
 RUN npm ci --omit=dev \
     && npx prisma generate
 
-FROM node:20-slim AS final
+FROM node:22-slim AS final
 
 WORKDIR /app
 ENV NODE_ENV=production
