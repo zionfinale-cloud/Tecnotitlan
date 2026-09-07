@@ -1,0 +1,4 @@
+ M backend/prisma/schema.prisma
+ M backend/src/controllers/productController.js
+ M backend/src/utils/mercadoLibreIdentifiers.js
+?? backend/prisma/migrations/20260823000000_add_product_gtin/
