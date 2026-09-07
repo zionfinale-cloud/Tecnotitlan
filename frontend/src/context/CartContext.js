@@ -12,25 +12,19 @@ export const CartContext = createContext({
 
 export const CartProvider = ({ children }) => {
     // Estado del carrito: array de ítems
-    const [cartItems, setCartItems] = useState([]);
+    const [cartItems, setCartItems] = useState(() => {
+        try {
+            const storedCart = localStorage.getItem('cartItems');
+            return storedCart ? JSON.parse(storedCart) : [];
+        } catch (error) {
+            localStorage.removeItem('cartItems');
+            return [];
+        }
+    });
     // Estado booleano para la animación del carrito
     const [isItemJustAdded, setIsItemJustAdded] = useState(false); 
 
-    // 1. Cargar del localStorage al montar
-    useEffect(() => {
-        const storedCart = localStorage.getItem('cartItems');
-        if (storedCart) {
-            try {
-                // Si el carrito está vacío en localStorage (ej. "[]"), esto sigue siendo seguro
-                setCartItems(JSON.parse(storedCart));
-            } catch (e) {
-                console.error("Error al parsear el carrito de localStorage", e);
-                localStorage.removeItem('cartItems'); // Limpiar datos corruptos
-            }
-        }
-    }, []);
-
-    // 2. Guardar en localStorage cada vez que cartItems cambia
+    // Guardar en localStorage cada vez que cartItems cambia.
     useEffect(() => {
         localStorage.setItem('cartItems', JSON.stringify(cartItems));
     }, [cartItems]);

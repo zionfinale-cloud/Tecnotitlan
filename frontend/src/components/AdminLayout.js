@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, Link } from 'react-router-dom';
+import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import styles from './AdminLayout.module.css';
 import { SettingsContext } from '../context/SettingsContext';
 import { AuthContext } from '../context/AuthContext';
@@ -88,6 +88,9 @@ const AdminLayout = () => {
     const [meliUnread, setMeliUnread] = useState(0);
     const [unifiedUnread, setUnifiedUnread] = useState(0);
     const [criticalUnread, setCriticalUnread] = useState(0);
+    const [online, setOnline] = useState(() => navigator.onLine);
+    const location = useLocation();
+    const menuButtonRef = useRef(null);
     const previousWhatsappUnread = useRef(0);
     const previousMeliUnread = useRef(0);
     const previousCriticalIds = useRef(new Set());
@@ -115,10 +118,47 @@ const AdminLayout = () => {
         .filter((group) => group.links.length > 0);
 
     const visibleLinks = visibleGroups.flatMap((group) => group.links);
+    const currentLink = [...visibleLinks]
+        .sort((left, right) => right.to.length - left.to.length)
+        .find((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`));
+    const mobilePrimaryLinks = ['/admin/my-work', '/admin/inbox', '/admin/orderlist']
+        .map((path) => visibleLinks.find((item) => item.to === path))
+        .filter(Boolean);
 
     const canPollWhatsApp = visibleLinks.some((item) => item.to === '/admin/whatsapp-chat');
     const canPollMeli = visibleLinks.some((item) => item.to === '/admin/meli-communications');
     const canPollUnified = visibleLinks.some((item) => item.to === '/admin/inbox');
+
+    useEffect(() => {
+        setMobileOpen(false);
+    }, [location.pathname]);
+
+    useEffect(() => {
+        const updateConnectivity = () => setOnline(navigator.onLine);
+        window.addEventListener('online', updateConnectivity);
+        window.addEventListener('offline', updateConnectivity);
+        return () => {
+            window.removeEventListener('online', updateConnectivity);
+            window.removeEventListener('offline', updateConnectivity);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!mobileOpen) return undefined;
+        const previousOverflow = document.body.style.overflow;
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                setMobileOpen(false);
+                menuButtonRef.current?.focus();
+            }
+        };
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [mobileOpen]);
 
     useEffect(() => {
         if (!canPollWhatsApp) return undefined;
@@ -238,8 +278,11 @@ const AdminLayout = () => {
     return (
         <div className={styles.container}>
             {mobileOpen && <button type="button" aria-label="Cerrar menú administrativo" className={styles.backdrop} onClick={() => setMobileOpen(false)} />}
-            <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''} ${mobileOpen ? styles.mobileOpen : ''}`}>
+            <aside id="admin-navigation" aria-label="Navegación administrativa" className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''} ${mobileOpen ? styles.mobileOpen : ''}`}>
                 <div className={styles.sidebarHeader}>
+                    <button type="button" className={styles.mobileCloseButton} aria-label="Cerrar menú administrativo" onClick={() => setMobileOpen(false)}>
+                        <i className="fas fa-times" />
+                    </button>
                     <button
                         className={styles.collapseButton}
                         type="button"
@@ -300,15 +343,30 @@ const AdminLayout = () => {
 
             <main className={styles.mainContent}>
                 <div className={styles.mobileBar}>
-                    <button type="button" onClick={() => setMobileOpen(true)} aria-label="Abrir menú administrativo"><i className="fas fa-bars" /></button>
-                    <div><strong>Administración</strong><span>{userInfo?.name || userInfo?.email}</span></div>
+                    <button ref={menuButtonRef} type="button" onClick={() => setMobileOpen(true)} aria-label="Abrir menú administrativo" aria-controls="admin-navigation" aria-expanded={mobileOpen}><i className="fas fa-bars" /></button>
+                    <div><strong>{currentLink?.text || 'Administración'}</strong><span>{userInfo?.name || userInfo?.email}</span></div>
                     <Link to="/admin/my-work" aria-label="Ir a Mi trabajo"><i className="fas fa-clipboard-check" /></Link>
                 </div>
+                {!online && <div className={styles.offlineBanner} role="status"><i className="fas fa-wifi" /> Sin conexión. Conserva esta pantalla; reintentaremos automáticamente.</div>}
                 <div>
                     <div className={styles.contentCard}>
                         <Outlet />
                     </div>
                 </div>
+                <nav className={styles.mobileBottomNav} aria-label="Accesos rápidos administrativos">
+                    {mobilePrimaryLinks.map((item) => (
+                        <NavLink key={item.to} to={item.to} className={({ isActive }) => isActive ? styles.mobileBottomActive : undefined}>
+                            <span className={styles.mobileBottomIcon}>
+                                <i className={`fas ${item.icon}`} />
+                                {item.to === '/admin/inbox' && unifiedUnread > 0 && <b>{unifiedUnread > 99 ? '99+' : unifiedUnread}</b>}
+                            </span>
+                            <span>{item.text === 'Bandeja unificada' ? 'Bandeja' : item.text}</span>
+                        </NavLink>
+                    ))}
+                    <button type="button" onClick={() => setMobileOpen(true)} aria-label="Abrir todas las herramientas">
+                        <i className="fas fa-th-large" /><span>Más</span>
+                    </button>
+                </nav>
             </main>
         </div>
     );

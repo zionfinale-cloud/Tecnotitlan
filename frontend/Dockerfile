@@ -32,3 +32,6 @@ COPY docker-entrypoint.d/40-env-js.sh /docker-entrypoint.d/40-env-js.sh
 RUN chmod +x /docker-entrypoint.d/40-env-js.sh
 
 EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1/health >/dev/null || exit 1

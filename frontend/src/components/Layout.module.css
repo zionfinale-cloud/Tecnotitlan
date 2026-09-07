@@ -1,0 +1,6 @@
+.layout{display:flex;min-height:100vh;flex-direction:column;background:var(--page-bg)}
+.main{flex:1;min-width:0}
+
+@media(max-width:767px){
+  .layout{padding-bottom:calc(68px + env(safe-area-inset-bottom,0px))}
+}

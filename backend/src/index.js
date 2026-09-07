@@ -165,8 +165,35 @@ app.use(express.json({
       skip: (req, res) => process.env.NODE_ENV === 'test',
     });
 
-    // Middleware para ignorar las peticiones de favicon.ico y evitar errores 404 en la consola
-    app.get('/favicon.ico', (req, res) => res.status(204).send());
+    // Middleware para ignorar las peticiones de favicon.ico y evitar errores 404 en la consola
+    app.get('/favicon.ico', (req, res) => res.status(204).send());
+
+    // Sondas separadas: `live` confirma que Node responde y `ready` valida la BD.
+    // Docker y el balanceador pueden retirar una réplica dañada sin exponer configuración.
+    app.get('/health/live', (req, res) => res.status(200).json({
+      status: 'ok',
+      service: 'tecnotitlan-api',
+      timestamp: new Date().toISOString(),
+    }));
+    app.get('/health/ready', async (req, res) => {
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.status(200).json({
+          status: 'ready',
+          service: 'tecnotitlan-api',
+          database: 'connected',
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        logger.error(`[Health] La base de datos no está disponible: ${error.message}`);
+        res.status(503).json({
+          status: 'unavailable',
+          service: 'tecnotitlan-api',
+          database: 'disconnected',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
 
     logger.info('Mounting API routes...');
     // Aplicar el limitador específicamente a las rutas de autenticación

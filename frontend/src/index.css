@@ -46,3 +46,7 @@ h1,h2,h3,h4,h5,h6 { color: var(--text-primary); font-weight: 800; }
 button,input { font-family: inherit; }
 .btn-primary { background: var(--cta-color); border-color: var(--cta-color); color: #071006; font-weight: 800; }
 .btn-primary:hover { background: #8dff55; border-color: #8dff55; color: #071006; }
+
+@media (max-width: 767px) {
+  button, a, input, select { touch-action: manipulation; }
+}

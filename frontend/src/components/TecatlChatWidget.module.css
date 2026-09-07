@@ -190,7 +190,7 @@
 @media (max-width: 640px) {
   .widget {
     right: 1rem;
-    bottom: 1rem;
+    bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
   }
 
   .bubble span:last-child {
