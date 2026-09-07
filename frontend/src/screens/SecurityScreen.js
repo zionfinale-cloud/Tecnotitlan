@@ -19,12 +19,23 @@ const SecurityScreen = ({ admin = false }) => {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const requests = [api.get('/security/status'), api.get('/security/activity')];
+    const statusResponse = await api.get('/security/status');
+    const securityStatus = statusResponse.data.data;
+    setStatus(securityStatus);
+
+    // Mientras el personal se enrola, el backend sólo permite las rutas
+    // mínimas de 2FA. Cargamos actividad y auditoría después de activarlo.
+    if (!securityStatus.twoFactorEnabled) {
+      setActivity([]);
+      setAudit([]);
+      return;
+    }
+
+    const requests = [api.get('/security/activity')];
     if (admin) requests.push(api.get('/audit-logs?days=30&limit=100'));
     const responses = await Promise.all(requests);
-    setStatus(responses[0].data.data);
-    setActivity(responses[1].data.data.logs || []);
-    if (admin) setAudit(responses[2].data.data.logs || []);
+    setActivity(responses[0].data.data.logs || []);
+    if (admin) setAudit(responses[1].data.data.logs || []);
   }, [admin]);
 
   useEffect(() => { load().catch((err) => setError(err.response?.data?.message || 'No se pudo cargar seguridad.')); }, [load]);
@@ -58,7 +69,7 @@ const SecurityScreen = ({ admin = false }) => {
   const regenerate = () => run(() => api.post('/security/2fa/recovery-codes', { code }), 'Se reemplazaron los codigos anteriores.');
   const copyCodes = () => navigator.clipboard.writeText(recoveryCodes.join('\n')).then(() => setMessage('Codigos copiados.'));
 
-  if (!status) return <div className={styles.page}>Cargando seguridad...</div>;
+  if (!status) return <div className={styles.page}>{error || 'Cargando seguridad...'}</div>;
   return <div className={styles.page}>
     <header><span>Proteccion de cuenta</span><h1>Cifrado, auditoria y 2FA</h1><p>Los tokens de integraciones se cifran en reposo y cada cambio sensible deja trazabilidad sin guardar credenciales.</p></header>
     {message && <div className={styles.success}>{message}</div>}{error && <div className={styles.error}>{error}</div>}
