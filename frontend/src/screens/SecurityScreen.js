@@ -12,6 +12,7 @@ const SecurityScreen = ({ admin = false }) => {
   const [status, setStatus] = useState(null);
   const [activity, setActivity] = useState([]);
   const [audit, setAudit] = useState([]);
+  const [readiness, setReadiness] = useState(null);
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [setup, setSetup] = useState(null);
@@ -35,10 +36,16 @@ const SecurityScreen = ({ admin = false }) => {
     }
 
     const requests = [api.get('/security/activity')];
-    if (admin) requests.push(api.get('/audit-logs?days=30&limit=100'));
+    if (admin) {
+      requests.push(api.get('/audit-logs?days=30&limit=100'));
+      requests.push(api.get('/security/readiness'));
+    }
     const responses = await Promise.all(requests);
     setActivity(responses[0].data.data.logs || []);
-    if (admin) setAudit(responses[1].data.data.logs || []);
+    if (admin) {
+      setAudit(responses[1].data.data.logs || []);
+      setReadiness(responses[2].data.data);
+    }
   }, [admin]);
 
   useEffect(() => { load().catch((err) => setError(err.response?.data?.message || 'No se pudo cargar seguridad.')); }, [load]);
@@ -88,6 +95,11 @@ const SecurityScreen = ({ admin = false }) => {
       </article>
       <article className={styles.card}><h2>Controles activos</h2><ul><li>AES-256-GCM para tokens de Mercado Libre y TikTok.</li><li>Códigos TOTP de 30 segundos con tolerancia de reloj limitada.</li><li>Sesiones invalidadas después de cambios de contraseña o 2FA.</li><li>IP convertida a huella irreversible; contraseñas y cuerpos nunca se auditan.</li></ul></article>
     </section>
+    {admin && readiness && <section className={`${styles.card} ${styles.readiness}`}>
+      <div className={styles.readinessHeader}><div><span>Estado operativo</span><h2>{readiness.score}% listo</h2><p>{readiness.readyCount} de {readiness.total} controles verificados por el servidor.</p></div><strong className={readiness.score === 100 ? styles.scoreReady : styles.scorePending}>{readiness.score === 100 ? '10/10' : 'Requiere atención'}</strong></div>
+      <div className={styles.progress} role="progressbar" aria-label="Preparación operativa" aria-valuemin="0" aria-valuemax="100" aria-valuenow={readiness.score}><span style={{ width: `${readiness.score}%` }} /></div>
+      <div className={styles.checks}>{readiness.checks.map((check) => <article key={check.id} className={check.ready ? styles.checkReady : styles.checkPending}><i className={`fas ${check.ready ? 'fa-check-circle' : 'fa-exclamation-circle'}`} /><div><b>{check.label}</b><small>{check.detail}</small></div>{!check.ready && <button type="button" onClick={() => navigate(check.action)}>Corregir</button>}</article>)}</div>
+    </section>}
     {recoveryCodes.length > 0 && <section className={`${styles.card} ${styles.recovery}`}><h2>Guarda estos códigos ahora</h2><p>Cada código funciona una sola vez. No volverán a mostrarse.</p><div>{recoveryCodes.map((item) => <code key={item}>{item}</code>)}</div><button onClick={copyCodes}>Copiar códigos</button></section>}
     <section className={styles.card}><h2>Actividad de seguridad reciente</h2><div className={styles.table}><div className={styles.row}><b>Accion</b><b>Resultado</b><b>Fecha</b></div>{activity.map((item) => <div className={styles.row} key={item.id}><span>{item.action}</span><span>{item.outcome}</span><span>{formatDate(item.createdAt)}</span></div>)}</div></section>
     {admin && <section className={styles.card}><h2>Auditoria administrativa · últimos 30 días</h2><p>Últimos 100 cambios sensibles y operativos.</p><div className={styles.table}><div className={`${styles.row} ${styles.auditRow}`}><b>Actor</b><b>Accion</b><b>Categoria</b><b>Resultado</b><b>Fecha</b></div>{audit.map((item) => <div className={`${styles.row} ${styles.auditRow}`} key={item.id}><span>{item.actorEmail || 'Sistema'}</span><span>{item.action}</span><span>{item.category}</span><span>{item.outcome}</span><span>{formatDate(item.createdAt)}</span></div>)}</div></section>}

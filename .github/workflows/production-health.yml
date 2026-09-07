@@ -1,0 +1,44 @@
+name: Production health
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-health
+  cancel-in-progress: true
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify storefront
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          headers="$(mktemp)"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --connect-timeout 10 --max-time 30 --dump-header "$headers" \
+            --output /dev/null https://tecnotitlan.com.mx/
+          grep -qi '^strict-transport-security:' "$headers"
+          grep -qi '^content-security-policy:' "$headers"
+
+      - name: Verify web container
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          response="$(curl --fail --silent --show-error --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 https://tecnotitlan.com.mx/health)"
+          grep -q '"status":"ok"' <<<"$response"
+
+      - name: Verify API and database
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          response="$(curl --fail --silent --show-error --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 https://api.tecnotitlan.com.mx/health/ready)"
+          grep -q '"status":"ready"' <<<"$response"
+          grep -q '"database":"connected"' <<<"$response"

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Tecnotitlan database backup
+
+[Timer]
+OnCalendar=*-*-* 04:20:00 America/Mexico_City
+Persistent=true
+RandomizedDelaySec=10m
+Unit=tecnotitlan-backup.service
+
+[Install]
+WantedBy=timers.target

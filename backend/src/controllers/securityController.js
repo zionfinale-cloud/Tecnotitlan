@@ -15,6 +15,7 @@ import {
 import { generateAuthToken, verifyTwoFactorChallenge } from '../utils/authTokens.js';
 import { toAuthUserPayload } from '../utils/permissionUtils.js';
 import { setAuthCookie } from '../utils/authCookies.js';
+import { getOperationalReadiness as loadOperationalReadiness } from '../services/operationalReadinessService.js';
 
 const setupToken = (userId, secret) => jwt.sign(
   { id: userId, secret, scope: '2fa-setup' },
@@ -52,6 +53,10 @@ export const getSecurityStatus = asyncHandler(async (req, res) => {
       recoveryCodesRemaining: user?.twoFactorRecoveryCodes?.length || 0,
     },
   });
+});
+
+export const getOperationalReadiness = asyncHandler(async (req, res) => {
+  res.json({ status: 'success', data: await loadOperationalReadiness() });
 });
 
 export const beginTwoFactorSetup = asyncHandler(async (req, res) => {
