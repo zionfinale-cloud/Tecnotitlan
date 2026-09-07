@@ -5,6 +5,7 @@ import { ForbiddenError, UnauthorizedError } from '../utils/errorUtils.js';
 import logger from '../utils/logger.js';
 import { applyEffectivePermissionsToUser } from '../utils/permissionUtils.js';
 import { AUTH_COOKIE_NAME } from '../utils/authCookies.js';
+import { requiresTwoFactorEnrollment } from '../utils/accessPolicies.js';
 
 const authenticate = async (req) => {
   const authorization = req.headers.authorization;
@@ -48,9 +49,7 @@ const authenticate = async (req) => {
     ...user,
     name: `${user.firstName} ${user.lastName}`.trim(),
   });
-  const isStaff = req.user.role?.name && req.user.role.name !== 'USER';
-  const enrollmentAllowed = /^\/api\/(security(?:\/|$)|users\/(profile|logout)(?:\/|$))/.test(req.originalUrl);
-  if (isStaff && !req.user.twoFactorEnabled && !enrollmentAllowed) {
+  if (requiresTwoFactorEnrollment(req.user, req.originalUrl)) {
     const error = new ForbiddenError('Debes activar la autenticacion de dos factores antes de continuar.');
     error.code = 'TWO_FACTOR_ENROLLMENT_REQUIRED';
     throw error;

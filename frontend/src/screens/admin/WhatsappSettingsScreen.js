@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import api from '../../services/apiService';
 import styles from './StorefrontSettingsScreen.module.css';
+import { env } from '../../config/runtimeEnv';
+
+const apiOrigin = env('REACT_APP_API_URL', 'http://localhost:5000').replace(/\/$/, '');
+const cloudWebhookUrl = `${apiOrigin}/api/integrations/whatsapp/webhook`;
 
 const statusLabels = {
   DISABLED: 'Desactivado',
@@ -178,6 +182,9 @@ const WhatsappSettingsScreen = () => {
             {status?.user?.id && <p><strong>Cuenta:</strong> {status.user.id}</p>}
             {status?.authStorage && <p><strong>Almacenamiento:</strong> {status.authStorage === 'database' ? 'Base de datos cifrada' : status.authStorage}</p>}
             {status?.authDir && <p><strong>Sesion activa:</strong> <code>{status.authDir}</code></p>}
+            {!isCloud && !isDisabled && <p><strong>Grupo administrativo:</strong> {status?.adminGroupConfigured ? 'Configurado' : 'Pendiente'}</p>}
+            {isCloud && <p><strong>Webhook firmado:</strong> {status?.webhookReady ? 'Configurado' : 'Pendiente'}</p>}
+            {isCloud && <p><strong>Adjuntos:</strong> {status?.mediaEnabled ? 'Imagen, video, audio y documentos' : 'Pendiente'}</p>}
             <p className={styles.subtitle}>
               {isCloud
                 ? <>Canal oficial configurado mediante Meta. El token permanece en el servidor y el webhook valida la firma de cada evento.</>
@@ -189,10 +196,13 @@ const WhatsappSettingsScreen = () => {
         </section>
 
         <section className={styles.card}>
-          <h3 className={styles.cardTitle}>QR de vinculacion</h3>
+          <h3 className={styles.cardTitle}>{isCloud ? 'Activación oficial de Meta' : 'QR de vinculacion'}</h3>
           {isCloud ? (
-            <div className={`${styles.notice} ${status?.connected ? styles.success : styles.error}`}>
-              {status?.connected ? 'Cloud API está configurada; no necesita código QR.' : 'Completa Phone Number ID, Access Token, Verify Token y App Secret en Configuración del sistema.'}
+            <div className={`${styles.notice} ${status?.connected && status?.webhookReady ? styles.success : styles.error}`}>
+              <p>{status?.connected ? 'Cloud API tiene número y token; no necesita código QR.' : 'Completa Phone Number ID y Access Token en Configuración del sistema.'}</p>
+              <p>En Meta registra esta URL de devolución:</p>
+              <code style={{ overflowWrap: 'anywhere' }}>{cloudWebhookUrl}</code>
+              {!status?.webhookReady && <p style={{ marginTop: '.75rem' }}>También faltan Verify Token y App Secret para autenticar los eventos entrantes.</p>}
             </div>
           ) : qr ? (
             <div style={{ display: 'grid', placeItems: 'center', gap: '1rem', padding: '1rem' }}>

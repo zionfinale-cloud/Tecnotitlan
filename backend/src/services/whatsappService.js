@@ -16,7 +16,7 @@ import {
     isProtectedWhatsAppDisconnect,
     isTransientWhatsAppDisconnect,
 } from './whatsappLifecyclePolicy.js';
-import { getCloudStatus, normalizeCloudWebhook, sendCloudText } from './whatsappCloudService.js';
+import { downloadCloudMedia, getCloudMediaKind, getCloudStatus, normalizeCloudWebhook, sendCloudMedia, sendCloudText } from './whatsappCloudService.js';
 
 const {
     DisconnectReason,
@@ -1492,6 +1492,7 @@ const getBaileysStatus = () => ({
     pausedAt,
     pausedUntil,
     pauseRemainingMs: getPauseRemainingMs(),
+    adminGroupConfigured: Boolean(String(getConfig().WHATSAPP_ADMIN_GROUP_JID || process.env.WHATSAPP_ADMIN_GROUP_JID || '').trim()),
 });
 
 export const hasSavedSession = async () => {
@@ -2167,11 +2168,28 @@ export const sendAdministrativeAlert = async ({ recipients = [], message, sentBy
 export const ingestCloudWebhook = async (payload = {}) => {
     const messages = normalizeCloudWebhook(payload);
     for (const message of messages) {
+        let savedMedia = null;
+        if (message.media?.id) {
+            try {
+                const downloaded = await downloadCloudMedia(message.media.id);
+                savedMedia = await saveMediaBuffer({
+                    buffer: downloaded.buffer,
+                    jid: `${message.from}@s.whatsapp.net`,
+                    type: message.media.type,
+                    mimeType: message.media.mimeType || downloaded.mimeType,
+                    fileName: message.media.fileName,
+                    messageId: message.messageId,
+                });
+            } catch (error) {
+                logger.warn(`[WhatsApp Cloud] No se pudo descargar el adjunto ${message.messageId}: ${error.message}`);
+            }
+        }
         await persistMessage({
             jid: `${message.from}@s.whatsapp.net`, messageId: message.messageId,
-            text: message.text || `[${message.type || 'mensaje'}]`, fromMe: false,
+            text: message.text || message.media?.caption || getMediaLabel(savedMedia || (message.media ? { mediaType: message.media.type, fileName: message.media.fileName } : null)), fromMe: false,
             createdAt: message.timestamp ? new Date(Number(message.timestamp) * 1000) : new Date(),
             sentBy: null, phone: message.from,
+            ...(savedMedia || {}),
         });
     }
     return { accepted: true, messages: messages.length };
@@ -2207,7 +2225,23 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
         throw new BadRequestError('WhatsApp esta desactivado temporalmente. Usa correo o el panel de pedidos.');
     }
     if (isCloudProvider()) {
-        throw new BadRequestError('Los adjuntos por Cloud API se habilitaran al registrar las plantillas y medios oficiales.');
+        if (!file?.buffer?.length) throw new BadRequestError('Selecciona un archivo para enviar.');
+        const cleanCaption = String(caption || '').trim();
+        const requestedJid = getJidForPhone(number);
+        const mediaType = getCloudMediaKind(file.mimetype);
+        if (!mediaType) throw new BadRequestError(`WhatsApp Cloud no admite el formato ${file.mimetype || 'desconocido'} en este panel.`);
+        const savedMedia = await saveMediaBuffer({
+            buffer: file.buffer, jid: requestedJid, type: mediaType,
+            mimeType: file.mimetype, fileName: file.originalname,
+        });
+        const result = await enqueueOutboundSend(`adjunto Cloud a ${number}`, () => sendCloudMedia(number, file, cleanCaption));
+        await persistMessage({
+            jid: requestedJid, messageId: result.providerMessageId,
+            text: cleanCaption || getMediaLabel(savedMedia), fromMe: true,
+            createdAt: new Date(), sentBy, phone: result.recipientPhone,
+            ...savedMedia,
+        });
+        return { ...result, requestedJid, sentJid: requestedJid };
     }
 
     const isReady = await ensureReadyForSend('envio de adjunto');

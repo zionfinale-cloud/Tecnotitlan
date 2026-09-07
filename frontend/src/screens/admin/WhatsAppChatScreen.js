@@ -166,8 +166,9 @@ const WhatsAppChatScreen = () => {
 
   const isConnected = Boolean(status?.connected);
   const isDisabled = status?.provider === 'disabled';
+  const isCloud = status?.provider === 'cloud';
   const statusLabel = status
-    ? `${isDisabled ? 'Desactivado' : 'Baileys'}: ${isConnected ? 'Conectado' : (status.status || 'Desconectado')}`
+    ? `${isDisabled ? 'Desactivado' : isCloud ? 'Cloud API' : 'Baileys'}: ${isConnected ? 'Conectado' : (status.status || 'Desconectado')}`
     : 'Revisando WhatsApp...';
 
   return (

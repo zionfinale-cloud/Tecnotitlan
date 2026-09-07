@@ -22,7 +22,6 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
-          if (id.includes('react-quill-new') || id.includes('/quill/')) return 'editor';
           if (id.includes('@stripe') || id.includes('@paypal')) return 'payments';
           if (id.includes('socket.io')) return 'realtime';
           if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return 'react';

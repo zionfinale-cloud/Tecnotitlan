@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Form, Spinner, Alert } from 'react-bootstrap';
-import ReactQuill from 'react-quill-new';
-import 'react-quill-new/dist/quill.snow.css';
 import useApi from '../../hooks/useApi';
+import SafeHtmlEditor from '../../components/SafeHtmlEditor';
 
 const LegalPagesScreen = () => {
   // Estados para el contenido de cada página
@@ -38,17 +37,6 @@ const LegalPagesScreen = () => {
     await request('put', '/settings', { settings: settingsToUpdate }, 'Configuración guardada con éxito.');
   };
 
-  // Módulos para la barra de herramientas del editor
-  const quillModules = {
-    toolbar: [
-      [{ 'header': [1, 2, 3, false] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{'list': 'ordered'}, {'list': 'bullet'}],
-      ['link'],
-      ['clean']
-    ],
-  };
-
   if (loading && !data) return <Spinner animation="border" />;
 
   return (
@@ -57,25 +45,21 @@ const LegalPagesScreen = () => {
       {error && <Alert variant="danger">{error}</Alert>}
 
       <Form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
-        <Form.Group className="mb-5">
-          <Form.Label as="h4">Política de Privacidad</Form.Label>
-          <ReactQuill
-            theme="snow"
+        <Form.Group>
+          <SafeHtmlEditor
+            id="privacy-policy-editor"
+            label="Política de Privacidad"
             value={privacyPolicy}
             onChange={setPrivacyPolicy}
-            modules={quillModules}
-            style={{ height: '250px', marginBottom: '4rem' }}
           />
         </Form.Group>
 
-        <Form.Group className="mb-5">
-          <Form.Label as="h4">Términos de Servicio</Form.Label>
-          <ReactQuill
-            theme="snow"
+        <Form.Group>
+          <SafeHtmlEditor
+            id="terms-of-service-editor"
+            label="Términos de Servicio"
             value={termsOfService}
             onChange={setTermsOfService}
-            modules={quillModules}
-            style={{ height: '250px', marginBottom: '4rem' }}
           />
         </Form.Group>
 

@@ -1491,4 +1491,14 @@ Protecciones implementadas:
 - El panel administrativo incorpora un menu lateral adaptable a telefono, barra superior movil, fondo de cierre y accesos rapidos. El menu conserva RBAC y oculta modulos sin permiso.
 - El frontend fue migrado de Create React App a Vite. El contenedor sigue generando `build/`, expone variables `REACT_APP_*` compatibles y conserva `env.js` para configurar la URL de API al iniciar el contenedor sin recompilar la aplicacion.
 - La configuracion Nginx agrega HSTS, CSP, proteccion contra MIME sniffing, politica de referentes, permisos del navegador y restricciones de iframe. Los recursos de pagos, reCAPTCHA y contenido autorizado permanecen declarados de forma explicita.
-- Validacion del parche: compilacion Vite de produccion, 79 pruebas del backend y auditoria del backend sin vulnerabilidades conocidas. Quill conserva dos avisos `low` aguas arriba; el riesgo de HTML exportado queda mitigado por sanitizacion obligatoria en servidor y DOMPurify al mostrar contenido.
+- Validacion inicial del parche: compilacion Vite de produccion, 79 pruebas del backend y auditoria del backend sin vulnerabilidades conocidas.
+
+## Actualizacion 2026-09-06 - Cierre de seguridad, adjuntos Cloud y trabajo por rol
+
+- WhatsApp Cloud API admite desde la bandeja imagenes JPEG/PNG, video MP4/3GPP, audio compatible y documentos PDF, texto, Word o Excel, con limite operativo de 12 MB. Primero carga el archivo a Meta, envia el `media_id` y conserva una copia local auditada junto al mensaje.
+- Los webhooks firmados de Meta reconocen adjuntos entrantes, recuperan su URL temporal mediante autenticacion, descargan el archivo dentro del limite y lo muestran en la misma conversacion. Si la descarga falla, el mensaje y su tipo permanecen visibles sin bloquear el webhook.
+- Configuracion del sistema expone todos los campos necesarios para elegir grupo unico de Baileys o Cloud API. La pantalla de WhatsApp informa si el grupo, credenciales, firma del webhook y adjuntos estan listos, sin revelar secretos.
+- El editor Quill fue retirado por completo. Las paginas legales usan un editor local con ayudas de formato y vista previa DOMPurify; el backend conserva la sanitizacion definitiva antes de guardar. Frontend y backend quedan sin vulnerabilidades reportadas por `npm audit`.
+- **Mi trabajo** calcula totales sin el limite de veinte filas de la vista. Administradores y supervisores ven la carga del equipo; los demas roles operativos ven reclamos y tickets propios o todavia sin asignar, siempre condicionados por sus permisos efectivos.
+- El 2FA obligatorio cubre cualquier rol distinto de cliente, incluidos roles personalizados. Antes del enrolamiento sólo se permite consultar estado, iniciar/completar configuracion, leer perfil o cerrar sesion.
+- El VPS acepta administracion SSH por llave dedicada y rechaza autenticacion por contraseña. La politica reproducible vive en `ops/ssh/00-tecnotitlan-hardening.conf`; conserva `PermitRootLogin prohibit-password` para permitir recuperacion con llave sin exponer credenciales reutilizables.
