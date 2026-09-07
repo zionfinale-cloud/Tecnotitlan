@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import api from '../services/apiService';
 import styles from './SecurityScreen.module.css';
@@ -7,6 +8,7 @@ const formatDate = (value) => value ? new Date(value).toLocaleString('es-MX') : 
 
 const SecurityScreen = ({ admin = false }) => {
   const { userInfo, updateProfile } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [status, setStatus] = useState(null);
   const [activity, setActivity] = useState([]);
   const [audit, setAudit] = useState([]);
@@ -22,6 +24,7 @@ const SecurityScreen = ({ admin = false }) => {
     const statusResponse = await api.get('/security/status');
     const securityStatus = statusResponse.data.data;
     setStatus(securityStatus);
+    updateProfile({ twoFactorEnabled: Boolean(securityStatus.twoFactorEnabled) });
 
     // Mientras el personal se enrola, el backend sólo permite las rutas
     // mínimas de 2FA. Cargamos actividad y auditoría después de activarlo.
@@ -63,7 +66,10 @@ const SecurityScreen = ({ admin = false }) => {
   };
   const enable = async () => {
     const data = await run(() => api.post('/security/2fa/enable', { setupToken: setup.setupToken, code }), '2FA quedo activado. Guarda los codigos de recuperacion.');
-    if (data) setSetup(null);
+    if (data) {
+      setSetup(null);
+      navigate('/admin/my-work', { replace: true });
+    }
   };
   const disable = () => run(() => api.post('/security/2fa/disable', { password, code }), '2FA quedo desactivado.');
   const regenerate = () => run(() => api.post('/security/2fa/recovery-codes', { code }), 'Se reemplazaron los codigos anteriores.');
@@ -78,7 +84,7 @@ const SecurityScreen = ({ admin = false }) => {
         <div className={styles.cardTitle}><div><h2>Autenticacion de dos factores</h2><p>Estado: <b>{status.twoFactorEnabled ? 'Activa' : 'Inactiva'}</b></p></div><i className={`fas ${status.twoFactorEnabled ? 'fa-shield-alt' : 'fa-shield'}`} /></div>
         {!status.twoFactorEnabled && !setup && <><label>Confirma tu contrasena<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label><button disabled={busy || !password} onClick={beginSetup}>Configurar 2FA</button></>}
         {setup && <div className={styles.setup}><img src={setup.qrCodeDataUrl} alt="Codigo QR para configurar 2FA" /><p>Escanea con Google Authenticator, Microsoft Authenticator, 1Password o una aplicacion compatible.</p><details><summary>No puedo escanearlo</summary><code>{setup.secret}</code></details><label>Codigo de 6 digitos<input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" /></label><button disabled={busy || !code} onClick={enable}>Confirmar y activar</button></div>}
-        {status.twoFactorEnabled && <><p>Codigos de recuperacion disponibles: <b>{status.recoveryCodesRemaining}</b></p><label>Codigo 2FA o de recuperacion<input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" /></label><div className={styles.actions}><button disabled={busy || !code} onClick={regenerate}>Nuevos codigos</button>{userInfo?.role === 'USER' && <button className={styles.danger} disabled={busy || !code || !password} onClick={disable}>Desactivar</button>}</div>{userInfo?.role === 'USER' ? <label>Contrasena actual para desactivar<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label> : <p>El segundo factor es obligatorio para cuentas de personal.</p>}</>}
+        {status.twoFactorEnabled && <><p>Codigos de recuperacion disponibles: <b>{status.recoveryCodesRemaining}</b></p>{admin && <button type="button" onClick={() => navigate('/admin/my-work')}>Ir a Mi trabajo</button>}<label>Codigo 2FA o de recuperacion<input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" /></label><div className={styles.actions}><button disabled={busy || !code} onClick={regenerate}>Nuevos codigos</button>{userInfo?.role === 'USER' && <button className={styles.danger} disabled={busy || !code || !password} onClick={disable}>Desactivar</button>}</div>{userInfo?.role === 'USER' ? <label>Contrasena actual para desactivar<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label> : <p>El segundo factor es obligatorio para cuentas de personal.</p>}</>}
       </article>
       <article className={styles.card}><h2>Controles activos</h2><ul><li>AES-256-GCM para tokens de Mercado Libre y TikTok.</li><li>Códigos TOTP de 30 segundos con tolerancia de reloj limitada.</li><li>Sesiones invalidadas después de cambios de contraseña o 2FA.</li><li>IP convertida a huella irreversible; contraseñas y cuerpos nunca se auditan.</li></ul></article>
     </section>
