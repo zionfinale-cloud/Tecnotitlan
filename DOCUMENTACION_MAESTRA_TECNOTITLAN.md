@@ -198,7 +198,7 @@ Antes de integrar también se ejecutan `npm audit`, `prisma validate` y `git dif
 
 1. Crear respaldo cifrado y comprobar espacio, PostgreSQL y contenedores.
 2. Actualizar código y construir imágenes con Node.js 22.
-3. Ejecutar `prisma migrate deploy` antes de levantar la API nueva.
+3. La imagen de API ejecuta `prisma migrate deploy` antes de iniciar Node. Si una migración falla, la réplica nueva no entra en servicio.
 4. Levantar primero API y verificar `/health/ready`; después web y `/health`.
 5. Validar login/2FA, catálogo, pedidos, Mercado Libre, Bandeja unificada y un usuario real por rol.
 6. No borrar sesión Baileys ni pedir QR durante un despliegue. El lock impide dos sockets simultáneos.
@@ -765,4 +765,4 @@ Protecciones implementadas:
 - Migración `20260907190000_whatsapp_delivery_observability` añade trazabilidad de operación e identidad.
 - Sentry `10.73.0` está integrado en Node y React sin PII. Sin DSN queda inactivo y Seguridad lo marca pendiente.
 - Verificación: 111 pruebas backend, build Vite, Prisma válido y cero vulnerabilidades en `npm audit`.
-- No se ejecutó QR, vinculación, logout, envío real ni despliegue durante esta estabilización.
+- Producción quedó desplegada en `c5430b8d` el 8 de septiembre de 2026. La migración `20260907190000_whatsapp_delivery_observability` fue aplicada y Prisma confirmó las 39 migraciones al día. API y web quedaron saludables, sin QR, vinculación, logout ni envío real; no existe una sesión Baileys guardada.
