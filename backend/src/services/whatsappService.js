@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs/promises';
+import crypto from 'crypto';
 import * as baileys from '@whiskeysockets/baileys';
 import pino from 'pino';
 import axios from 'axios';
@@ -16,6 +17,13 @@ import {
     isProtectedWhatsAppDisconnect,
     isTransientWhatsAppDisconnect,
 } from './whatsappLifecyclePolicy.js';
+import {
+    chooseSafeWaWebVersion,
+    extractWhatsAppFailure,
+    getWhatsAppIdentityType,
+    resolveWhatsAppTarget,
+    sendWhatsAppOnce,
+} from './whatsappSafetyPolicy.js';
 import { downloadCloudMedia, getCloudMediaKind, getCloudStatus, normalizeCloudWebhook, sendCloudMedia, sendCloudText } from './whatsappCloudService.js';
 
 const {
@@ -52,6 +60,7 @@ const DEFAULT_CUSTOMER_NOTIFICATION_DEDUPE_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_ADMIN_NOTIFICATION_DEDUPE_MS = 60 * 60 * 1000;
 const DEFAULT_TECATL_HANDOFF_DEDUPE_MS = 30 * 60 * 1000;
 const PROTECTED_PAUSE_SETTING_KEY = 'WHATSAPP_PROTECTED_PAUSED_UNTIL';
+const WA_WEB_VERSION_SETTING_KEY = 'WHATSAPP_LAST_GOOD_WEB_VERSION';
 const TECATL_STAFF_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'VENDEDOR'];
 const TECATL_BUSINESS_START_HOUR = 9;
 const TECATL_BUSINESS_END_HOUR = 19;
@@ -66,6 +75,7 @@ let sessionLockTimer = null;
 let hasSessionLock = false;
 let outboundSendChain = Promise.resolve();
 let lastOutboundSendAt = 0;
+let cachedWaWebVersion = null;
 
 const RELINK_STATUSES = new Set(['QR_REQUIRED', 'LOGGED_OUT']);
 
@@ -694,28 +704,56 @@ const getJidForPhone = (value = '') => {
 };
 
 const resolveTargetOnWhatsApp = async (target) => {
-    if (isLidJid(target) || !sock?.onWhatsApp) return target;
-
     try {
-        const availability = await sock.onWhatsApp(target);
-        const match = (availability || []).find((item) => item?.exists && item?.jid);
-        if (!match) {
-            throw new BadRequestError(`WhatsApp no encontro el destino ${target}; no se envio el mensaje.`);
-        }
-        const confirmed = match.jid || target;
-        if (sock?.signalRepository?.lidMapping?.getLIDForPN && isPhoneJid(confirmed)) {
-            try {
-                return await sock.signalRepository.lidMapping.getLIDForPN(confirmed) || confirmed;
-            } catch (error) {
-                logger.debug(`[WhatsApp] No se pudo resolver LID para ${confirmed}: ${error.message}`);
-            }
-        }
-        return confirmed;
+        return (await resolveWhatsAppTarget(sock, target)).target;
     } catch (error) {
-        if (error instanceof BadRequestError) throw error;
         logger.warn(`[WhatsApp] No se pudo validar destino ${target}: ${error.message}`);
-        throw new BadRequestError(`No se pudo validar el destino WhatsApp: ${error.message}`);
+        throw new BadRequestError(error.message);
     }
+};
+
+const loadPersistedWaWebVersion = async () => {
+    try {
+        const row = await prisma.setting.findUnique({ where: { key: WA_WEB_VERSION_SETTING_KEY }, select: { value: true } });
+        return row?.value ? JSON.parse(row.value) : null;
+    } catch (error) {
+        logger.warn(`[WhatsApp] No se pudo leer la version WA Web guardada: ${error.message}`);
+        return null;
+    }
+};
+
+const persistWaWebVersion = async (version) => {
+    await prisma.setting.upsert({
+        where: { key: WA_WEB_VERSION_SETTING_KEY },
+        create: { key: WA_WEB_VERSION_SETTING_KEY, value: JSON.stringify(version) },
+        update: { value: JSON.stringify(version) },
+    });
+};
+
+const getSafeWaWebVersion = async () => {
+    if (cachedWaWebVersion) return { version: cachedWaWebVersion, source: 'process-cache' };
+
+    const persisted = await loadPersistedWaWebVersion();
+    let fetched = null;
+    try {
+        fetched = fetchLatestWaWebVersion
+            ? await fetchLatestWaWebVersion()
+            : await fetchLatestBaileysVersion();
+    } catch (error) {
+        logger.warn(`[WhatsApp] Consulta de version WA Web fallo; se usara una version segura conocida: ${error.message}`);
+    }
+
+    const selected = chooseSafeWaWebVersion({ fetched, persisted });
+    if (selected.version) cachedWaWebVersion = selected.version;
+    if (selected.shouldPersist) {
+        persistWaWebVersion(selected.version).catch((error) => {
+            logger.warn(`[WhatsApp] No se pudo guardar la version WA Web verificada: ${error.message}`);
+        });
+    }
+    if (fetched?.isLatest === false) {
+        logger.warn('[WhatsApp] La consulta devolvio isLatest=false; esa version fue rechazada para evitar bucles 408.');
+    }
+    return selected;
 };
 
 const getOutgoingTargets = async (value = '') => {
@@ -740,6 +778,48 @@ const getOutgoingTargets = async (value = '') => {
         phone,
         target,
     };
+};
+
+const sendBaileysPayload = async ({ destination, payload, label }) => {
+    const isReady = await ensureReadyForSend(label);
+    if (!isReady || !sock) {
+        throw new BadRequestError('WhatsApp no esta conectado. Se intento levantar la sesion guardada, pero no quedo lista.');
+    }
+
+    const operationId = crypto.randomUUID();
+    const identity = String(destination || '').endsWith('@g.us')
+        ? { requestedJid: destination, phone: null, target: destination }
+        : await getOutgoingTargets(destination);
+
+    try {
+        const result = await sendWhatsAppOnce({
+            socket: sock,
+            target: identity.target,
+            payload,
+            enqueue: (task) => enqueueOutboundSend(`${label} a ${identity.target}`, task),
+        });
+        return {
+            ...identity,
+            result,
+            operationId,
+            providerMessageId: result?.key?.id || null,
+            sentJid: result?.key?.remoteJid || identity.target,
+        };
+    } catch (error) {
+        const detected = extractWhatsAppFailure(error);
+        const statusCode = detected.code || getDisconnectStatusCode({ error });
+        logger.warn(`[WhatsApp] Operacion ${operationId} fallo. Tipo=${label}; codigo=${statusCode || 'n/a'}; destino=${identity.target}`);
+        if (isProtectedWhatsAppDisconnect({ statusCode, message: detected.message || error.message })) {
+            pauseBaileysForManualReview(
+                `Fallo protegido durante ${label}: ${detected.message || error.message}`,
+                statusCode,
+                { closeSocket: Number(statusCode) !== 463 },
+            );
+        }
+        const safeError = new BadRequestError(`No se pudo completar ${label} por WhatsApp: ${error.message}`);
+        safeError.whatsappFailure = { ...identity, operationId, statusCode };
+        throw safeError;
+    }
 };
 
 const resolveChatIdentity = (message = {}) => {
@@ -994,18 +1074,20 @@ const rotateSessionAndRequestQr = (reason) => {
     }, 1500);
 };
 
-const pauseBaileysForManualReview = (reason, statusCode = null) => {
+const pauseBaileysForManualReview = (reason, statusCode = null, { closeSocket = true } = {}) => {
     clearReconnectTimer();
-    try {
-        sock?.end?.(new Error('WhatsApp protected pause'));
-        sock?.ws?.close?.();
-    } catch (error) {
-        logger.warn(`[WhatsApp] No se pudo cerrar socket al pausar sesion: ${error.message}`);
+    if (closeSocket) {
+        try {
+            sock?.end?.(new Error('WhatsApp protected pause'));
+            sock?.ws?.close?.();
+        } catch (error) {
+            logger.warn(`[WhatsApp] No se pudo cerrar socket al pausar sesion: ${error.message}`);
+        }
+        sock = undefined;
+        releaseSessionLock().catch((error) => {
+            logger.warn(`[WhatsApp] No se pudo liberar lock al pausar sesion: ${error.message}`);
+        });
     }
-    sock = undefined;
-    releaseSessionLock().catch((error) => {
-        logger.warn(`[WhatsApp] No se pudo liberar lock al pausar sesion: ${error.message}`);
-    });
     reconnectAttempt = 0;
     pausedAt = Date.now();
     pausedUntil = pausedAt + getProtectedPauseMs();
@@ -1016,7 +1098,9 @@ const pauseBaileysForManualReview = (reason, statusCode = null) => {
         reason || 'Sesion cerrada o invalida.',
         statusCode ? `Codigo: ${statusCode}.` : '',
         `No se reintentara automaticamente hasta ${formatPauseUntil()}.`,
-        'Usa "Borrar sesion y pedir QR" solo cuando vayas a vincular un numero sano.',
+        closeSocket
+            ? 'Usa "Borrar sesion y pedir QR" solo cuando vayas a vincular un numero sano.'
+            : 'El socket queda abierto solo para recibir eventos; todos los envios nuevos estan bloqueados.',
     ].filter(Boolean).join(' ');
     logger.warn(`[WhatsApp] ${lastError}`);
     persistProtectedPause().catch((error) => {
@@ -1147,6 +1231,13 @@ const persistMessage = async ({
     mediaMimeType,
     fileName,
     phone,
+    operationId = null,
+    source = 'BAILEYS',
+    requestedIdentity = null,
+    resolvedJid = null,
+    errorCode = null,
+    deliveryStatus = null,
+    status = null,
 }) => {
     if (!isCustomerDirectJid(jid)) return null;
 
@@ -1186,9 +1277,17 @@ const persistMessage = async ({
                 mediaType,
                 mediaMimeType,
                 fileName,
-                status: fromMe ? 'SENT' : 'RECEIVED',
+                status: status || (fromMe ? 'SENT' : 'RECEIVED'),
                 sentBy,
                 createdAt,
+                operationId,
+                source,
+                requestedIdentity,
+                requestedIdentityType: requestedIdentity ? getWhatsAppIdentityType(requestedIdentity) : null,
+                resolvedJid: resolvedJid || jid,
+                resolvedIdentityType: getWhatsAppIdentityType(resolvedJid || jid),
+                errorCode,
+                connectionStatus: deliveryStatus || connectionStatus,
             },
             include: { chat: true },
         });
@@ -1381,60 +1480,41 @@ const notifyTecatlHandoffStaff = async ({ result, incomingText, jid, customerNam
         return;
     }
 
-    await Promise.all(whatsappRecipients.map(async (phone) => {
-        const recentLog = await findRecentNotificationLog({
-            channel: 'WHATSAPP',
-            audience: 'STAFF',
-            event: 'tecatl_handoff',
-            recipient: phone,
-            sinceMs: getTecatlHandoffDedupeMs(),
+    const notificationRecipient = isCloudProvider()
+        ? whatsappRecipients.join(',')
+        : String(getConfig().WHATSAPP_ADMIN_GROUP_JID || process.env.WHATSAPP_ADMIN_GROUP_JID || '').trim();
+    const recentLog = notificationRecipient ? await findRecentNotificationLog({
+        channel: 'WHATSAPP',
+        audience: 'STAFF',
+        event: 'tecatl_handoff',
+        recipient: notificationRecipient,
+        sinceMs: getTecatlHandoffDedupeMs(),
+    }) : null;
+
+    if (recentLog) {
+        await writeNotificationLog({
+            channel: 'WHATSAPP', audience: 'STAFF', event: 'tecatl_handoff', status: 'SKIPPED',
+            provider: getWhatsAppProvider(), recipient: notificationRecipient,
+            message: 'Escalacion de Tecatl omitida para evitar duplicados recientes.',
+            details: { ...details, dedupeWindowMs: getTecatlHandoffDedupeMs(), skippedBecauseOfLogId: recentLog.id },
         });
+        return;
+    }
 
-        if (recentLog) {
-            await writeNotificationLog({
-                channel: 'WHATSAPP',
-                audience: 'STAFF',
-                event: 'tecatl_handoff',
-                status: 'SKIPPED',
-                provider: 'baileys',
-                recipient: phone,
-                message: 'Escalacion de Tecatl omitida para evitar duplicados recientes.',
-                details: {
-                    ...details,
-                    dedupeWindowMs: getTecatlHandoffDedupeMs(),
-                    skippedBecauseOfLogId: recentLog.id,
-                    skippedBecauseOfCreatedAt: recentLog.createdAt,
-                },
-            });
-            return;
-        }
-
-        try {
-            await sendMessage(phone, whatsappText, 'Tecatl');
-            await writeNotificationLog({
-                channel: 'WHATSAPP',
-                audience: 'STAFF',
-                event: 'tecatl_handoff',
-                status: 'SENT',
-                provider: 'baileys',
-                recipient: phone,
-                message: whatsappText,
-                details,
-            });
-        } catch (error) {
-            await writeNotificationLog({
-                channel: 'WHATSAPP',
-                audience: 'STAFF',
-                event: 'tecatl_handoff',
-                status: 'FAILED',
-                provider: 'baileys',
-                recipient: phone,
-                message: whatsappText,
-                error: error.message,
-                details,
-            });
-        }
-    }));
+    try {
+        const delivery = await sendAdministrativeAlert({ recipients: whatsappRecipients, message: whatsappText, sentBy: 'Tecatl' });
+        await writeNotificationLog({
+            channel: 'WHATSAPP', audience: 'STAFF', event: 'tecatl_handoff', status: 'SENT',
+            provider: delivery.provider, recipient: notificationRecipient,
+            message: whatsappText, details: { ...details, mode: delivery.mode, operationId: delivery.operationId || null },
+        });
+    } catch (error) {
+        await writeNotificationLog({
+            channel: 'WHATSAPP', audience: 'STAFF', event: 'tecatl_handoff', status: 'FAILED',
+            provider: getWhatsAppProvider(), recipient: notificationRecipient,
+            message: whatsappText, error: error.message, details,
+        });
+    }
 };
 
 const handleIncomingTecatlMessage = async ({ jid, text, name }) => {
@@ -1621,14 +1701,12 @@ const initializeInternal = async ({ allowQr = true, reason = 'manual' } = {}) =>
             logger.info(`[WhatsApp] Usando sesion Baileys en archivos: ${authDir}`);
         }
 
-        const waVersionInfo = fetchLatestWaWebVersion
-            ? await fetchLatestWaWebVersion()
-            : await fetchLatestBaileysVersion();
-        const { version } = waVersionInfo;
-        logger.info(`[WhatsApp] Baileys ${baileys.version || 'package'}; WA Web ${version.join('.')}; latest=${waVersionInfo.isLatest ?? 'n/a'}`);
+        const waVersionInfo = await getSafeWaWebVersion();
+        const versionConfig = waVersionInfo.version ? { version: waVersionInfo.version } : {};
+        logger.info(`[WhatsApp] Baileys ${baileys.version || 'package'}; WA Web ${waVersionInfo.version?.join('.') || 'default incluido'}; source=${waVersionInfo.source}`);
 
         const client = makeWASocket({
-            version,
+            ...versionConfig,
             auth: state,
             printQRInTerminal: false,
             logger: pino({ level: 'silent' }),
@@ -1709,7 +1787,7 @@ const initializeInternal = async ({ allowQr = true, reason = 'manual' } = {}) =>
                         delayMsOverride: Number(statusCode) === 405
                             ? SESSION_LOCK_STALE_MS + 5000
                             : null,
-                        pauseOnExhaustion: false,
+                        pauseOnExhaustion: Number(statusCode) === 408,
                     });
                     return;
                 }
@@ -1823,18 +1901,16 @@ const initializeInternal = async ({ allowQr = true, reason = 'manual' } = {}) =>
 
         client.ev.on('messages.update', async (updates = []) => {
             for (const update of updates || []) {
-                const serialized = JSON.stringify(update || {});
-                const statusCode = getDisconnectStatusCode({ error: update?.error || update });
-                const has463 = Number(statusCode) === 463 || /\b463\b|reachout|timelock|restricted/i.test(serialized);
-                if (!has463) continue;
+                const failure = extractWhatsAppFailure(update);
+                if (!failure.restriction) continue;
                 const messageId = update?.key?.id || null;
                 const remoteJid = update?.key?.remoteJid || null;
                 logger.warn(`[WhatsApp] messages.update reporto 463. MessageId=${messageId || 'n/a'} JID=${remoteJid || 'n/a'}`);
-                pauseBaileysForManualReview(`WhatsApp reporto 463 en messages.update para ${remoteJid || 'destino desconocido'}`, 463);
+                pauseBaileysForManualReview(`WhatsApp reporto 463 en messages.update para ${remoteJid || 'destino desconocido'}`, 463, { closeSocket: false });
                 if (messageId) {
                     await prisma.whatsAppMessage.updateMany({
                         where: { messageId },
-                        data: { status: 'FAILED' },
+                        data: { status: 'FAILED', errorCode: 463, connectionStatus: 'PAUSED' },
                     }).catch((error) => {
                         logger.warn(`[WhatsApp] No se pudo marcar mensaje ${messageId} como fallido: ${error.message}`);
                     });
@@ -2082,39 +2158,32 @@ export const sendMessage = async (number, message, sentBy = null) => {
         await persistMessage({
             jid: `${result.recipientPhone}@s.whatsapp.net`, messageId: result.providerMessageId,
             text: String(message || '').trim(), fromMe: true, createdAt: new Date(), sentBy,
-            phone: result.recipientPhone,
+            phone: result.recipientPhone, source: 'CLOUD',
         });
         return result;
-    }
-
-    const isReady = await ensureReadyForSend('envio de mensaje');
-    if (!isReady || !sock) {
-        throw new BadRequestError('WhatsApp no esta conectado. Se intento levantar la sesion guardada, pero no quedo lista.');
     }
 
     const text = String(message || '').trim();
     if (!text) throw new BadRequestError('El mensaje no puede estar vacio.');
 
-    const { requestedJid, phone, target } = await getOutgoingTargets(number);
-    let result;
-    let sentTargetJid = null;
+    let delivery;
     try {
-        result = await enqueueOutboundSend(
-            `mensaje a ${target}`,
-            () => sock.sendMessage(target, { text }),
-        );
-        sentTargetJid = result?.key?.remoteJid || target;
+        delivery = await sendBaileysPayload({ destination: number, payload: { text }, label: 'envio de mensaje' });
     } catch (error) {
-        logger.warn(`[WhatsApp] No se pudo enviar a ${target}: ${error.message}`);
-        const statusCode = getDisconnectStatusCode({ error });
-        if (isProtectedWhatsAppDisconnect({ statusCode, message: error.message })) {
-            pauseBaileysForManualReview(`Fallo protegido enviando mensaje: ${error.message}`, statusCode);
+        const failure = error.whatsappFailure;
+        if (failure?.requestedJid) {
+            await persistMessage({
+                jid: failure.requestedJid, messageId: null, text, fromMe: true,
+                createdAt: new Date(), sentBy, phone: failure.phone,
+                operationId: failure.operationId, requestedIdentity: failure.requestedJid,
+                resolvedJid: failure.target, errorCode: failure.statusCode,
+                deliveryStatus: 'FAILED', status: 'FAILED',
+            }).catch(() => null);
         }
-        throw new BadRequestError(`No se pudo enviar el mensaje por WhatsApp: ${error.message}`);
+        throw error;
     }
 
-    const providerMessageId = result?.key?.id || null;
-    const sentJid = result?.key?.remoteJid || sentTargetJid || requestedJid;
+    const { requestedJid, phone, sentJid, providerMessageId, operationId, result } = delivery;
     const accepted = Boolean(providerMessageId || sentJid);
 
     await persistMessage({
@@ -2125,6 +2194,10 @@ export const sendMessage = async (number, message, sentBy = null) => {
         createdAt: new Date(),
         sentBy,
         phone,
+        operationId,
+        requestedIdentity: requestedJid,
+        resolvedJid: sentJid,
+        deliveryStatus: connectionStatus,
     });
 
     logger.info(`[WhatsApp] Mensaje aceptado por Baileys. Solicitado: ${requestedJid}. Usado: ${sentJid}. ID: ${providerMessageId || 'sin-id'}`);
@@ -2146,10 +2219,15 @@ export const sendAdministrativeAlert = async ({ recipients = [], message, sentBy
     const groupJid = String(getConfig().WHATSAPP_ADMIN_GROUP_JID || process.env.WHATSAPP_ADMIN_GROUP_JID || '').trim();
     if (!isCloudProvider() && groupJid) {
         if (!/@g\.us$/.test(groupJid)) throw new BadRequestError('WHATSAPP_ADMIN_GROUP_JID no tiene formato de grupo valido.');
-        const isReady = await ensureReadyForSend('alerta administrativa de grupo');
-        if (!isReady || !sock) throw new BadRequestError('WhatsApp no esta conectado.');
-        const result = await enqueueOutboundSend('alerta al grupo administrativo', () => sock.sendMessage(groupJid, { text: String(message || '') }));
-        return { mode: 'group', provider: 'baileys', providerMessageId: result?.key?.id || null, recipients: uniqueRecipients };
+        const delivery = await sendBaileysPayload({
+            destination: groupJid,
+            payload: { text: String(message || '') },
+            label: 'alerta administrativa de grupo',
+        });
+        return {
+            mode: 'group', provider: 'baileys', providerMessageId: delivery.providerMessageId,
+            operationId: delivery.operationId, recipients: uniqueRecipients,
+        };
     }
     if (!isCloudProvider()) {
         throw new BadRequestError('Configura WHATSAPP_ADMIN_GROUP_JID; el envio privado multiple por Baileys esta desactivado para proteger el numero.');
@@ -2189,6 +2267,7 @@ export const ingestCloudWebhook = async (payload = {}) => {
             text: message.text || message.media?.caption || getMediaLabel(savedMedia || (message.media ? { mediaType: message.media.type, fileName: message.media.fileName } : null)), fromMe: false,
             createdAt: message.timestamp ? new Date(Number(message.timestamp) * 1000) : new Date(),
             sentBy: null, phone: message.from,
+            source: 'CLOUD',
             ...(savedMedia || {}),
         });
     }
@@ -2239,20 +2318,16 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
             jid: requestedJid, messageId: result.providerMessageId,
             text: cleanCaption || getMediaLabel(savedMedia), fromMe: true,
             createdAt: new Date(), sentBy, phone: result.recipientPhone,
-            ...savedMedia,
+            source: 'CLOUD', ...savedMedia,
         });
         return { ...result, requestedJid, sentJid: requestedJid };
     }
 
-    const isReady = await ensureReadyForSend('envio de adjunto');
-    if (!isReady || !sock) {
-        throw new BadRequestError('WhatsApp no esta conectado. Se intento levantar la sesion guardada, pero no quedo lista.');
-    }
     if (!file?.buffer?.length) throw new BadRequestError('Selecciona un archivo para enviar.');
 
     const cleanCaption = String(caption || '').trim();
     const { payload, type } = getOutgoingMediaPayload(file, cleanCaption);
-    const { requestedJid, phone, target } = await getOutgoingTargets(number);
+    const requestedJid = toJid(String(number || ''));
     const savedMedia = await saveMediaBuffer({
         buffer: file.buffer,
         jid: requestedJid,
@@ -2261,25 +2336,25 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
         fileName: file.originalname,
     });
 
-    let result;
-    let sentTargetJid = null;
+    let delivery;
     try {
-        result = await enqueueOutboundSend(
-            `adjunto a ${target}`,
-            () => sock.sendMessage(target, payload),
-        );
-        sentTargetJid = result?.key?.remoteJid || target;
+        delivery = await sendBaileysPayload({ destination: number, payload, label: 'envio de adjunto' });
     } catch (error) {
-        logger.warn(`[WhatsApp] No se pudo enviar adjunto a ${target}: ${error.message}`);
-        const statusCode = getDisconnectStatusCode({ error });
-        if (isProtectedWhatsAppDisconnect({ statusCode, message: error.message })) {
-            pauseBaileysForManualReview(`Fallo protegido enviando adjunto: ${error.message}`, statusCode);
+        const failure = error.whatsappFailure;
+        if (failure?.requestedJid) {
+            await persistMessage({
+                jid: failure.requestedJid, messageId: null,
+                text: cleanCaption || getMediaLabel(savedMedia), fromMe: true,
+                createdAt: new Date(), sentBy, phone: failure.phone,
+                operationId: failure.operationId, requestedIdentity: failure.requestedJid,
+                resolvedJid: failure.target, errorCode: failure.statusCode,
+                deliveryStatus: 'FAILED', status: 'FAILED', ...savedMedia,
+            }).catch(() => null);
         }
-        throw new BadRequestError(`No se pudo enviar el adjunto por WhatsApp: ${error.message}`);
+        throw error;
     }
 
-    const providerMessageId = result?.key?.id || null;
-    const sentJid = result?.key?.remoteJid || sentTargetJid || requestedJid;
+    const { phone, sentJid, providerMessageId, operationId, result } = delivery;
     const accepted = Boolean(providerMessageId || sentJid);
 
     await persistMessage({
@@ -2290,6 +2365,10 @@ export const sendMediaMessage = async (number, file, caption = '', sentBy = null
         createdAt: new Date(),
         sentBy,
         phone,
+        operationId,
+        requestedIdentity: requestedJid,
+        resolvedJid: sentJid,
+        deliveryStatus: connectionStatus,
         ...savedMedia,
     });
 
@@ -2611,11 +2690,14 @@ export const sendAdminOrderPaidNotification = async (order) => {
         const message = `Pago confirmado en Tecnotitlan\nPedido: ${orderNumber}\nTotal: ${total}`;
 
         if (adminWhatsappNumber) {
+            const adminNotificationRecipient = isCloudProvider()
+                ? adminWhatsappNumber
+                : String(config.WHATSAPP_ADMIN_GROUP_JID || process.env.WHATSAPP_ADMIN_GROUP_JID || '').trim();
             const recentLog = await findRecentNotificationLog({
                 channel: 'WHATSAPP',
                 audience: 'ADMIN',
                 event: 'aviso de pago admin',
-                recipient: adminWhatsappNumber,
+                recipient: adminNotificationRecipient,
                 order,
                 sinceMs: getAdminNotificationDedupeMs(),
             });
@@ -2627,7 +2709,7 @@ export const sendAdminOrderPaidNotification = async (order) => {
                     event: 'aviso de pago admin',
                     status: 'SKIPPED',
                     provider: getWhatsAppProvider(),
-                    recipient: adminWhatsappNumber,
+                    recipient: adminNotificationRecipient,
                     order,
                     message: 'Aviso admin omitido para evitar duplicados recientes.',
                     details: {
@@ -2638,14 +2720,14 @@ export const sendAdminOrderPaidNotification = async (order) => {
                     },
                 });
             } else {
-            const sendResult = await sendMessage(adminWhatsappNumber, message, 'Sistema');
+            const sendResult = await sendAdministrativeAlert({ recipients: [adminWhatsappNumber], message, sentBy: 'Sistema' });
             await writeNotificationLog({
                 channel: 'WHATSAPP',
                 audience: 'ADMIN',
                 event: 'aviso de pago admin',
                 status: 'SENT',
                 provider: getWhatsAppProvider(),
-                recipient: adminWhatsappNumber,
+                recipient: adminNotificationRecipient,
                 order,
                 message,
                 details: {

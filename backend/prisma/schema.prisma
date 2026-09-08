@@ -952,20 +952,29 @@ model WhatsAppChat {
 }
 
 model WhatsAppMessage {
-  id            String       @id @default(cuid())
-  messageId     String?      @unique @map("message_id")
-  direction     String
-  fromMe        Boolean      @default(false) @map("from_me")
-  text          String       @db.Text
-  mediaUrl      String?      @map("media_url") @db.Text
-  mediaType     String?      @map("media_type")
-  mediaMimeType String?      @map("media_mime_type")
-  fileName      String?      @map("file_name")
-  status        String       @default("RECEIVED")
-  sentBy        String?      @map("sent_by")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  chat          WhatsAppChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  chatId        String       @map("chat_id")
+  id                    String       @id @default(cuid())
+  messageId             String?      @unique @map("message_id")
+  direction             String
+  fromMe                Boolean      @default(false) @map("from_me")
+  text                  String       @db.Text
+  mediaUrl              String?      @map("media_url") @db.Text
+  mediaType             String?      @map("media_type")
+  mediaMimeType         String?      @map("media_mime_type")
+  fileName              String?      @map("file_name")
+  status                String       @default("RECEIVED")
+  sentBy                String?      @map("sent_by")
+  operationId           String?      @unique @map("operation_id")
+  source                String?      @default("BAILEYS")
+  requestedIdentity     String?      @map("requested_identity")
+  requestedIdentityType String?      @map("requested_identity_type")
+  resolvedJid           String?      @map("resolved_jid")
+  resolvedIdentityType  String?      @map("resolved_identity_type")
+  errorCode             Int?         @map("error_code")
+  connectionStatus      String?      @map("connection_status")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  chat                  WhatsAppChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chatId                String       @map("chat_id")
 
   @@index([chatId, createdAt])
   @@map("whatsapp_messages")

@@ -7,6 +7,7 @@ test('declara listo el sistema cuando todos los controles operativos están comp
     staffTotal: 2, staffWithTwoFactor: 2, meliConnections: 1,
     config: { SMTP_HOST: 'smtp', SMTP_USER: 'user', SMTP_PASS: 'pass', STRIPE_SECRET_KEY: 'sk', STRIPE_WEBHOOK_SECRET: 'whsec', WHATSAPP_PROVIDER: 'cloud' },
     whatsapp: { provider: 'cloud', connected: true, webhookReady: true },
+    monitoringEnabled: true,
   });
   assert.equal(result.score, 100);
   assert.equal(result.readyCount, result.total);

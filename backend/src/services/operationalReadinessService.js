@@ -4,7 +4,7 @@ import { getStatus as getWhatsAppStatus } from './whatsappService.js';
 
 const present = (value) => Boolean(String(value || '').trim());
 
-export const calculateReadiness = ({ staffTotal, staffWithTwoFactor, meliConnections, config, whatsapp }) => {
+export const calculateReadiness = ({ staffTotal, staffWithTwoFactor, meliConnections, config, whatsapp, monitoringEnabled = present(process.env.SENTRY_DSN) }) => {
   const provider = String(whatsapp?.provider || config.WHATSAPP_PROVIDER || 'disabled').toLowerCase();
   const whatsappReady = provider === 'cloud'
     ? Boolean(whatsapp?.connected && whatsapp?.webhookReady)
@@ -53,6 +53,13 @@ export const calculateReadiness = ({ staffTotal, staffWithTwoFactor, meliConnect
     {
       id: 'health', label: 'Salud y despliegue', ready: true,
       detail: 'Sondas independientes para web, API y base de datos', action: '/admin/security',
+    },
+    {
+      id: 'monitoring', label: 'Monitoreo de errores', ready: monitoringEnabled,
+      detail: monitoringEnabled
+        ? 'Sentry activo con datos personales deshabilitados'
+        : 'Agrega SENTRY_DSN para recibir errores de producción',
+      action: '/admin/settings/system',
     },
   ];
   const readyCount = checks.filter((check) => check.ready).length;

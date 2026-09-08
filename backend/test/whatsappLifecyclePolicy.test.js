@@ -33,6 +33,11 @@ test('pauses immediately for WhatsApp rate-limit code 463', () => {
     assert.equal(isTransientWhatsAppDisconnect(disconnect), false);
 });
 
+test('treats 428 as protected to prevent QR/reconnect loops', () => {
+    assert.equal(isProtectedWhatsAppDisconnect({ statusCode: 428 }), true);
+    assert.equal(isTransientWhatsAppDisconnect({ statusCode: 428 }), false);
+});
+
 test('does not downgrade a protected code because of a generic message', () => {
     const disconnect = {
         statusCode: 401,

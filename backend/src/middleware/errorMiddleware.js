@@ -1,5 +1,6 @@
 import { AppError } from '../utils/errorUtils.js';
 import { Prisma } from '@prisma/client';
+import { captureServerException } from '../services/monitoringService.js';
 
 // Middleware para manejar rutas no encontradas (404)
 const notFound = (req, res, next) => {
@@ -46,6 +47,8 @@ const errorHandler = (err, req, res, next) => {
         break;
     }
   }
+
+  captureServerException(err, { request: req, statusCode });
 
   res.status(statusCode).json({
     status: status,
