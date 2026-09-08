@@ -369,7 +369,9 @@ const createProduct = asyncHandler(async (req, res, next) => {
         supplierLeadTimeMinutes: Math.max(parseInt(supplierLeadTimeMinutes, 10) || 60, 0),
         youtubeUrl,
         shippingPayer: shippingPayer || 'CUSTOMER',
-        shippingCostEstimate: parseOptionalFloat(shippingCostEstimate),
+        shippingCostEstimate: canViewCosts(req.user)
+          ? parseOptionalFloat(shippingCostEstimate)
+          : null,
         weightKg: parseOptionalFloat(weightKg),
         lengthCm: parseOptionalFloat(lengthCm),
         widthCm: parseOptionalFloat(widthCm),
@@ -626,7 +628,9 @@ const updateProduct = asyncHandler(async (req, res, next) => {
             : {}),
           youtubeUrl,
           shippingPayer: shippingPayer || product.shippingPayer,
-          shippingCostEstimate: parseOptionalFloat(shippingCostEstimate),
+          ...(canViewCosts(req.user) && shippingCostEstimate !== undefined
+            ? { shippingCostEstimate: parseOptionalFloat(shippingCostEstimate) }
+            : {}),
           weightKg: parseOptionalFloat(weightKg),
           lengthCm: parseOptionalFloat(lengthCm),
           widthCm: parseOptionalFloat(widthCm),

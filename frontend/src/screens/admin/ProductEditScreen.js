@@ -731,7 +731,9 @@ const ProductEditScreen = () => {
       supplierLeadTimeMinutes: form.productType === 'SUPPLIER_ON_DEMAND'
         ? Number(form.supplierLeadTimeMinutes || 60)
         : 60,
-      shippingCostEstimate: form.shippingCostEstimate === '' ? undefined : Number(form.shippingCostEstimate),
+      ...(showCosts ? {
+        shippingCostEstimate: form.shippingCostEstimate === '' ? undefined : Number(form.shippingCostEstimate),
+      } : {}),
       weightKg: form.weightKg === '' ? undefined : Number(form.weightKg),
       lengthCm: form.lengthCm === '' ? undefined : Number(form.lengthCm),
       widthCm: form.widthCm === '' ? undefined : Number(form.widthCm),
@@ -904,10 +906,10 @@ const ProductEditScreen = () => {
                 <option value="MARKETPLACE">Lo maneja marketplace</option>
               </select>
             </div>
-            <div className={styles.field}>
+            {showCosts && <div className={styles.field}>
               <label className={styles.label} htmlFor="shipping-cost">Envio estimado</label>
               <input id="shipping-cost" className={styles.input} type="number" step="0.01" min="0" value={form.shippingCostEstimate} onChange={(event) => updateField('shippingCostEstimate', event.target.value)} placeholder="Ej. 99" />
-            </div>
+            </div>}
             <div className={styles.field}>
               <label className={styles.label} htmlFor="weight">Peso kg</label>
               <input id="weight" className={styles.input} type="number" step="0.01" min="0" value={form.weightKg} onChange={(event) => updateField('weightKg', event.target.value)} placeholder="0.25" />

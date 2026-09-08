@@ -48,6 +48,7 @@ import { encryptStoredIntegrationTokens } from './services/tokenEncryptionServic
 import { configureRealtime } from './services/realtimeService.js';
 import { notifyRealtimeMutations } from './middleware/realtimeMiddleware.js';
 import { startSlaMonitor, stopSlaMonitor } from './services/serviceQualityService.js';
+import { enforceFinancialPrivacy } from './middleware/financialPrivacyMiddleware.js';
 
 const app = express();
 const server = http.createServer(app); // Crear servidor HTTP para Express
@@ -110,6 +111,7 @@ app.use(express.json({
       },
     }));
     app.use(cookieParser());
+	app.use(enforceFinancialPrivacy);
 	app.use(auditMutations);
 	app.use(notifyRealtimeMutations);
     app.use(cors(corsOptions));

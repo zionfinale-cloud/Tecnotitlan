@@ -3,6 +3,7 @@ import prisma from '../config/prisma.js';
 import { BadRequestError, NotFoundError } from '../utils/errorUtils.js';
 import { getDefaultMarketplaceOfferStock } from '../utils/productAvailability.js';
 import { resolveMarketplacePrice } from '../services/channelPricingService.js';
+import { canViewFinancialData } from '../middleware/financialPrivacyMiddleware.js';
 
 const VALID_CHANNELS = ['WEB', 'MERCADOLIBRE', 'TIKTOK_SHOP', 'AMAZON'];
 const VALID_LISTING_STATUSES = ['DRAFT', 'READY', 'ACTIVE', 'PAUSED', 'ERROR', 'ARCHIVED'];
@@ -123,6 +124,11 @@ const upsertMarketplaceListing = asyncHandler(async (req, res, next) => {
       throw new NotFoundError('Producto no encontrado.');
     }
 
+    const canConfigureFinancials = canViewFinancialData(req.user);
+    const currentListing = await prisma.marketplaceListing.findUnique({
+      where: { productId_channel: { productId, channel } },
+    });
+
     const parsedStockBuffer = Number(stockBuffer || 0);
     const parsedPublishedStock =
       publishedStock === undefined || publishedStock === ''
@@ -138,12 +144,20 @@ const upsertMarketplaceListing = asyncHandler(async (req, res, next) => {
     }
 
     const parsedCommissionRate =
-      parseOptionalNumber(commissionRate) ?? (channel === 'MERCADOLIBRE' ? 0.17 : 0);
-    const parsedFixedFee = parseOptionalNumber(fixedFee) ?? 0;
+      (canConfigureFinancials ? parseOptionalNumber(commissionRate) : null) ??
+      currentListing?.commissionRate ??
+      (channel === 'MERCADOLIBRE' ? 0.17 : 0);
+    const parsedFixedFee =
+      (canConfigureFinancials ? parseOptionalNumber(fixedFee) : null) ??
+      currentListing?.fixedFee ??
+      0;
     const parsedShippingCost =
-      parseOptionalNumber(shippingCostEstimate) ??
+      (canConfigureFinancials ? parseOptionalNumber(shippingCostEstimate) : null) ??
+      currentListing?.shippingCostEstimate ??
       Number(product.shippingCostEstimate || 0);
-    const automaticPrice = parseOptionalBoolean(autoPrice, true);
+    const automaticPrice = canConfigureFinancials
+      ? parseOptionalBoolean(autoPrice, currentListing?.autoPrice ?? true)
+      : false;
     const pricing = resolveMarketplacePrice({
       product,
       listing: {
@@ -247,17 +261,19 @@ const updateMarketplaceListing = asyncHandler(async (req, res, next) => {
       throw new NotFoundError('Publicacion no encontrada.');
     }
 
+    const canConfigureFinancials = canViewFinancialData(req.user);
+
     const mergedListing = {
       ...current,
       ...(price !== undefined ? { price: parseOptionalNumber(price) } : {}),
-      ...(commissionRate !== undefined
+      ...(canConfigureFinancials && commissionRate !== undefined
         ? { commissionRate: parseOptionalNumber(commissionRate) }
         : {}),
-      ...(fixedFee !== undefined ? { fixedFee: parseOptionalNumber(fixedFee) ?? 0 } : {}),
-      ...(autoPrice !== undefined
+      ...(canConfigureFinancials && fixedFee !== undefined ? { fixedFee: parseOptionalNumber(fixedFee) ?? 0 } : {}),
+      ...(canConfigureFinancials && autoPrice !== undefined
         ? { autoPrice: parseOptionalBoolean(autoPrice, current.autoPrice) }
-        : {}),
-      ...(shippingCostEstimate !== undefined
+        : { autoPrice: false }),
+      ...(canConfigureFinancials && shippingCostEstimate !== undefined
         ? { shippingCostEstimate: parseOptionalNumber(shippingCostEstimate) }
         : {}),
     };
@@ -273,12 +289,12 @@ const updateMarketplaceListing = asyncHandler(async (req, res, next) => {
       price: pricing.price,
       ...(publishedStock !== undefined ? { publishedStock: Number(publishedStock) } : {}),
       ...(stockBuffer !== undefined ? { stockBuffer: Number(stockBuffer) } : {}),
-      ...(commissionRate !== undefined ? { commissionRate: parseOptionalNumber(commissionRate) } : {}),
-      ...(fixedFee !== undefined ? { fixedFee: parseOptionalNumber(fixedFee) ?? 0 } : {}),
-      ...(autoPrice !== undefined
+      ...(canConfigureFinancials && commissionRate !== undefined ? { commissionRate: parseOptionalNumber(commissionRate) } : {}),
+      ...(canConfigureFinancials && fixedFee !== undefined ? { fixedFee: parseOptionalNumber(fixedFee) ?? 0 } : {}),
+      ...(canConfigureFinancials && autoPrice !== undefined
         ? { autoPrice: parseOptionalBoolean(autoPrice, current.autoPrice) }
-        : {}),
-      ...(shippingCostEstimate !== undefined ? { shippingCostEstimate: parseOptionalNumber(shippingCostEstimate) } : {}),
+        : { autoPrice: false }),
+      ...(canConfigureFinancials && shippingCostEstimate !== undefined ? { shippingCostEstimate: parseOptionalNumber(shippingCostEstimate) } : {}),
       ...(status !== undefined ? { status } : {}),
       ...(syncStatus !== undefined ? { syncStatus } : {}),
       ...(notes !== undefined ? { notes } : {}),

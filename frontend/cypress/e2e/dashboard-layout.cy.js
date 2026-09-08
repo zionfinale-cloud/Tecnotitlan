@@ -55,4 +55,18 @@ describe('Dashboard administrativo adaptable', () => {
     cy.contains('button', 'Asignar caso').should('be.visible');
     expectNoHorizontalPageOverflow();
   });
+
+  it('oculta costos, comisiones y exposición financiera a vendedores sin permiso', () => {
+    cy.intercept('GET', '**/api/users/session', {
+      status: 'success',
+      data: { id: 'seller-1', name: 'Ventas', email: 'ventas@tecnotitlan.com.mx', role: 'VENDEDOR', permissions: ['access:admin_panel', 'order:read', 'support:read'], twoFactorEnabled: true },
+    });
+    cy.visit('/admin/dashboard');
+    cy.contains('Seguimiento operativo').should('be.visible');
+    cy.contains('Costo de inventario en riesgo').should('not.exist');
+    cy.contains('Comisión pendiente de abono').should('not.exist');
+    cy.contains('Exposición máxima estimada').should('not.exist');
+    cy.contains('$1,070.75').should('not.exist');
+    expectNoHorizontalPageOverflow();
+  });
 });

@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import api from '../../services/apiService';
 import { getAvailabilityText, getItemAvailableStock } from '../../utils/productAvailability';
 import styles from './ProductListScreen.module.css';
 import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
+import { AuthContext } from '../../context/AuthContext';
+import { canViewCosts } from '../../utils/permissions';
 
 const currency = new Intl.NumberFormat('es-MX', {
   style: 'currency',
@@ -24,6 +26,8 @@ const STATUS = [
 ];
 
 const ChannelsScreen = () => {
+  const { userInfo } = useContext(AuthContext);
+  const showFinancials = canViewCosts(userInfo);
   const [products, setProducts] = useState([]);
   const [listings, setListings] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -112,10 +116,12 @@ const ChannelsScreen = () => {
         price: form.price === '' ? undefined : Number(form.price),
         publishedStock: form.publishedStock === '' ? undefined : Number(form.publishedStock),
         stockBuffer: Number(form.stockBuffer || 0),
-        commissionRate: form.commissionRate === '' ? undefined : Number(form.commissionRate),
-        fixedFee: form.fixedFee === '' ? undefined : Number(form.fixedFee),
-        autoPrice: Boolean(form.autoPrice),
-        shippingCostEstimate: form.shippingCostEstimate === '' ? undefined : Number(form.shippingCostEstimate),
+        ...(showFinancials ? {
+          commissionRate: form.commissionRate === '' ? undefined : Number(form.commissionRate),
+          fixedFee: form.fixedFee === '' ? undefined : Number(form.fixedFee),
+          autoPrice: Boolean(form.autoPrice),
+          shippingCostEstimate: form.shippingCostEstimate === '' ? undefined : Number(form.shippingCostEstimate),
+        } : { autoPrice: false }),
       });
 
       setSuccess('Publicacion de canal guardada.');
@@ -240,7 +246,7 @@ const ChannelsScreen = () => {
                 ))}
               </select>
             </div>
-            <div className={styles.field}>
+            {showFinancials && <div className={styles.field}>
               <label className={styles.label} htmlFor="channel-auto-price">
                 <input
                   id="channel-auto-price"
@@ -251,7 +257,7 @@ const ChannelsScreen = () => {
                 Calcular precio automaticamente
               </label>
               <small className={styles.muted}>Incluye utilidad objetivo, comisión, cuota fija y envío absorbido.</small>
-            </div>
+            </div>}
             <div className={styles.field}>
               <label className={styles.label}>Precio por canal</label>
               <input
@@ -261,8 +267,8 @@ const ChannelsScreen = () => {
                 step="0.01"
                 value={form.price}
                 onChange={(event) => setForm({ ...form, price: event.target.value })}
-                placeholder={form.autoPrice ? 'Se calcula al guardar' : '349'}
-                disabled={form.autoPrice}
+                placeholder={showFinancials && form.autoPrice ? 'Se calcula al guardar' : '349'}
+                disabled={showFinancials && form.autoPrice}
               />
             </div>
             <div className={styles.field}>
@@ -287,7 +293,7 @@ const ChannelsScreen = () => {
                 placeholder="2"
               />
             </div>
-            <div className={styles.field}>
+            {showFinancials && <div className={styles.field}>
               <label className={styles.label}>Comision estimada (%)</label>
               <input
                 className={styles.input}
@@ -298,8 +304,8 @@ const ChannelsScreen = () => {
                 onChange={(event) => setForm({ ...form, commissionRate: event.target.value })}
                 placeholder="16"
               />
-            </div>
-            <div className={styles.field}>
+            </div>}
+            {showFinancials && <div className={styles.field}>
               <label className={styles.label}>Cuota fija por venta</label>
               <input
                 className={styles.input}
@@ -310,8 +316,8 @@ const ChannelsScreen = () => {
                 onChange={(event) => setForm({ ...form, fixedFee: event.target.value })}
                 placeholder="Ej. 20"
               />
-            </div>
-            <div className={styles.field}>
+            </div>}
+            {showFinancials && <div className={styles.field}>
               <label className={styles.label}>Envio estimado</label>
               <input
                 className={styles.input}
@@ -322,7 +328,7 @@ const ChannelsScreen = () => {
                 onChange={(event) => setForm({ ...form, shippingCostEstimate: event.target.value })}
                 placeholder="80"
               />
-            </div>
+            </div>}
             <div className={`${styles.field} ${styles.fieldFull}`}>
               <label className={styles.label}>Notas</label>
               <textarea

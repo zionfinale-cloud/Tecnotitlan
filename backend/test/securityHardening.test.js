@@ -11,6 +11,7 @@ import {
 import { generateAuthToken } from '../src/utils/authTokens.js';
 import { CLOUD_MEDIA_MAX_BYTES, getCloudMediaKind, normalizeCloudWebhook } from '../src/services/whatsappCloudService.js';
 import { canUseRouteBeforeTwoFactorEnrollment, getMyWorkAccess, requiresTwoFactorEnrollment } from '../src/utils/accessPolicies.js';
+import { canViewFinancialData, redactFinancialData } from '../src/middleware/financialPrivacyMiddleware.js';
 
 process.env.JWT_SECRET ||= 'test-security-secret-with-enough-entropy';
 
@@ -89,4 +90,22 @@ test('calcula Mi trabajo de acuerdo con permisos y responsabilidad del rol', () 
     canOrders: true, canSupport: true, canManageTeam: false,
   });
   assert.equal(getMyWorkAccess({ role: { name: 'ADMIN' }, permissions: ['support:read'] }).canManageTeam, true);
+});
+
+test('oculta costos y márgenes en cualquier respuesta para personal sin permiso financiero', () => {
+  const payload = {
+    price: 499,
+    product: { name: 'Producto', costPrice: 210 },
+    orderItems: [{ name: 'Producto', unitCost: 210, totalCost: 420 }],
+    reconciliation: { refundAmount: 499, inventoryCostAtRisk: 210, commissionAtRisk: 75, estimatedExposure: 285 },
+  };
+  assert.deepEqual(redactFinancialData(payload), {
+    price: 499,
+    product: { name: 'Producto' },
+    orderItems: [{ name: 'Producto' }],
+    reconciliation: { refundAmount: 499 },
+  });
+  assert.equal(canViewFinancialData({ role: { name: 'VENDEDOR', permissions: [] } }), false);
+  assert.equal(canViewFinancialData({ role: { name: 'VENDEDOR', permissions: [{ name: 'finance:read_costs' }] } }), true);
+  assert.equal(canViewFinancialData({ role: { name: 'SUPER_ADMIN' } }), true);
 });
