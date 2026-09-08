@@ -1,21 +1,20 @@
 # Documentación Maestra del Proyecto: Tecnotitlan
 
-> **Estado del documento (15 de junio de 2026):** Este archivo conserva contexto
-> histórico y funcional, pero contiene decisiones antiguas de Lightsail y cPanel
-> que ya no representan la arquitectura vigente. Para instalación, estructura y
-> despliegue actuales, comenzar por `README.md`.
+> **Estado del documento (8 de septiembre de 2026):** Fuente de verdad técnica vigente.
+> Describe el estado confirmado del repositorio en el commit `cced8b81`. Los datos de
+> infraestructura y secretos nunca deben copiarse aquí; se administran fuera de Git.
 
 Este documento es la guía técnica central y única fuente de verdad para el proyecto de e-commerce **Tecnotitlan**. Cubre la visión, arquitectura, guías de instalación, despliegue y hoja de ruta.
 
 ## 1. Visión General y Objetivos
 
 - **Core Business:** Plataforma de e-commerce **"marca blanca"** y personalizable, diseñada para ser replicada en diferentes nichos de mercado (ej. tecnología, ropa, etc.). El sistema permite una personalización completa del frontend (nombre, logo, colores, slogan) a través del panel de administración.
-- **Omnicanal:** Sistema centralizado que se integra con múltiples canales de venta, incluyendo redes sociales (Facebook, Instagram, TikTok Shop) y marketplaces (Mercado Libre, Amazon).
+- **Omnicanal:** La web propia y Mercado Libre son los canales operativos actuales. TikTok Shop y Amazon están previstos como fases posteriores; las redes sociales funcionan como adquisición y atención, no como inventarios independientes.
 - **Comunicación Automatizada:**
 
     - **Bot de WhatsApp:** Ruta operativa unica con **Baileys v7** y sesion cifrada en Supabase/PostgreSQL. La sesion se conserva entre redeploys usando `WHATSAPP_AUTH_STORAGE=database` y un `SESSION_SECRET` estable.
     - **Chatbot Web:** Sincronizado con el sistema para ofrecer soporte en tiempo real.
-    - **Actualizacion WhatsApp 2026-07:** Se retira el proveedor externo de WhatsApp para evitar licenciamiento, dependencias extra y reconexiones confusas. Tecnotitlan usa el flujo estable tipo VEVA: una sola vinculacion, llaves cifradas en base de datos y reconexion controlada.
+    - **WhatsApp vigente 2026-09:** Baileys `7.0.0-rc13` queda fijado, con un solo gateway, sesión cifrada, reconexión controlada y avisos internos a un grupo único.
 - **UI/UX:** Interfaz limpia, moderna y premium.
 - **Canales oficiales Tecnotitlan:** Facebook `https://www.facebook.com/profile.php?id=61591872000643`, TikTok `https://www.tiktok.com/@tecnotitlan_mx` y WhatsApp operativo `+52 348 151 0949`.
 - **Inventario operativo (2026-07-23):** La tienda debe mostrar piezas disponibles en tarjetas, detalle y carrito. Si `countInStock` es `0`, el producto se marca como agotado temporalmente y no puede avanzar al checkout. Las cancelaciones de pedidos que ya generaron salida de inventario regresan stock automaticamente si no existe evidencia real de envio (guia, paqueteria, link de rastreo o entrega registrada). Si el pedido ya tiene guia/rastreo o entrega, la cancelacion queda pendiente de confirmacion de recepcion del producto antes de regresar inventario. Los cortes descuentan las reversas `RETURN_IN` con `referenceType=ORDER_CANCEL` para no inflar ventas ni utilidad.
@@ -38,60 +37,19 @@ Este enfoque "White Label" es la clave para poder lanzar nuevas tiendas rápidam
 
 ---
 
-## 2. Bitácora de Vuelo: Continuidad del Proyecto
+## 2. Estado vigente y pila tecnológica
 
-**Última Actualización:** 13 de Febrero, 2026 (Cierre de Sesión)
+**Última actualización:** 8 de septiembre de 2026.
 
-Esta sección define la trayectoria del proyecto para asegurar que no perdamos el contexto entre sesiones de trabajo. **Fase de Estabilización en Producción.**
-
-**Dominios:**
-- `https://www.tecnotitlan.com.mx` (Frontend - ❌ ERROR DE DESPLIEGUE)
-- `https://api.tecnotitlan.com.mx` (Backend - ✅ ONLINE)
-
-### 2.1. De dónde venimos (Logros de la Sesión)
-- **Backend Optimizado:** Se configuró `deploy.sh` para inyectar `UV_THREADPOOL_SIZE=2` y manejar `SIGTERM` para evitar saturar los procesos de cPanel (límite de 100).
-- **Build Frontend Generado:** Se generó un build local exitoso con la variable `REACT_APP_RECAPTCHA_SITE_KEY` correcta.
-- **Intento de Despliegue:** Se intentó subir el build a la carpeta del dominio adicional `tecnotitlan.com.mx`.
-
-### 2.2. Dónde estamos (Bloqueo Actual)
-**No hemos logrado que el frontend cargue correctamente en producción.**
-
-*   **Síntoma:** Al subir los archivos a la carpeta del dominio, la página no carga o no refleja los cambios (posible problema de rutas o caché persistente).
-*   **Diagnóstico:** Existe confusión sobre la ruta raíz exacta del dominio adicional en cPanel (`public_html/tecnotitlan.com.mx` vs `tecnotitlan.com.mx` fuera de public_html) y cómo el servidor web está sirviendo los archivos estáticos.
-*   **Estado:** Pendiente de validar la ruta correcta con un archivo `prueba.html` y asegurar que el contenido de `build` (no la carpeta en sí) esté en la raíz correcta.
-
-### 2.3. A dónde vamos (Próximos Pasos al Retomar)
-1.  **Prueba de "Hola Mundo":** Subir un archivo HTML simple a la carpeta del dominio para confirmar la ruta raíz web real.
-2.  **Corrección de Estructura:** Mover los archivos del build al nivel correcto si quedaron anidados.
-3.  **Verificación de Registro:** Una vez visible el frontend, probar el flujo de registro con el Captcha ya configurado.
-
-## 2.4. Pila Tecnológica
-
-- **Backend:** Node.js, Express.js
-- **Base de Datos:** PostgreSQL con **Prisma** (ORM moderno y type-safe)
-- **Frontend:** React.js (Create React App)
-- **Autenticación:** JSON Web Tokens (JWT). Sesiones de Express para flujos OAuth 2.0 con **PKCE** (Proof Key for Code Exchange) para integraciones como Mercado Libre.
-- **Estilos:** **CSS Modules** y CSS plano. Se utilizan variables CSS globales para el theming. `react-bootstrap` se usa para componentes estructurales como `Container` y `Grid`, pero los estilos finos son personalizados.
-- **Peticiones API:** Axios
-- **Pruebas (Backend):** Jest, Supertest.
-- **Pruebas (Frontend):** React Testing Library, Jest
-- **Automatización:** n8n (self-hosted en cPanel).
-- **Contenerización:** Docker (Suspendido temporalmente). Todo el desarrollo se realiza directamente en producción (cPanel) con Node.js nativo.
-
----
-> **⚠️ NOTA DE ARQUITECTURA (ACTUALIZACIÓN CRÍTICA):**
-> 
-> El frontend del proyecto ha sido completamente reconstruido. El backend actual es una herencia de un proyecto anterior y debe ser considerado únicamente como una **referencia conceptual**.
-> 
-> **No se realizará ninguna migración de código.** El backend se desarrollará desde cero siguiendo las especificaciones de este documento.
-> 
-> Esto incluye la base de datos. El `schema.prisma` existente servirá como referencia, pero la base de datos en Supabase se construirá desde cero con nuevas migraciones (`npx prisma migrate dev`). No se migrará ningún dato del entorno anterior.
-> 
-> Quedan **completamente descartados** para este proyecto:
-> - **Mongoose y MongoDB:** La única tecnología de base de datos aprobada es **PostgreSQL con Prisma**, gestionada a través de Supabase.
-> - **Tailwind CSS:** El frontend utilizará exclusivamente **CSS Modules** y CSS plano para los estilos.
-
----
+- **Repositorio:** rama `main`; último cierre documentado `cced8b81`.
+- **Producción:** frontend y API se despliegan como contenedores separados en el VPS mediante `compose.vps.yml`. Toda migración Prisma se ejecuta antes de levantar la API actualizada.
+- **Base de datos:** PostgreSQL/Supabase; pooler para tráfico y `DIRECT_URL` para migraciones.
+- **Backend:** Node.js 22, Express, Prisma 5 y Socket.IO.
+- **Frontend:** React 18, Vite 8, CSS Modules y Nginx.
+- **Pruebas:** `node:test` y Cypress. El cierre de 2026-09-08 aprobó 111 pruebas de backend y el build Vite.
+- **Pagos:** Stripe está integrado. Transferencia/SPEI, Mercado Libre y WhatsApp son flujos manuales controlados. PayPal se conserva para una fase posterior y no debe presentarse como activo.
+- **WhatsApp:** Baileys `7.0.0-rc13` fijado, sesión cifrada en PostgreSQL y un solo grupo administrativo. Cloud API no es la ruta operativa actual.
+- **Monitoreo:** Sentry está integrado sin PII y se activa únicamente al configurar los DSN.
 
 ## 3. Arquitectura y Decisiones Clave
 - **Estructura PERN (PostgreSQL, Express, React, Node):** Se adopta una pila PERN para aprovechar la robustez de las bases de datos relacionales y el ecosistema moderno de Prisma.
@@ -107,22 +65,22 @@ Esta sección define la trayectoria del proyecto para asegurar que no perdamos e
 - **UI administrativa separada:** `Inversiones` debe vivir como apartado propio del sidebar para registrar y consultar capital disponible/gastado. `Inventario` no administra capital; solo registra entradas de mercancia, muestra existencias por canal, movimientos y cortes de ventas.
 - **Distribucion de stock por canal:** Las entradas de mercancia aumentan primero el stock de bodega/web del producto. Si se apartan o envian piezas a Mercado Libre, TikTok Shop o Amazon, se registra un traspaso desde Inventario: baja el stock de bodega/web y aumenta el stock publicado/asignado del canal. `Canales` configura precio, IDs externos y datos de publicacion; no debe ser el lugar principal para mover mercancia fisica.
 - **API Centralizada (`apiService.js`):** Un único punto de entrada para todas las peticiones del frontend, utilizando interceptores de Axios para:
-    - Adjuntar automáticamente tokens de autenticación.
+    - Enviar la cookie de sesión HttpOnly sin exponer el JWT a JavaScript.
     - Estandarizar el manejo de respuestas y errores.
     - Gestionar la expiración de sesión de forma global.
 - **Autorización RBAC Flexible:** El acceso a rutas protegidas (ej. el panel de admin) se controla mediante permisos (`access:admin_panel`) en lugar de roles fijos. El rol base define permisos heredados, pero cada usuario puede tener excepciones individuales: permisos permitidos extra (`UserPermissionGrant`) y permisos bloqueados (`UserPermissionDeny`). Esto permite que un vendedor especifico pueda tener mas acceso que otro sin crear roles duplicados, y permite ocultar costos, inversiones o configuraciones sensibles a quien no deba verlas.
 - **Estilos con CSS Modules:** Se adoptó un enfoque de estilos encapsulados por componente para evitar conflictos de clases y mejorar la mantenibilidad. Las variables CSS globales (`:root` en `index.css`) permiten una personalización centralizada del tema.
-- **Hooks Personalizados (`use...`):** La lógica de estado y las llamadas a API se abstraen en hooks reutilizables (`useFormValidation`, `useProductFilters`, `useCategoryManager`, `useProductForm`), centralizando la lógica compleja y haciendo los componentes más limpios y declarativos.
+- **Estado reutilizable:** Contextos de autenticación, configuración, carrito, notificaciones, carga y tiempo real centralizan el estado compartido. `useProductFilters` encapsula los filtros del catálogo.
 - **Lógica de Precios Segura:** El cálculo de precios y totales se realiza exclusivamente en el backend (`orderController.js`) para prevenir manipulaciones desde el cliente.
 - **Transacciones Atómicas en la Base de Datos:** Se utilizan las **transacciones interactivas de Prisma** (`$transaction`) para garantizar que operaciones complejas (como crear un pedido y descontar stock) se completen con éxito o fallen juntas, manteniendo la consistencia de los datos.
-- **Componentes Modulares y Reutilizables:** Se ha adoptado un enfoque de componentización para la UI. La lógica de la interfaz se divide en componentes pequeños y enfocados, como `ProductGrid.js` (para mostrar productos en una cuadrícula) y `SmartwatchShowcase.js` (una sección destacada configurable), lo que mejora la legibilidad y facilita la reutilización de código.
+- **Componentes modulares:** Layouts, rutas protegidas, búsqueda, calificación, carga, navegación y paneles se mantienen separados de las reglas de negocio y reutilizan contextos compartidos.
 - **Estrategia de Conexión a Base de Datos (Supabase):** Se utiliza una configuración dual para optimizar la conexión con Supabase en entornos Serverless/Docker:
     - **Transaction Pooler (Puerto 6543):** Utilizado por la aplicación en producción (`DATABASE_URL`) para gestionar eficientemente las conexiones y evitar el agotamiento de límites. Requiere el parámetro `?pgbouncer=true`.
     - **Conexión Directa (Puerto 5432):** Utilizada exclusivamente para migraciones de esquema (`DIRECT_URL`), ya que Prisma necesita control total sobre la conexión para cambios estructurales.
 - **Estrategia de Subida de Archivos Flexible:** El sistema de subida de imágenes (`uploadController.js`) es dinámico y configurable mediante una variable de entorno (`UPLOAD_STRATEGY`), permitiendo cambiar entre almacenamiento local y Cloudinary sin modificar el código.
 - **Estandarización de Respuestas API:** Todas las respuestas del backend siguen un formato consistente (`{ status: 'success', data: {...} }` o `{ status: 'error', message: '...' }`), lo que simplifica la lógica del frontend.
 - **Seguridad del Backend:** Se implementan medidas de seguridad estándar como `helmet` para cabeceras HTTP, `cors` para control de origen y `express-rate-limit` para prevenir ataques de fuerza bruta en endpoints de autenticación.
-- **Sistema de Configuración Dinámica:** La aplicación carga su configuración (claves de API, nombres, etc.) desde la base de datos al arrancar (`configService.js`). Esto permite a los administradores modificar el comportamiento y las integraciones (PayPal, Meli, WhatsApp) a través del panel de administración (`/admin/settings/*`) sin necesidad de redesplegar el código.
+- **Sistema de Configuración Dinámica:** La aplicación carga su configuración (claves de API, nombres, etc.) desde la base de datos al arrancar (`configService.js`). Esto permite a los administradores modificar el comportamiento y las integraciones (Stripe, Mercado Libre y WhatsApp) a través del panel de administración (`/admin/settings/*`) sin necesidad de redesplegar el código.
 - **Archivado Lógico (Soft Delete):** Los productos no se eliminan directamente, sino que se marcan como archivados (`isArchived: true`). Esto permite restaurarlos en el futuro y mantiene la integridad de los datos en pedidos antiguos. Existe una opción para la eliminación permanente.
     - **Generación Automática de SKU:** Para evitar errores manuales y estandarizar el catálogo, los SKUs se generan en el backend (`productController.js`) al momento de la creación usando el prefijo elegido en el formulario (`AUR`, `BOC`, `DRN`, etc.) y un consecutivo de tres digitos (`AUR-001`). Si se elige `Auto por categoria`, el sistema infiere el prefijo desde la categoria. Si hace falta una linea nueva, el admin puede crear el prefijo desde el mismo selector.
 - **Layout de Administración Centralizado (`AdminLayout.js`):** Toda la estructura del panel de administración (barra lateral, submenús) se gestiona en un único componente, facilitando la adición de nuevas secciones.
@@ -166,9 +124,9 @@ A continuación se detalla el estado de cada módulo del backend.
     - ✅ **Endpoints de Reportes:** Generación de datos para ventas, ganancias y productos más vendidos.
 
 - **Integraciones**
-    - ✅ **Pasarelas de Pago:** Lógica para procesar pagos con Stripe y PayPal.
-    - ✅ **Notificaciones:** Conexión con WhatsApp para notificar sobre nuevos pedidos.
-    - 🔄 **Marketplaces:** Lógica de sincronización con Mercado Libre y Amazon.
+    - ✅ **Pasarelas de Pago:** Stripe activo; PayPal queda diferido y no forma parte del checkout vigente.
+    - ✅ **Notificaciones:** Gateway Baileys central para atención, adjuntos y notificaciones transaccionales.
+    - 🔄 **Marketplaces:** Mercado Libre operativo; TikTok Shop y Amazon permanecen como fases posteriores.
 
 - **Configuración del Sistema**
     - ✅ **Modelos:** `Setting` para almacenar configuraciones dinámicas.
@@ -178,16 +136,16 @@ A continuación se detalla el estado de cada módulo del backend.
 ### 4.2. Frontend (Funcional y Refactorizado)
 
 - **UI/UX (Experiencia de Usuario):**
-    - **Navegación de Catálogo:** La página de inicio (`HomeScreen.js`) ha sido enriquecida con un carrusel de productos top y una sección de productos destacados (`SmartwatchShowcase.js`). El buscador (`SearchBox.js`) ahora es automático (con debounce) y cuenta con una interfaz más limpia para una experiencia de búsqueda fluida.
+    - **Navegación de Catálogo:** `HomeScreen.js` presenta el catálogo y `SearchBox.js` ofrece búsqueda con debounce. Disponibilidad y agotados se validan también en backend.
     - **Detalle de Producto:** Página rediseñada con galería de imágenes interactiva (zoom/lightbox) y layout profesional.
     - **Feedback Visual:** Notificaciones "toast", animaciones en el carrito y estados de carga claros en toda la aplicación.    
-    - **Componentes:** `Rating`, `Notification`, `Carousel`, `OrderTable` y otros han sido optimizados y estilizados con CSS Modules para encajar en el nuevo diseño "Dark Tecnotitlán".
+    - **Componentes:** Los elementos compartidos de catálogo, calificación, navegación, alertas y carga usan CSS Modules y estilos globales controlados.
 - **Lógica de Cliente:**
     - **Autenticación:** `AuthContext` gestiona el estado del usuario en toda la app.
     - **Carrito de Compras:** `CartContext` maneja la lógica del carrito de forma robusta.
-    - **Manejo de Sesión Global:** El interceptor de `apiService.js` detecta automáticamente los errores `401` (sesión expirada). Al ocurrir uno, limpia el `localStorage` y redirige forzosamente al usuario a la página de login, garantizando una limpieza de estado completa y segura.
-    - **Checkout:** Flujo completo desde la dirección de envío hasta la selección del método de pago (PayPal, Stripe) y la creación del pedido.
-- **Perfil de Usuario:** Los usuarios pueden ver y actualizar su información y consultar su historial de pedidos. Todos los formularios (Login, Registro, Perfil, Envío) han sido refactorizados para usar el hook central `useFormValidation`.
+    - **Manejo de Sesión Global:** El interceptor de `apiService.js` detecta automáticamente los errores `401` (sesión expirada). Al ocurrir uno, limpia el estado y redirige al login. El JWT se entrega mediante cookie HttpOnly y no se conserva en `localStorage`.
+    - **Checkout:** Flujo completo desde dirección y envío hasta Stripe o un método manual controlado; PayPal queda diferido.
+- **Perfil de Usuario:** Los usuarios pueden actualizar sus datos, domicilios, contraseña y 2FA, además de consultar pedidos y seguimiento.
 - **Panel de Administración:**
     - **Layout:** `AdminLayout.js` y `SubMenu.js` controlan la navegación y la estructura del panel.
     - **CRUD de Productos:** Formularios para crear y editar productos, con subida de imágenes, gestión de stock, características dinámicas y vinculación con Mercado Libre.
@@ -196,590 +154,81 @@ A continuación se detalla el estado de cada módulo del backend.
     - **Gestión de Usuarios:** Interfaz para listar, editar (nombre, email, rol) y eliminar usuarios.
     - **Gestión de Roles y Permisos:** Interfaz para crear, editar y eliminar roles, asignando permisos específicos.
     - **Reportes:** Pantallas dedicadas para visualizar reportes de ventas, ganancias y productos más vendidos.
-    - **Configuración:** Se han añadido pantallas dedicadas para gestionar la apariencia (`PageSettingsScreen.js`), integraciones (`MercadoLibreSettingsScreen.js`, `PaypalSettingsScreen.js`) y notificaciones (`NotificationSettingsScreen.js`).
+    - **Configuración:** Existen pantallas para tienda, sistema, Mercado Libre, WhatsApp, seguridad, usuarios, roles y preferencias operativas.
 
 ---
 
-## 5. Estructura de Archivos del Proyecto
+## 5. Estructura actual del proyecto
 
-El proyecto está organizado en un monorepo con dos componentes principales: `backend` y `frontend`.
-
-tecnotitlan/ ├── .github/workflows/ # Workflows de CI/CD con GitHub Actions │ └── backend-ci.yml ├── backend/ │ ├── prisma/ # Directorio de Prisma │ │ ├── schema.prisma # Definición de modelos y conexión a la BD │ │ └── migrations/ # Migraciones de la base de datos generadas │ └── src/ │ ├── controllers/ # Lógica de negocio (ahora usarán Prisma Client) │ ├── routes/ # Definición de endpoints de la API │ ├── services/ # Lógica de servicios (WhatsApp, etc.) │ ├── middleware/ # Middlewares de Express (auth, errores) │ ├── config/ # Configuración (cliente de Prisma) │ └── index.js # Punto de entrada del servidor Express ├── frontend/ # Aplicación React (Create React App) │ └── src/ ├── scripts/ # Scripts de utilidad (seeding con Prisma) ├── .env # Variables de entorno (local) ├── docker-compose.yml # Orquestación de servicios locales (Postgres, n8n) └── Dockerfile # Receta para construir la imagen del backend
-
----
-
-## 6. Archivos de Configuración Clave (Versión Final)
-
-A continuación se muestran las versiones finales y funcionales de los archivos de configuración más importantes del proyecto.
-
-### `d:\Tecnotitlan\Dockerfile`
-
-```dockerfile
-# --- Etapa 1: Dependencias (deps) ---
-# Esta etapa solo instala las dependencias para optimizar la caché.
-FROM node:18-slim AS deps
-
-WORKDIR /app
-
-# Copia los archivos de dependencias y el esquema de Prisma.
-COPY package*.json ./
-COPY backend/prisma ./prisma/
-
-# Instala las dependencias.
-RUN npm install --force
-
-# --- Etapa 2: Builder ---
-# Esta etapa copia el código fuente y las dependencias ya instaladas.
-FROM node:18-slim AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-
-# --- Etapa 3: Ejecución (final) ---
-# Esta es la imagen final, optimizada y ligera para producción.
-FROM node:18-slim AS final
-
-WORKDIR /app
-
-# Copia solo los artefactos necesarios del backend desde la etapa 'builder'.
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/backend ./backend
-
-EXPOSE 5000
-
-CMD [ "node", "backend/src/index.js" ]
+```text
+Tecnotitlan/
+├── backend/                 # API Express, Prisma, servicios y pruebas node:test
+│   ├── prisma/              # Esquema y migraciones versionadas
+│   └── src/                 # Controllers, routes, middleware, services y módulos
+├── frontend/                # React 18 + Vite; salida en build/
+├── docs/                    # Auditorías y decisiones técnicas
+├── ops/                     # Operación, respaldo y endurecimiento del VPS
+├── .github/workflows/       # Monitor de salud de producción
+├── compose.vps.yml          # API, web y n8n
+└── .env.vps.example         # Inventario de variables sin secretos
 ```
 
-### 2026-08-11 - Endurecimiento de WhatsApp/Baileys
+## 6. Configuración y secretos
 
-- Se confirmo que existe un solo servicio de WhatsApp y un solo arranque automatico.
-- Cada envio usa un unico destinatario validado; se retiro el fallback mexicano `521` y los intentos sobre multiples JID.
-- Un envio fallido ya no cierra, reconecta ni reenvia dentro de la misma operacion.
-- El codigo `463` se considera sensible: pausa la integracion para proteger el numero y exige revision manual.
-- Los chats `@lid` se conservan y los numeros normales se resuelven una sola vez mediante Baileys.
+- Usar `.env.vps.example` como inventario; nunca guardar credenciales reales en Git.
+- `DATABASE_URL` usa el pooler y `DIRECT_URL` se reserva para migraciones.
+- `JWT_SECRET`, `SESSION_SECRET` y `TOKEN_ENCRYPTION_KEY` deben ser largos, estables y distintos. Rotarlos exige migración.
+- WhatsApp vigente: `WHATSAPP_PROVIDER=baileys`, `WHATSAPP_AUTH_STORAGE=database` y `WHATSAPP_ADMIN_GROUP_JID`.
+- `SENTRY_DSN` y `REACT_APP_SENTRY_DSN` activan monitoreo. Ningún secreto del backend se expone en `env.js`.
+- La tabla `settings` puede ganar sobre el entorno después de `initializeConfig()`; revisar valores antiguos ante discrepancias.
 
-## Media Por SKU Y Ficha De Producto (2026-07-29)
+## 7. Desarrollo y verificación
 
-- Los archivos se cargan primero de forma temporal y, al guardar el producto, se organizan con su SKU definitivo en `/app/uploads/<PREFIJO>/<SKU>/`.
-- El nombre de cada imagen usa un indice incremental (`<SKU>-01`, `<SKU>-02`, etc.). Reordenar la galeria conserva las rutas actuales; nuevas cargas se agregan sin sobrescribir archivos existentes.
-- La API publica los archivos desde `/uploads` y en produccion debe conservar el volumen persistente montado en `/app/uploads`.
-- La ficha publica separa galeria, compra, descripcion y especificaciones. Las etiquetas internas de Tecatl no se muestran al cliente.
-- El video del producto se reproduce integrado en la galeria cuando la fuente permite embeberse (YouTube, TikTok o archivo de video directo).
-
-### `d:\Tecnotitlan\docker-compose.yml`
-
-```yaml
-services:
-  backend: # Nombre del servicio
-    build:
-      context: . # El contexto es la raíz del proyecto, donde está este archivo.
-      dockerfile: Dockerfile # El Dockerfile que usará está en la misma raíz.
-    container_name: tecnotitlan_backend
-    ports: # Mapeo de puertos
-      - "5000:5000" # Expone el puerto 5000 del contenedor al puerto 5000 del host
-    env_file: # Archivo de variables de entorno
-      - ./.env # Carga las variables desde el archivo .env en la raíz.
-    restart: always # Reinicia el contenedor si falla
-    networks: # Conecta el servicio a la red compartida
-      - tecnotitlan-net
-
-  n8n:
-    image: n8nio/n8n:latest # Usamos la última imagen estable de n8n
-    container_name: tecnotitlan_n8n
-    restart: always
-    ports:
-      - "5678:5678"
-    env_file:
-      - ./.env # Reutilizamos el mismo archivo .env para las credenciales
-    environment:
-      - GENERIC_TIMEZONE=America/Mexico_City # Asegura la zona horaria correcta
-    volumes:
-      - n8n_data:/home/node/.n8n # Persiste los datos y workflows de n8n
-    networks:
-      - tecnotitlan-net
-
-networks: # Define la red compartida
-  tecnotitlan-net:
-
-volumes: # Define el volumen para persistir los datos de n8n
-  n8n_data:
+```bash
+npm --prefix backend ci
+npm --prefix backend test
+npm --prefix backend run build
+npm --prefix frontend ci
+npm --prefix frontend run build
 ```
 
-### `d:\Tecnotitlan\deploy.sh`
-
-```shellscript
-#!/bin/bash
-
-# deploy.sh - Script para automatizar el despliegue de Tecnotitlan en cPanel.
-# Este script actualiza el código y reinicia la aplicación Node.js.
-
-# Salir inmediatamente si un comando falla para evitar un estado inconsistente.
-set -e
-
-echo "🚀  Iniciando el despliegue de Tecnotitlan en cPanel..."
-
-# 1. Obtener los últimos cambios desde el repositorio de Git.
-echo "  Saltando actualización de Git (Modo Desarrollo en Vivo)..."
-# git pull origin main
-
-# 2. Instalar dependencias (si hubo cambios en package.json)
-echo "📦  Instalando dependencias..."
-npm install --production
-
-# 3. Reiniciar la aplicación Node.js (Phusion Passenger)
-echo "🔄  Reiniciando servidor..."
-mkdir -p tmp
-touch tmp/restart.txt
-
-echo "✅  ¡Despliegue completado con éxito!"
-```
-
----
-
-## 7. Referencia de Rutas de Archivos
-
-Para facilitar la navegación y el análisis futuro del código, a continuación se listan las rutas de los archivos más relevantes del proyecto.
-
-### 7.1. Backend (`/backend`)
-
--   **Punto de Entrada:** `d:/Tecnotitlan/backend/src/index.js`
--   **Base de Datos (Prisma):**
--   `d:/Tecnotitlan/backend/prisma/schema.prisma`: Definición de todos los modelos de datos.
--   `d:/Tecnotitlan/backend/prisma/seed.js`: Script para poblar la base de datos inicial.
--   **Controladores:**
--   `d:/Tecnotitlan/backend/src/controllers/userController.js`
--   `d:/Tecnotitlan/backend/src/controllers/productController.js`
--   `d:/Tecnotitlan/backend/src/controllers/orderController.js`
--   `d:/Tecnotitlan/backend/src/controllers/categoryController.js`
--   `d:/Tecnotitlan/backend/src/controllers/reportController.js`
--   `d:/Tecnotitlan/backend/src/controllers/settingController.js`
--   `d:/Tecnotitlan/backend/src/controllers/mercadoLibreController.js`
--   `d:/Tecnotitlan/backend/src/controllers/roleController.js`
--   **Rutas (Endpoints):**
--   `d:/Tecnotitlan/backend/src/routes/userRoutes.js`
--   `d:/Tecnotitlan/backend/src/routes/productRoutes.js`
--   `d:/Tecnotitlan/backend/src/routes/orderRoutes.js`
--   `d:/Tecnotitlan/backend/src/routes/categoryRoutes.js`
--   `d:/Tecnotitlan/backend/src/routes/reportRoutes.js`
--   `d:/Tecnotitlan/backend/src/routes/settingRoutes.js`
--   `d:/Tecnotitlan/backend/src/routes/mercadoLibreRoutes.js`
--   `d:/Tecnotitlan/backend/src/routes/uploadRoutes.js`
--   `d:/Tecnotitlan/backend/src/routes/roleRoutes.js`
--   `d:/Tecnotitlan/backend/src/routes/whatsappRoutes.js`
--   **Middlewares:**
--   `d:/Tecnotitlan/backend/src/middleware/authMiddleware.js`
--   `d:/Tecnotitlan/backend/src/middleware/permissionMiddleware.js`
--   `d:/Tecnotitlan/backend/src/middleware/validationMiddleware.js`
--   `d:/Tecnotitlan/backend/src/middleware/errorMiddleware.js`
--   **Servicios:**
--   `d:/Tecnotitlan/backend/src/services/whatsappService.js`
--   `d:/Tecnotitlan/backend/src/services/configService.js`
--   `d:/Tecnotitlan/backend/src/services/mercadoLibreService.js`
--   `d:/Tecnotitlan/backend/src/services/emailService.js`
--   `d:/Tecnotitlan/backend/src/services/captchaService.js`
-
-### 7.2. Frontend (`/frontend`)
-
--   **Punto de Entrada y Configuración:**
--   `d:/Tecnotitlan/frontend/src/index.js`: Renderiza la aplicación React.
--   `d:/Tecnotitlan/frontend/src/App.js`: Componente raíz con el enrutador principal.
--   **Servicios:**
--   `d:/Tecnotitlan/frontend/src/services/apiService.js`: Cliente Axios centralizado con interceptores.
--   **Contexto (Estado Global):**
--   `d:/Tecnotitlan/frontend/src/context/AuthContext.js`: Estado de autenticación del usuario.
--   `d:/Tecnotitlan/frontend/src/context/CartContext.js`
--   `d:/Tecnotitlan/frontend/src/context/SettingsContext.js`
--   `d:/Tecnotitlan/frontend/src/context/LoadingContext.js`
--   `d:/Tecnotitlan/frontend/src/context/NotificationContext.js`
--   `d:/Tecnotitlan/frontend/src/context/ToastContext.js`
--   **Hooks Personalizados (`/frontend/src/hooks`):**
--   `d:/Tecnotitlan/frontend/src/hooks/useFormValidation.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useProductFilters.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useCategoryManager.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useProductForm.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useDashboardStats.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useApi.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useConfirmation.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useLocalStorage.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useOrderFilters.js`
--   `d:/Tecnotitlan/frontend/src/hooks/usePageTitle.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useProductDetail.js`
--   `d:/Tecnotitlan/frontend/src/hooks/useReports.js`
--   **Componentes Reutilizables (`/frontend/src/components`):**
--   `d:/Tecnotitlan/frontend/src/components/Header.js`
--   `d:/Tecnotitlan/frontend/src/components/Footer.js`
--   `d:/Tecnotitlan/frontend/src/components/ProtectedRoute.js`
--   `d:/Tecnotitlan/frontend/src/components/HeroSection.js`
--   `d:/Tecnotitlan/frontend/src/components/LoadingSpinner.js`
--   `d:/Tecnotitlan/frontend/src/components/Notification.js`
--   `d:/Tecnotitlan/frontend/src/components/SessionManager.js`
--   `d:/Tecnotitlan/frontend/src/components/ProductGrid.js`
--   `d:/Tecnotitlan/frontend/src/components/SmartwatchShowcase.js`
--   `d:/Tecnotitlan/frontend/src/components/AddToCartNotification.js`
--   `d:/Tecnotitlan/frontend/src/components/Breadcrumb.js`
--   `d:/Tecnotitlan/frontend/src/components/CheckoutSteps.js`
--   `d:/Tecnotitlan/frontend/src/components/FilterControls.js`
--   `d:/Tecnotitlan/frontend/src/components/FormContainer.js`
--   `d:/Tecnotitlan/frontend/src/components/OrderTable.js`
--   `d:/Tecnotitlan/frontend/src/components/Product.js`
--   `d:/Tecnotitlan/frontend/src/components/ProductCardSkeleton.js`
--   `d:/Tecnotitlan/frontend/src/components/ProductTable.js`
--   `d:/Tecnotitlan/frontend/src/components/RegisterForm.js`
--   `d:/Tecnotitlan/frontend/src/components/SearchBox.js`
--   `d:/Tecnotitlan/frontend/src/components/StripeCheckoutForm.js`
--   **Páginas de Cliente y Admin (`/frontend/src/pages`):**
-    -   **Cliente (Screens):**
-        - `d:/Tecnotitlan/frontend/src/screens/LoginScreen.js`
-        - `d:/Tecnotitlan/frontend/src/screens/RegisterScreen.js`
-        - `d:/Tecnotitlan/frontend/src/screens/VerifyAccountScreen.js`
-        - `d:/Tecnotitlan/frontend/src/screens/ProfileScreen.js`
-        - `d:/Tecnotitlan/frontend/src/screens/HomeScreen.js`
-        - `d:/Tecnotitlan/frontend/src/screens/ProductDetailScreen.js`
-        - `d:/Tecnotitlan/frontend/src/screens/CartScreen.js`
-        - `d:/Tecnotitlan/frontend/src/screens/TermsOfService.js`
-        - `d:/Tecnotitlan/frontend/src/screens/PrivacyPolicy.js`
-    -   **Panel de Administración:**
--   `d:/Tecnotitlan/frontend/src/pages/admin/AdminLayout.js`: Layout principal del panel.
--   `d:/Tecnotitlan/frontend/src/pages/admin/SubMenu.js`
--   `/admin/dashboard`: `d:/Tecnotitlan/frontend/src/pages/admin/AdminDashboard.js`
--   `/admin/productlist`: `d:/Tecnotitlan/frontend/src/pages/admin/ProductListScreen.js`
--   `/admin/products/create`: `d:/Tecnotitlan/frontend/src/pages/admin/ProductCreateScreen.js`
--   `/admin/products/edit/:sku`: `d:/Tecnotitlan/frontend/src/pages/admin/ProductEditScreen.js`
--   `/admin/orderlist`: `d:/Tecnotitlan/frontend/src/pages/admin/OrderListScreen.js`
--   `/admin/categories`: `d:/Tecnotitlan/frontend/src/pages/admin/CategoryListScreen.js`
--   `/admin/userlist`: `d:/Tecnotitlan/frontend/src/screens/admin/UserListScreen.js`
--   `d:/Tecnotitlan/frontend/src/screens/admin/UserListScreen.module.css`
--   `/admin/user/:id/edit`: `d:/Tecnotitlan/frontend/src/pages/admin/UserEditScreen.js`
--   `/admin/roles`: `d:/Tecnotitlan/frontend/src/pages/admin/RoleListScreen.js` (Para listar roles)
--   `/admin/role/:id/edit`: `d:/Tecnotitlan/frontend/src/pages/admin/RoleEditScreen.js` (Para crear/editar roles)
-        -   **Reportes (Submenú):**
--   `/admin/sales`: `d:/Tecnotitlan/frontend/src/pages/admin/SalesSummaryScreen.js`
--   `/admin/profit`: `d:/Tecnotitlan/frontend/src/pages/admin/ProfitReportScreen.js`
--   `/admin/topselling`: `d:/Tecnotitlan/frontend/src/pages/admin/TopSellingProductsScreen.js`
-        -   **Configuración (Submenú):**
--   `/admin/settings/page`: `d:/Tecnotitlan/frontend/src/pages/admin/PageSettingsScreen.js`
--   `/admin/integrations/mercadolibre`: `d:/Tecnotitlan/frontend/src/pages/admin/MercadoLibreSettingsScreen.js`
--   `/admin/integrations/paypal`: `d:/Tecnotitlan/frontend/src/pages/admin/PaypalSettingsScreen.js`
--   `/admin/integrations/notifications`: `d:/Tecnotitlan/frontend/src/pages/admin/NotificationSettingsScreen.js`
--   `/admin/integrations/whatsapp`: `d:/Tecnotitlan/frontend/src/pages/admin/WhatsappSettingsScreen.js`
--   **Otras:** `d:/Tecnotitlan/frontend/src/pages/admin/InventoryScreen.js`, `d:/Tecnotitlan/frontend/src/pages/admin/TestOrderCreationScreen.js`
-### 7.3. Pruebas, CI/CD y Documentación
--   **Utilidades de Prueba:**
--   `d:/Tecnotitlan/frontend/src/test-utils/renderWithProviders.js`: Helper para renderizar componentes con sus contextos mockeados.
--   **Pruebas E2E (Cypress):**
-    - `d:/Tecnotitlan/frontend/cypress/e2e/auth/login.cy.js`: Prueba el flujo de inicio de sesión del administrador.
-    - `d:/Tecnotitlan/frontend/cypress/e2e/checkout.cy.js`: Prueba el flujo de compra completo, desde añadir un producto al carrito hasta la confirmación del pedido.
--   **CI/CD:**
-    -   `d:/Tecnotitlan/.github/workflows/backend-ci.yml`: Workflow de GitHub Actions para pruebas del backend.
--   **Raíz del Proyecto:**
--   `d:/Tecnotitlan/package.json`: Dependencias y scripts del backend.
--   `d:/Tecnotitlan/frontend/package.json`: Dependencias y scripts del frontend.
--   `d:/Tecnotitlan/.env`: Variables de entorno (local, no versionado).
--   `d:/Tecnotitlan/README.md`: Documentación general del proyecto.
--   `d:/Tecnotitlan/DOCUMENTACION_MAESTRA_TECNOTITLAN.md`: Este mismo documento.
--   `d:/Tecnotitlan/docker-compose.yml`: Orquestación de servicios locales (Postgres, n8n).
-
----
-
-## 8. Guía de Instalación y Despliegue
-
-### 8.1. Configuración de Variables de Entorno (.env)
-
-Para la estrategia de **"Desarrollo en Vivo"**, estas variables deben configurarse en el panel de cPanel ("Setup Node.js App" > Environment Variables) o en el archivo `.env` en la raíz del backend.
-
-#### Plantilla de Producción
-    ```env
-    # CONFIGURACIÓN GENERAL
-    NODE_ENV=production
-    PORT=5000
-    JWT_SECRET=tu_secreto_super_secreto_aqui
-    SESSION_SECRET=secreto_estable_para_cifrar_whatsapp_no_rotar_sin_cerrar_sesion
-    
-    # =================================
-    # BASE DE DATOS (PostgreSQL)
-    # =================================
-    # Opción 1: Usar una base de datos local con Docker (requiere configuración en docker-compose.yml)
-    # DATABASE_URL="postgresql://postgres:password@localhost:5432/tecnotitlan?schema=public"
-    # Opción 2: Usar la base de datos de Supabase (recomendado para un entorno de desarrollo consistente)
-    DATABASE_URL="postgresql://postgres.[PROJECT_ID]:[PASSWORD]@[HOST]:6543/postgres?pgbouncer=true" # URL con Pooler para la app (IMPORTANTE: ?pgbouncer=true)
-    DIRECT_URL="postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres" # URL directa para migraciones de Prisma
-    
-    # =================================
-    # SUBIDA DE ARCHIVOS ('local' o 'cloudinary')
-    # =================================
-    UPLOAD_STRATEGY=local
-    # Si usas Cloudinary, completa estas variables:
-    # CLOUDINARY_CLOUD_NAME=
-    # CLOUDINARY_API_KEY=
-    # CLOUDINARY_API_SECRET=
-    
-    # =================================
-    # PASARELAS DE PAGO
-    # =================================
-    PAYPAL_CLIENT_ID=tu_client_id_de_paypal
-    PAYPAL_FEE_RATE=0.045 # Comisión porcentual (ej. 4.5%)
-    
-    STRIPE_SECRET_KEY=tu_sk_de_stripe
-    STRIPE_FEE_RATE=0.036 # Comisión porcentual (ej. 3.6%)
-    STRIPE_FEE_FIXED=3 # Comisión fija (ej. 3 MXN)
-
-    # =================================
-    # INTEGRACIONES
-    # =================================
-    MERCADOLIBRE_APP_ID=tu_app_id_de_meli
-    MERCADOLIBRE_CLIENT_SECRET=tu_client_secret_de_meli
-    MERCADOLIBRE_REDIRECT_URI=https://api.tecnotitlan.com.mx/api/mercadolibre/callback
-    WHATSAPP_PROVIDER=baileys
-    WHATSAPP_AUTH_STORAGE=database
-    WHATSAPP_AUTO_CONNECT=true
-    CLIENT_URL_PRIMARY=https://www.tecnotitlan.com.mx # URL del Frontend (necesario para CORS)
-    RECAPTCHA_SECRET_KEY=tu_clave_secreta_de_google_recaptcha
-    ```
-
-### 8.2. Scripts Disponibles
-
-- `npm run dev`: Ejecuta backend y frontend simultáneamente.
-- `npm run server`: Inicia solo el servidor backend.
-- `npm run client`: Inicia solo la aplicación de React.
-- `npm run test:backend`: Ejecuta las pruebas del backend.
-- `npm run seed:import`: Puebla la base de datos con datos de prueba.
-- `npm run seed:destroy`: Elimina los datos de la base de datos.
-
-### 8.3. Arquitectura de Despliegue (Estrategia cPanel de Alto Rendimiento)
-
-**Actualización (Febrero 2026):** Se ha migrado la infraestructura a un entorno **cPanel de Alto Rendimiento** (6 vCPU, 6GB RAM, 100GB SSD).
-
--   **Base de Datos:** PostgreSQL (Supabase o Local en cPanel si está disponible).
--   **Backend:** Ejecutándose como aplicación Node.js nativa en cPanel.
--   **WhatsApp:** Integrado con Baileys y sesion cifrada en PostgreSQL. El backend mantiene reconexion controlada y no depende de un proveedor externo adicional.
--   **Automatización (n8n):** Ejecutándose en el mismo servidor cPanel (vía Node.js).
-
-#### 8.3.1. Guía de Despliegue en Producción (Frontend en cPanel)
-
-El frontend se despliega como un **Sitio Estático** directamente en el hosting compartido, eliminando la dependencia de servicios externos como Render.
-
-> **⚠️ ADVERTENCIA:** No intentes usar la herramienta "Setup Node.js App" de cPanel para el frontend. El proceso `npm run build` consume demasiada memoria y fallará. El frontend **no es una aplicación de Node.js**, es un conjunto de archivos estáticos que se sirven directamente.
-
-**Estrategia: Build Local -> Subida FTP/File Manager**
-
-1.  **Generar Build Local:**
-    En tu máquina de desarrollo (no en el servidor), ejecuta:
-    ```bash
-    cd frontend
-    # Asegúrate de que .env tenga las variables críticas:
-    # REACT_APP_API_URL=https://api.tecnotitlan.com.mx
-    # REACT_APP_RECAPTCHA_SITE_KEY=tu_clave_publica_de_recaptcha
-    npm install
-    npm run build
-    ```
-
-2.  **Subir Archivos:**
-    -   Se generará una carpeta `build`.
-    -   Sube **el contenido** de esa carpeta (index.html, static/, etc.) a la carpeta raíz del dominio en cPanel (en tu caso: `tecnotitlan.com.mx`).
-    -   **Importante:** Al ser un dominio adicional, NO uses `public_html` ya que ahí corren otros servicios.
-
-3.  **Configuración de Rutas (.htaccess):**
-    Para que el enrutamiento de React funcione (evitar error 404 al recargar páginas internas), crea o edita el archivo `.htaccess` en la carpeta donde subiste el frontend:
-
-    ```apache
-    <IfModule mod_rewrite.c>
-      RewriteEngine On
-      RewriteBase /
-      RewriteRule ^index\.html$ - [L]
-      RewriteCond %{REQUEST_FILENAME} !-f
-      RewriteCond %{REQUEST_FILENAME} !-d
-      RewriteCond %{REQUEST_FILENAME} !-l
-      RewriteRule . /index.html [L]
-    </IfModule>
-    ```
-
-    > **Nota:** Al ser archivos estáticos, **no es necesario reiniciar el servidor** en cPanel. Los cambios son inmediatos (si no los ves, limpia la caché de tu navegador).
-
-#### 8.3.2. Guía de Despliegue en Producción (Backend en cPanel)
-
-El backend se ejecuta utilizando la herramienta **"Setup Node.js App"** de cPanel.
-
-#### Prerrequisito: Whitelist de IP en Supabase
-Antes del primer despliegue, es **crítico** añadir la dirección IP de tu servidor cPanel a la lista de redes permitidas en Supabase para evitar errores de conexión (P1001).
-1.  Obtén la IP de tu servidor (puedes usar `curl ifconfig.me` en la terminal SSH).
-2.  En tu proyecto de Supabase, ve a `Project Settings` > `Database` > `Network Restrictions` y añade la IP.
-
-1.  **Preparación en cPanel:**
-    -   Acceder a "Setup Node.js App".
-    -   Crear una nueva aplicación.
-    -   **Node.js Version:** **18.x** (Recomendado por estabilidad con Prisma).
-    -   **Application Mode:** Production.
-    -   **Application root:** `repositories/Tecnotitlan/backend` (o la ruta donde clones el repo).
-    -   **Application URL:** `api.tecnotitlan.com.mx`.
-    -   **Application startup file:** `loader.cjs` (CRÍTICO: No usar `src/index.js` directamente).
-
-2.  **Instalación de Dependencias:**
-    -   Acceder vía SSH al servidor.
-    -   Navegar a la carpeta del backend.
-    -   Ejecutar `npm install`.
-
-3.  **Variables de Entorno:**
-    -   Configurar las variables del archivo `.env` directamente en la interfaz de cPanel o crear el archivo `.env` en la raíz de la aplicación.
-
-4.  **Despliegue Automático (Script):**
-    Utiliza el siguiente script `deploy.sh` adaptado para cPanel (requiere acceso SSH):
-
-    ```shellscript
-    #!/bin/bash
-    # deploy.sh - Despliegue en cPanel
-    
-    # IMPORTANTE: Asegúrate de estar ejecutando este script dentro del entorno virtual de Node correcto (v18).
-    # source /home/usuario/nodevenv/ruta/18/bin/activate
-    
-    set -e
-    
-    # Configuración crítica para estabilidad en cPanel: Usar motor binario
-    export PRISMA_CLIENT_ENGINE_TYPE=binary
-    
-    echo "🚀 Iniciando despliegue en cPanel..."
-    
-    # 1. Actualizar código
-    echo "🚫 Saltando actualización de Git (Modo Desarrollo en Vivo)..."
-    
-    # 2. Instalar dependencias del backend
-    echo "📦 Instalando dependencias..."
-    npm install --production
-    
-    # 2.1. Generar cliente de Prisma
-    echo "💎 Generando cliente de Prisma..."
-    npx prisma generate
-    
-    # 3. Reiniciar la aplicación Node.js (Método estándar cPanel)
-    # Esto le indica a Phusion Passenger que reinicie la app
-    if [ ! -d "tmp" ]; then
-      mkdir tmp
-    fi
-    touch tmp/restart.txt
-    
-    echo "✅ Despliegue completado."
-    ```
-
-5.  **Verificación:**
-    En cPanel (Phusion Passenger), la aplicación no siempre escucha en `localhost:5000`. Para verificar si está corriendo:
-    ```bash
-    # Opción 1: Consultar el dominio público
-    curl -I https://api.tecnotitlan.com.mx
-    
-    # Opción 2: Revisar logs de errores si no responde (archivo generado por cPanel en la raíz de la app)
-    cat stderr.log
-    ```
-
-> **Nota sobre WhatsApp:** La ruta vigente es Baileys con `WHATSAPP_AUTH_STORAGE=database`. La sesion y llaves viven cifradas en PostgreSQL y el volumen `/app/auth_info_baileys` queda como apoyo local. No cambiar `SESSION_SECRET` mientras exista una sesion vinculada.
-
----
-
-## 9. Integración Continua (CI/CD)
-
-El proyecto utiliza **GitHub Actions** para automatizar las pruebas del backend. El workflow se encuentra en `.github/workflows/backend-ci.yml` y realiza los siguientes pasos en cada `push` o `pull request` a la rama `main`:
-
-1.  **Checkout:** Clona el repositorio.
-2.  **Set up Node.js:** Configura el entorno de Node.js v18.
-3.  **Connect to DB:** Se conecta a la base de datos de Supabase usando un secreto (`DATABASE_URL`) para un entorno de prueba realista.
-4.  **Install Dependencies:** Instala las dependencias del proyecto.
-5.  **Run Tests:** Ejecuta las pruebas del backend con `npm run test:backend`.
-
-Este pipeline asegura que el código nuevo no rompa la funcionalidad existente.
-
----
-
-## 10. Hoja de Ruta y Próximos Pasos
-
-1.  **Fortalecer Pruebas en el Frontend:**
-    -   **Base Establecida:** Pruebas unitarias y de integración con **React Testing Library**.
-    -   **En Progreso (Pruebas End-to-End):** Se ha configurado el workflow de **Cypress** (`frontend-e2e.yml`) y existen pruebas iniciales (`checkout.cy.js`).
-
-2.  **Funcionalidades Futuras:**
-    -   Completar la integración con **Mercado Libre**.
-    -   Expandir las capacidades del **Chatbot de WhatsApp** para consultas de estado de pedidos.
-    -   Implementar las APIs de **Amazon** y **TikTok Shop**.
-    -   Implementar funcionalidades de IA con **Gemini**.
-
----
-
-## 11. Pipeline de Infraestructura y Flujo de Trabajo
-
-A continuación se describe la arquitectura completa del pipeline de automatización, con el objetivo de lograr un sistema de Dropshipping eficiente con costos fijos mínimos.
-
-### Componentes de Costo Fijo Bajo (Fase de Producción)
-1.  **Dominio:** `Tecnotitlan.mx` (~-2/mes anualizado).
-2.  **Motor de Automatización (n8n):** Servidor cPanel (Infraestructura propia de alto rendimiento).
-3.  **Base de Datos:** Supabase (Free Tier) o PostgreSQL local en cPanel.
-4.  **Frontend:** Hospedado en cPanel (Archivos estáticos en `public_html`). Sin costos extra.
-
-> **Aclaración sobre la Licencia de n8n:**
-> n8n opera con un modelo "source-available". La versión que se utiliza en este proyecto es **self-hosted** (auto-alojada) ejecutándose como servicio Node.js. Esta modalidad de uso es **gratuita**. Los planes de pago de n8n corresponden a su servicio en la nube (n8n Cloud), donde ellos gestionan la infraestructura. Al nosotros gestionar nuestro propio servidor (cPanel), solo pagamos por el costo del hosting, no por la licencia del software n8n.
-
-### Flujo de Trabajo Completo (Pipeline)
-
-#### ➡️ ETAPA 1: Ingreso del Pedido (Frontend cPanel -> Supabase)
-1.  **FRONTEND (CPANEL):** El cliente completa el checkout en la tienda web.
-2.  **ACCIÓN:** El código de la tienda (Frontend) realiza una inserción (`INSERT`) directa a la tabla `orders` en la base de datos de Supabase.
-
-#### ➡️ ETAPA 2: Activación del Motor (Supabase Trigger -> n8n Webhook)
-3.  **TRIGGER (SUPABASE):** Un Trigger de PostgreSQL (`AFTER INSERT ON orders`) se activa automáticamente.
-4.  **PUENTE:** La función del Trigger llama a un **Webhook de n8n** alojado en el VPS.
-    -   *URL del Webhook a configurar en Supabase:* `https://n8n.tecnotitlan.mx/webhook/TU_WEBHOOK_ID_SECRETO`
-
-#### ➡️ ETAPA 3: Automatización (n8n en cPanel)
-5.  **WEBHOOK (n8n):** Recibe el ID del pedido y **ACTIVA** el Workflow.
-6.  **SUPABASE:** Consulta la DB para obtener todos los detalles del pedido (productos, dirección, etc.).
-7.  **MARKETPLACE/PROVEEDOR:** Nodo "HTTP Request" para enviar la orden de compra (dropshipping) a la API del proveedor.
-8.  **WHATSAPP (Cliente):** Envía la confirmación del pedido al cliente (usando una Plantilla de Utilidad).
-9.  **WHATSAPP (Admin):** Envía una notificación interna de "Nuevo Pedido" al número personal del administrador (Mensaje de Texto plano).
-10. **SUPABASE:** Actualiza el estado del pedido a "Procesado" y guarda la guía de envío/rastreo recibida del proveedor.
-
-### Aclaración sobre la Ejecución de Node.js
-
-La gran ventaja de esta arquitectura es la forma en que se utiliza Node.js.
-
-#### ⚙️ El Node.js Ejecutado es n8n (cPanel)
-
-El código Node.js que necesita ejecutarse de forma continua (24/7) es el motor de **n8n**, ya que n8n es una aplicación desarrollada en Node.js. Al instalarlo en el servidor cPanel (aprovechando los 6 núcleos y 6GB de RAM), se está ejecutando una instancia persistente de Node.js que gestionará todos los workflows.
-
-#### La División de la Lógica
-
--   **Frontend (Estático en cPanel):** El frontend es una SPA (Single Page Application) servida como archivos estáticos. Se ejecuta en el navegador del cliente y su función crítica es guardar el pedido inicial en Supabase.
-
--   **Node.js en el Backend (cPanel/n8n):** La instancia de n8n está siempre activa en el servidor. Esta instancia ejecuta el código Node.js necesario para:
-    - Escuchar el Webhook de Supabase.
-    - Conectarse a la base de datos para obtener detalles.
-    - Enviar solicitudes a las APIs de los proveedores.
-    - Gestionar el bot de WhatsApp.
-
-### Estrategia de Desarrollo del Pipeline (n8n Local)
-
-> **⚠️ NOTA:** Estrategia suspendida temporalmente. Se prioriza la configuración directa en el servidor de producción ("Desarrollo en Vivo").
-
-Para construir y probar los workflows de n8n de forma segura y sin costo antes del despliegue, se utiliza un entorno de desarrollo local completamente integrado gracias a Docker.
-
-#### 1. Ambiente Local (Tu PC)
--   **Software a Usar:** El archivo `docker-compose.yml` orquesta todos los servicios necesarios: el backend, la base de datos PostgreSQL y el motor de n8n.
--   **Costo:** $0 USD (solo el consumo de recursos de tu equipo).
--   **Función:** Construir y probar la lógica: conectar el nodo de Supabase, dar formato a los mensajes de WhatsApp y mapear el envío al proveedor.
--   **Limitación:** Los Webhooks no funcionarán, ya que tu IP local no es pública. Se debe usar el botón **"Execute Workflow"** manualmente para las pruebas.
-
-#### 2. Conexión a Base de Datos Local (Persistencia)
--   **Acción:** La instancia de n8n que corre en Docker se conecta a la misma base de datos PostgreSQL (`tecnotitlan_postgres`) que utiliza el backend.
--   **Ventaja:** Todos los workflows y credenciales que crees se guardan en la base de datos local. Esto permite un desarrollo y prueba de integraciones completamente aislado.
-
-#### Secuencia Recomendada
-1.  **Instalar n8n Localmente:** Sigue la guía oficial para instalar la versión Desktop (la más fácil).
-1.  **Levantar el Entorno Docker:** Ejecuta `docker-compose up` en la raíz del proyecto. Esto iniciará el backend, la base de datos y n8n.
-2.  **Construir Workflows:** Accede a n8n en `http://localhost:5678` y crea todos los flujos necesarios (Pedido a WhatsApp, Actualización de Stock, etc.).
-3.  **Verificar Lógica:** Ejecuta manualmente cada flujo para confirmar que se conecta a la base de datos local y procesa los datos correctamente.
-4.  **Desplegar a Producción:** Solo cuando toda la lógica esté lista y probada, puedes exportar los workflows (como JSON) y desplegarlos en la instancia de producción (cPanel) que ya se conectará a la base de datos de producción (Supabase).
-
----
-
-> **💡 NOTA CLAVE:** El motor de **n8n en cPanel** es el componente central que garantiza la ejecución 24/7 de la lógica crítica del negocio, aprovechando la velocidad superior del servidor.
-
----
+Antes de integrar también se ejecutan `npm audit`, `prisma validate` y `git diff --check`. Las pruebas de WhatsApp usan sockets simulados: no escanean QR, no vinculan cuentas y no envían mensajes reales.
+
+## 8. Despliegue vigente en VPS
+
+1. Crear respaldo cifrado y comprobar espacio, PostgreSQL y contenedores.
+2. Actualizar código y construir imágenes con Node.js 22.
+3. Ejecutar `prisma migrate deploy` antes de levantar la API nueva.
+4. Levantar primero API y verificar `/health/ready`; después web y `/health`.
+5. Validar login/2FA, catálogo, pedidos, Mercado Libre, Bandeja unificada y un usuario real por rol.
+6. No borrar sesión Baileys ni pedir QR durante un despliegue. El lock impide dos sockets simultáneos.
+7. Ante fallo, conservar base de datos y volúmenes y volver a la imagen anterior.
+
+Detalles adicionales: `README.md`, `DEPLOY_VPS_EASYPANEL.md` y `ops/`.
+
+## 9. Integración continua y salud
+
+`.github/workflows/production-health.yml` corre cada quince minutos y manualmente. Verifica tienda, HSTS/CSP, healthcheck web y conectividad API/base de datos. No sustituye las pruebas locales ni Sentry.
+
+## 10. Hoja de ruta vigente
+
+1. Activar Sentry con ambos DSN y validar un evento controlado sin PII.
+2. Completar los controles productivos que marque Seguridad, especialmente cifrado independiente, archivos y canales transaccionales.
+3. Probar cada rol real: RBAC, privacidad financiera, “Mi trabajo” y Bandeja unificada.
+4. Mantener Baileys en `7.0.0-rc13` hasta una liberación posterior estable; no instalar `master`.
+5. Reforzar E2E de checkout, devoluciones, reclamos, guías y webhooks repetidos.
+6. Integrar PayPal al final, después de Stripe y conciliación.
+7. TikTok Shop y Amazon permanecen posteriores a Mercado Libre.
+
+## 11. Flujo de negocio e infraestructura
+
+1. El navegador consume exclusivamente la API; nunca escribe pedidos directamente en Supabase.
+2. La API valida sesión, RBAC, precios, inventario y pago antes de transacciones Prisma.
+3. Stripe y Mercado Libre usan webhooks verificados e idempotentes.
+4. Inventario y pedidos son fuente interna de verdad; marketplaces guardan IDs, stock, comisiones y auditoría.
+5. Socket.IO invalida recursos y el frontend los consulta por AJAX; el sondeo de cinco minutos es respaldo.
+6. n8n es auxiliar y no reemplaza reglas críticas, transacciones, RBAC ni webhooks del backend.
+7. Correo y WhatsApp notifican después de mutaciones; un fallo del canal no revierte una venta.
 
 ## 12. Arquitectura de Roles y Permisos (Sistema RBAC)
 
@@ -802,26 +251,40 @@ Para lograr un control de acceso modular y flexible, se ha implementado un siste
 
 ---
 
-## 13. Arquitectura de Configuración de WhatsApp
+## 13. WhatsApp/Baileys: arquitectura vigente
 
-La gestión de la conexión de WhatsApp se realiza desde el panel de administración, permitiendo vincular un dispositivo escaneando un código QR sin acceder a la terminal del servidor.
+La ruta operativa es **Baileys `7.0.0-rc13` fijado exactamente**. Cloud API permanece inactivo y diferido; conservar su código no autoriza su uso.
 
-### Componentes Clave
-- **Backend:** El servicio `whatsappService.js` y los endpoints de control en `index.js` gestionan la inicialización y el estado de la conexión mediante **Socket.IO**.
-- **Inicialización:** Al arrancar el servidor (`npm start`), `index.js` inicializa `whatsappService` y le pasa la instancia de `io` (Socket.IO) para permitir la comunicación en tiempo real con el frontend (QR, estados).
-- **Frontend:** La pantalla `WhatsappSettingsScreen.js` escucha estos eventos de WebSockets para mostrar el código QR y el estado de la conexión sin necesidad de recargar la página.
-- **Proveedor WhatsApp:** `WHATSAPP_PROVIDER=baileys` es la ruta operativa recomendada. `WHATSAPP_PROVIDER=disabled` queda como freno de emergencia cuando el numero este restringido o se quiera pausar WhatsApp sin romper ventas/correos.
-- **Sesion Baileys persistente tipo VEVA:** con `WHATSAPP_AUTH_STORAGE=database`, la sesion y llaves de mensajes se guardan cifradas en Supabase/PostgreSQL (`whatsapp_auth_state`) usando `SESSION_SECRET`. Los archivos de `WHATSAPP_AUTH_DIR` quedan como compatibilidad, no como fuente principal.
-- **Decision operativa actual:** usar `WHATSAPP_PROVIDER=baileys`, `WHATSAPP_AUTH_STORAGE=database` y `WHATSAPP_AUTO_CONNECT=true`. No cambiar `SESSION_SECRET` sin cerrar primero la sesion de WhatsApp, porque las llaves cifradas no podran descifrarse.
-- **Reconexiones Baileys:** el backend usa backoff controlado como VEVA. Si se agotan los intentos, queda en `DISCONNECTED` y el watchdog puede volver a intentar con calma. Si WhatsApp pide QR durante un autoconnect, queda en `QR_REQUIRED`; si responde `loggedOut`, `bad session` o `multidevice mismatch`, queda en `LOGGED_OUT`. En esos casos **no se genera QR ni se rota credencial automaticamente**. La reconexion con QR debe ser manual desde `Configuracion > WhatsApp QR`.
-- **Panel de atencion WhatsApp:** la pantalla de chat muestra proveedor/estado de conexion antes de enviar. Si Baileys recibe conversaciones con identificadores internos de WhatsApp (`@lid`), el backend conserva la conversacion original y, al enviar, intenta usar el JID principal y despues el telefono asociado cuando exista. Si no hay sesion activa, el panel bloquea el envio y muestra un error claro.
-- **Notificaciones transaccionales:** Antes de omitir un aviso por WhatsApp, el backend puede intentar reconectar usando la sesion persistente y esperar unos segundos. Si la sesion esta invalida, fue cerrada desde el telefono o WhatsApp fuerza reautenticacion, el sistema marca `QR_REQUIRED`/`LOGGED_OUT` y el QR se solicita manualmente desde Configuracion > WhatsApp. Los pedidos nunca deben fallar por WhatsApp desconectado; correo e inventario siguen su flujo y el evento queda en logs.
-- **Connection Failure:** Cuando Baileys cierra con `Connection Failure`, el log debe incluir `StatusCode`. Si es una caida recuperable, el backend reintenta. Si el codigo/mensaje indica logout o sesion invalida, el backend detiene la reconexion automatica y exige intervencion manual para evitar bloqueos por reintentos repetidos.
-- **Atencion Operativa:** La pantalla `WhatsAppChatScreen.js` es la vista de trabajo para vendedores/supervisores. Debe mantener lista de conversaciones, mensajes y adjuntos dentro de contenedores con scroll interno para evitar que el panel se vuelva inmanejable en conversaciones largas.
-- **Identidad de contactos:** Baileys puede entregar identificadores internos `@lid` en lugar del telefono real. El sistema solo debe mostrar como telefono los JID `@s.whatsapp.net` o el numero asociado por el evento `chats.phoneNumberShare`; los `@lid` se muestran como ID tecnico para evitar numeros falsos en atencion.
-- **Scroll operativo:** El chat de WhatsApp solo debe hacer scroll automatico al fondo cuando el operador esta al final, cambia de conversacion o envia un mensaje. Si el operador esta revisando mensajes anteriores, las actualizaciones en vivo no deben regresarlo abajo.
+### Sesión y conexión
 
----
+- `WHATSAPP_PROVIDER=baileys`, `WHATSAPP_AUTH_STORAGE=database` y `SESSION_SECRET` estable.
+- Credenciales, TC tokens y mapeos PN/LID se persisten cifrados con AES-256-GCM.
+- Inicialización única, lock con heartbeat y guardas de identidad evitan dos sockets activos.
+- QR sólo por acción explícita de Super Admin. Watchdog, reconexiones y notificaciones nunca crean QR ni borran sesión.
+- No se usa `requestPairingCode`; `resetSession` es destructivo y sólo procede ante un cambio deliberado.
+
+### Identidad y envío
+
+- `@lid` es válido e inmutable; nunca se convierte en teléfono inventado.
+- Para PN se consulta primero PN→LID; sin mapeo se usa `onWhatsApp()`.
+- `exists:false` o fallo de lookup produce cero envíos.
+- Texto, multimedia, Técatl y alertas pasan por un gateway: un `sendMessage`, sin fallback ni retry oculto.
+- Alertas internas Baileys se envían una vez a `WHATSAPP_ADMIN_GROUP_JID`, sin fan-out privado.
+
+### Versión y circuito protector
+
+- La versión WA Web verificada se congela por proceso y se guarda como último valor bueno. `isLatest=false` se rechaza; sin caché se usa el default incluido.
+- 463 síncrono o en `messages.update` abre `PAUSED`: bloquea envíos, no reintenta, no hace logout ni pide QR. El socket se conserva sólo para recepción si sigue abierto.
+- 428 es protegido. 408 admite como máximo el reintento configurado y después pausa. 515 admite un único reinicio corto.
+- 405 espera el lock de relevo; 401/403/411/500, logout, sesión inválida o rate limit exigen revisión manual.
+- Se registra `operationId`, ID del proveedor, identidad solicitada/resuelta, tipo PN/LID, código, conexión y timestamps.
+
+### Operación segura
+
+- No probar con números restringidos ni repetir QR para “rescatarlos”.
+- Un fallo de WhatsApp no bloquea pedidos, correo, inventario ni auditoría.
+- Baileys usa logger silencioso. No enviar credenciales, tokens, mensajes completos ni teléfonos a Sentry.
+- Matriz upstream: `docs/ESTABILIZACION_WHATSAPP_TECATL_2026-09-08.md`.
 
 ## 14. Flujo Operativo de Pedidos e Inventario
 
@@ -1003,132 +466,25 @@ El traspaso por si solo no crea la publicacion porque antes deben confirmarse ca
 
 Regla conversacional: si Tecatl recomienda un SKU y el cliente pregunta despues algo como "es tipo C?", "sirve para viaje?" o "es bluetooth?", Tecatl debe usar el contexto reciente de la conversacion y las caracteristicas/etiquetas internas del producto. Si la ficha no trae ese dato, entonces si debe pedir confirmacion humana para no inventar informacion.
 
-### Tecatl en WhatsApp y escalacion humana 2026-07-23
+### Técatl en WhatsApp y escalación humana
 
-Tecatl queda integrado como primera linea de atencion para WhatsApp. Cuando entra un mensaje de cliente por WhatsApp, el backend guarda el mensaje en el panel operativo, lo procesa con Tecatl y responde desde el mismo numero conectado.
+- Los chats directos se guardan en Bandeja unificada y conservan el JID. Grupos, estados, broadcasts, newsletters y `fromMe` se ignoran.
+- Técatl usa catálogo, pedidos y conocimiento. Si no puede responder con certeza, crea o reutiliza un `ConversationHandoff` y marca `HUMAN_REQUIRED`.
+- Una escalación genera correo para destinatarios habilitados y **un solo mensaje** al grupo Baileys, nunca mensajes privados paralelos.
+- Horario humano: 09:00–19:00, `America/Mexico_City`. Fuera de horario se acusa recepción y queda pendiente.
+- Entregas, omisiones, deduplicación y fallos se guardan en `NotificationLog`.
+- El operador responde desde Bandeja unificada o la herramienta especializada, siempre con RBAC.
 
-Reglas:
+### Notificaciones transaccionales
 
-- Tecatl puede contestar preguntas de productos, pedidos, pagos, envios, garantias y datos generales usando la base de conocimiento, el catalogo, caracteristicas y contexto reciente de la conversacion.
-- Tecatl debe sostener conversacion normal antes de escalar: saludos, agradecimientos, confirmaciones cortas, dudas vagas y preguntas como "como estas?" no crean `ConversationHandoff`. En esos casos responde natural, pide contexto util o guia al cliente hacia producto, pedido, envio, garantia, pago o compatibilidad.
-- Si una conversacion ya esta en `HUMAN_REQUIRED`, los mensajes nuevos del cliente se agregan al mismo seguimiento y Tecatl responde con acuse breve. No debe crear handoffs duplicados ni repetir siempre el mismo mensaje.
-- Tecatl no debe inventar datos. Si no encuentra una respuesta confiable, marca la conversacion como `HUMAN_REQUIRED`, crea un `ConversationHandoff` y avisa al equipo.
-- Las escalaciones se notifican a usuarios operativos (`SUPER_ADMIN`, `ADMIN`, `SUPERVISOR`, `VENDEDOR`) segun sus preferencias: correo, WhatsApp o ambos.
-- Si no hay destinatarios de WhatsApp configurados, el sistema usa `ADMIN_WHATSAPP_NUMBER` como respaldo cuando exista.
-- Horario operativo humano: 9:00 a.m. a 7:00 p.m. hora de Mexico. Si la consulta llega despues de las 7:00 p.m. o antes de las 9:00 a.m., Tecatl responde que ya quedo registrada para seguimiento a primera hora y notifica al equipo.
-- Los mensajes del equipo enviados desde el panel de Tecatl se mandan realmente por WhatsApp cuando la conversacion viene de WhatsApp. No solo se guardan en la base de datos.
-- Cada escalacion y fallo de procesamiento queda registrado en `NotificationLog` para auditoria operativa.
-- El panel de Tecatl separa conversaciones activas, WhatsApp, cerradas y las que requieren humano para que ventas no tenga que revisar todo mezclado.
-- Tecatl solo procesa chats directos de cliente; grupos, estados, broadcasts y newsletters se ignoran para evitar respuestas automaticas fuera de contexto.
-- Tecatl no responde mensajes `fromMe` enviados desde el mismo WhatsApp vinculado a Tecnotitlan. Esto es intencional para evitar bucles y autorespuestas. Para probar Técatl por WhatsApp, se debe escribir desde otro numero de cliente hacia el numero conectado; los mensajes verdes enviados desde el numero operativo no disparan respuesta automatica.
+- Clientes: pago, preparación, envío, entrega o cancelación según pedido y canal.
+- Equipo: pagos, incidencias y movimientos; por Baileys llegan al grupo único.
+- No incluyen costos, márgenes ni inversiones. Backend también filtra esos datos sin `finance:read_costs`.
+- Un fallo de notificación no revierte la mutación comercial.
 
-Objetivo de servicio: Tecnotitlan no solo vende producto; vende seguimiento. Si el bot no resuelve, el cliente debe sentir que alguien real ya tomo el caso.
+### Respaldo de sesión
 
-### WhatsApp operativo - decision actual 2026-07
-
-El numero operativo de WhatsApp quedo restringido/baneado despues de multiples reconexiones. La regla de seguridad sigue siendo: **no insistir con un numero restringido**. Para volver a operar WhatsApp se debe usar un numero recuperado o sano y vincularlo una sola vez con el flujo estable tipo VEVA.
-
-Variables recomendadas para el modo estable:
-
-- `WHATSAPP_PROVIDER=baileys`
-- `WHATSAPP_AUTH_STORAGE=database`
-- `SESSION_SECRET=valor_largo_estable_no_rotar`
-- `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
-- `WHATSAPP_AUTO_CONNECT=true`
-- `WHATSAPP_MAX_RECONNECT_ATTEMPTS=1`
-- `WHATSAPP_RECONNECT_BASE_DELAY_MS=300000`
-- `WHATSAPP_RECONNECT_MAX_DELAY_MS=1800000`
-- `WHATSAPP_PROTECTED_PAUSE_MS=10800000` opcional; por defecto son 3 horas de pausa protegida despues de errores peligrosos.
-- `WHATSAPP_KEEP_ALIVE_INTERVAL_MS=300000`
-- `WHATSAPP_PAUSED_RETRY_AFTER_MS=600000`
-- `WHATSAPP_AUTO_RETRY_PAUSED=false`
-- `WHATSAPP_AUTO_ROTATE_SESSION_ON_LOGOUT=false`
-- `WHATSAPP_SESSION_LOCK_STALE_MS=120000`
-- `WHATSAPP_SESSION_LOCK_HEARTBEAT_MS=15000`
-
-Operativa inmediata si el numero sigue castigado: usar `WHATSAPP_PROVIDER=disabled` y `WHATSAPP_AUTO_CONNECT=false` como modo de emergencia. En este modo el backend no genera QR, no inicia Baileys y no manda mensajes por WhatsApp. Los correos transaccionales, cambios de estado, inventario y pedidos deben seguir funcionando.
-
-Proteccion anti-baneo: si `WHATSAPP_AUTO_CONNECT=false`, el backend tampoco intenta levantar WhatsApp desde notificaciones de pedido. Los reintentos automaticos quedan limitados por defecto a 1 intento, con espera inicial de 5 minutos y maxima de 30 minutos. Si la sesion requiere QR nuevo (`QR_REQUIRED`) o fue cerrada/invalidada (`LOGGED_OUT`), no se reintenta solo ni se genera QR automatico.
-
-Regla de seguridad: un numero restringido no se vuelve a escanear, reiniciar ni "rescatar" con cambios de proveedor. Eso aumenta el riesgo de baneo permanente. Para volver a usar WhatsApp hay dos rutas aceptables:
-
-1. Numero recuperado o nuevo de WhatsApp Business, calentado manualmente con uso humano real antes de conectarlo.
-2. Baileys con `WHATSAPP_AUTH_STORAGE=database`, igual que VEVA, para guardar sesion y llaves cifradas en PostgreSQL.
-3. WhatsApp Cloud API oficial de Meta, recomendada para produccion cuando Tecnotitlan ya tenga credenciales y plantillas aprobadas.
-
-### WhatsApp con Baileys y sesion cifrada
-
-Despues de las restricciones provocadas por reconexiones repetidas, Tecnotitlan deja Baileys como ruta operativa oficial:
-
-- `WHATSAPP_PROVIDER=disabled`: modo seguro de emergencia. No intenta conectar ni enviar por WhatsApp.
-- `WHATSAPP_PROVIDER=baileys`: modo recomendado. Con `WHATSAPP_AUTH_STORAGE=database`, guarda sesion cifrada en PostgreSQL; con `WHATSAPP_AUTH_STORAGE=file`, usa archivos persistentes en `WHATSAPP_AUTH_DIR`.
-
-Nota: los valores guardados en `Configuracion -> Sistema` se cargan desde base de datos y pueden ganar sobre el `.env`. Para el modo estable, confirmar que no exista un setting viejo con `WHATSAPP_PROVIDER=disabled` o `WHATSAPP_AUTH_STORAGE=file` si se espera usar PostgreSQL cifrado.
-
-Variables recomendadas:
-
-- `WHATSAPP_PROVIDER=baileys`
-- `WHATSAPP_AUTH_STORAGE=database`
-- `SESSION_SECRET`: secreto estable para cifrar la sesion. No rotarlo mientras exista una sesion vinculada.
-- `SESSION_SECRET` puede vivir como variable de entorno de la API o como configuracion sensible en `Configuracion -> Sistema`, visible solo para Super Admin. No debe guardarse en `frontend/env.js`, archivos publicos del navegador ni commits de Git, porque expondria la sesion cifrada de WhatsApp.
-- `WHATSAPP_AUTH_DIR=/app/auth_info_baileys`
-- `WHATSAPP_AUTO_CONNECT=true`
-- `WHATSAPP_MAX_RECONNECT_ATTEMPTS=1`
-- `WHATSAPP_RECONNECT_BASE_DELAY_MS=300000`
-- `WHATSAPP_RECONNECT_MAX_DELAY_MS=1800000`
-- `API_PUBLIC_URL`: URL pública del backend, normalmente `https://api.tecnotitlan.com.mx`.
-
-Flujo recomendado:
-
-1. Configurar las variables anteriores en `Configuracion -> Sistema`.
-2. Guardar configuracion y redeplegar/reiniciar la API.
-3. Entrar a `Configuracion -> WhatsApp QR`.
-4. Presionar `Iniciar conexion`.
-5. Si ya existe sesion guardada, debe reconectar sin QR. Si no existe sesion, escanear el QR desde WhatsApp una sola vez.
-6. Esperar a que el estado marque conectado y validar que la sesion se guarde en PostgreSQL.
-7. Probar desde el panel `WhatsApp`: enviar texto, enviar imagen y recibir un mensaje entrante.
-
-Regla operativa: las notificaciones de pedido por WhatsApp solo se envian si Baileys reporta la sesion conectada. Si no esta conectada, el sistema registra el aviso omitido en logs y no bloquea la compra ni el correo transaccional. El QR no se debe regenerar como rutina diaria; `Borrar sesion y pedir QR` solo se usa cuando se cambia de numero o cuando la sesion ya fue invalidada manualmente.
-
-Regla anti-baneo 2026-07-17: el auto-connect, watchdog, reconexiones y notificaciones nunca deben generar QR nuevo. Esos procesos solo intentan conectar cuando ya existe una sesion guardada (`hasSavedSession=true`). Si no hay sesion guardada, el backend queda en `DISCONNECTED` y pide iniciar manualmente desde `Configuracion -> WhatsApp QR`. El QR solo puede aparecer por accion humana: `Iniciar conexion` cuando no hay sesion o `Borrar sesion y pedir QR` cuando se va a vincular un numero sano.
-
-Regla anti-baneo 2026-07-28: solo cierres que indican sesion invalida o riesgo real (`401`, `403`, `411`, `500`, `loggedOut`, `bad session`, `multidevice mismatch`, `rate limit` o QR inesperado durante autoconexion) activan `PAUSED` y guardan `WHATSAPP_PROTECTED_PAUSED_UNTIL` en la tabla `settings`. Mientras esa pausa este activa, el watchdog, las notificaciones y los envios manuales no deben reconectar ni pedir QR. La pausa se limpia automaticamente solo cuando una conexion valida llega a `open`. En una restriccion real de WhatsApp, esperar a que termine la ventana indicada y no presionar `Borrar sesion y pedir QR` salvo que se vaya a vincular un numero sano.
-
-Los cierres transitorios de infraestructura (`405`, `408`, `428`, `503`, `Connection Failure`, `Connection closed`, `Connection lost` o timeout) no deben crear una pausa de tres horas ni borrar la sesion. El backend conserva las llaves cifradas y deja que el watchdog retome la conexion con espera controlada.
-
-Excepcion segura 2026-07-26: `Stream Errored (restart required)` / codigo `515` puede ocurrir justo despues de escanear QR o despues de cargar llaves validas. No se trata como baneo por si solo. El backend hace un unico reintento corto con `allowQr=false` usando la sesion guardada. Si despues de ese reintento WhatsApp devuelve `401`, `403`, `loggedOut` o pide QR inesperado, la sesion se considera invalida o activa en otro bot y el servicio entra en `PAUSED`.
-
-Regla de estados WhatsApp 2026-07-17: `DISCONNECTED` significa corte recuperable; el watchdog puede volver a intentar con backoff. `QR_REQUIRED` significa que la sesion guardada ya no alcanza y WhatsApp esta pidiendo QR, pero el sistema no lo genera durante autoconnect. `LOGGED_OUT` significa que WhatsApp cerro o invalido la sesion guardada; requiere decision humana antes de pedir QR nuevo.
-
-Regla anti-conflicto 2026-07-17: si `Sesion guardada = Si`, el boton `Iniciar conexion` debe reintentar esa sesion sin generar QR. Si WhatsApp responde `401`, la sesion fue invalidada o el mismo numero esta activo en otro bot/servidor. No se debe mantener el mismo numero corriendo en VEVA y Tecnotitlan al mismo tiempo; hay que apagar uno o usar un puente entre sistemas para evitar cierres de sesion y bloqueos.
-
-Regla de enlace QR 2026-07-17: al escanear QR, Baileys puede cerrar la conexion con `restartRequired` / codigo `515`. Eso no debe tratarse como logout ni como restriccion del numero. El backend guarda `creds.update` inmediatamente, limpia el QR y reconecta en segundos usando la sesion recien guardada, igual que el flujo estable de VEVA. Los cierres de sockets anteriores se ignoran para que no pisen el estado de la conexion vigente.
-
-Regla de relevo EasyPanel 2026-07-28: un deploy puede mantener unos segundos el contenedor anterior mientras inicia el nuevo. El proceso que recibe `SIGTERM` cierra su socket pero conserva por 120 segundos el lease del archivo de bloqueo en el volumen persistente `/app/auth_info_baileys`. El contenedor nuevo no abre simultaneamente la misma sesion: muestra `WAITING_FOR_SESSION_LOCK`, espera a que venza el lease y reintenta automaticamente sin QR. Por eso un deploy puede tardar cerca de dos minutos en devolver WhatsApp a `READY`, pero no debe generar `PAUSED` ni exigir intervencion humana. Esta diferencia de ciclo de vida, y no Render frente a VPS, era la causa de los `405 Connection Failure` durante los redeploys.
-
-### Notificaciones internas de ventas y cambios de estado
-
-Desde 2026-07-14, Tecnotitlan separa las notificaciones del cliente y las notificaciones internas del equipo:
-
-- Cuando un pedido queda pagado, el cliente recibe su confirmacion con estado `Pago confirmado` y el equipo operativo recibe un aviso interno.
-- Cuando un pedido cambia de estado (`PENDING_PAYMENT`, `PROCESSING`, `PENDING_FULFILLMENT`, `SHIPPED`, `DELIVERED`, `CANCELLED`), el equipo operativo recibe aviso con pedido, canal, cliente, total y productos.
-- Desde 2026-07-23, el cliente tambien recibe notificacion por correo y WhatsApp en cambios generales de estado como `Preparando`, `Por surtir` y `Cancelado`. Los estados `Enviado` y `Entregado` conservan plantillas especiales porque pueden incluir guia, paqueteria y enlace de rastreo.
-- Los destinatarios internos son usuarios con rol `SUPER_ADMIN`, `ADMIN`, `SUPERVISOR`, `VENDEDOR`, `SELLER` o `SALES`, o usuarios con permisos operativos individuales como `order:read`, `order:update`, `inventory:read`, `inventory:update`, `support:update` o `whatsapp:chat`. Esto permite avisar a vendedores con permisos limitados sin abrirles pantallas sensibles.
-- Cada usuario puede configurar si recibe avisos por correo, WhatsApp o ambos desde `Usuarios > Editar usuario > Notificaciones operativas`.
-- El numero de WhatsApp operativo puede ser especifico para ese usuario; si queda vacio, el sistema intenta usar su telefono registrado.
-- La configuracion dinamica de la base de datos tiene prioridad sobre el `.env`. Si `WHATSAPP_AUTO_CONNECT` queda guardado como `false` en `Configuracion > Sistema`, las notificaciones no levantan la sesion aunque el `.env` diga `true`.
-- Antes de avisar al equipo por WhatsApp, el backend intenta conectar con la sesion persistente. Si no hay usuarios operativos con WhatsApp habilitado, usa `ADMIN_WHATSAPP_NUMBER` como respaldo cuando este configurado.
-- Los pedidos guardan `salesChannel` para distinguir ventas de `WEB`, `MERCADOLIBRE`, `TIKTOK_SHOP` y `AMAZON`. La pantalla de pedidos muestra un chip por canal para no mezclar visualmente ventas web con ventas de marketplace.
-- Desde 2026-07-25, los movimientos operativos de inventario (`Entrada`, `Salida manual`, `Traspaso a canal`, `Ajustes` y `Devoluciones`) tambien notifican al equipo por correo/WhatsApp segun sus preferencias.
-- Los avisos de movimientos no incluyen costos, margenes ni datos de inversion; solo SKU, producto, cantidad, canal/ubicacion, stock antes/despues y nota operativa.
-
-Regla de seguridad: si WhatsApp no esta conectado, el pedido no se bloquea. El sistema registra el aviso omitido y conserva el flujo por correo/inventario. WhatsApp es un canal de notificacion, no una condicion para vender.
-
-### Respaldo de sesion Baileys en base de datos
-
-Para reducir reinicios de sesion y evitar ciclos de QR, Baileys mantiene el volumen persistente `/app/auth_info_baileys` y ademas guarda la sesion y llaves de mensajes cifradas en la tabla `whatsapp_auth_state`. Al arrancar, si `WHATSAPP_AUTH_STORAGE=database`, el backend restaura el estado desde PostgreSQL antes de inicializar Baileys.
-
-Esta estrategia no evita bloqueos impuestos por WhatsApp si la sesion fue cerrada o invalidada desde el telefono, pero ayuda a sobrevivir redeploys, reinicios del contenedor y perdida accidental de archivos locales.
+PostgreSQL cifrado es la fuente principal. El volumen `/app/auth_info_baileys` sirve para compatibilidad por archivos y lock de relevo. La persistencia ayuda ante reinicios, pero no elimina restricciones de WhatsApp.
 
 ### Perfil de cliente, celular y domicilios de entrega
 
@@ -1144,103 +500,18 @@ Regla operativa: el checkout debe reutilizar domicilios guardados cuando el clie
 
 ### No puedo iniciar sesión como administrador (Error 401)
 
-Si después de un despliegue nuevo no puedes iniciar sesión y recibes un error `401 Unauthorized` en la consola del navegador, las causas más probables son:
+1. Verificar `/health/ready`, PostgreSQL y que las migraciones estén aplicadas.
+2. Confirmar orígenes permitidos y que la cookie HttpOnly llegue con los atributos esperados.
+3. Revisar que reCAPTCHA tenga claves del dominio. Nunca desactivar el middleware en producción como diagnóstico.
+4. Si la contraseña ya fue aceptada, completar el reto 2FA. Una sesión de enrolamiento sólo abre Seguridad, perfil y cierre de sesión.
+5. Usar `seed:import` únicamente en una base nueva y verificada; nunca sobre producción existente sin respaldo.
 
-1.  **La base de datos está vacía:** La causa más común es que la base de datos de producción (Supabase) no tiene ningún usuario. La migración a cPanel implicó crear una base de datos nueva, y los usuarios no se migran automáticamente.
-    -   **Solución:** Ejecuta el script de "seeding" para crear el usuario administrador por defecto y otros datos iniciales. Conéctate al servidor por SSH y ejecuta:
-        ```bash
-        # Dentro de la carpeta del backend, con el entorno de Node activado
-        npm run seed:import
-        ```
-    -   Verifica las credenciales por defecto en el archivo `d:/Tecnotitlan/backend/prisma/seed.js`.
+### La pantalla de Seguridad queda cargando
 
-2.  **Conflicto con reCAPTCHA:** Si en la consola del navegador ves un aviso de `recaptcha key not provided`, puede que el backend esté requiriendo la validación pero el frontend no la esté enviando.
-    -   **Solución a Largo Plazo:** Asegúrate de que las variables `REACT_APP_RECAPTCHA_SITE_KEY` (en el frontend) y `RECAPTCHA_SECRET_KEY` (en el backend) estén configuradas correctamente.
-    -   **Prueba de Diagnóstico Rápida:** Para descartar que este sea el problema, puedes comentar temporalmente el middleware de `verifyCaptcha` en la ruta de login (`/api/users/login`) dentro del archivo `d:/Tecnotitlan/backend/src/routes/userRoutes.js`.
+Comprobar `/api/security/status`, `/api/security/readiness`, la cookie y la consola del navegador. El 2FA queda activo sólo después de confirmar un TOTP válido; generar el QR no termina el enrolamiento.
 ---
 
-## 16. Mercado Libre: publicacion, inventario e importacion de pedidos
-
-### Fuente unica de inventario
-
-Tecnotitlan es la fuente de verdad del inventario. Las cantidades tienen significados distintos:
-
-- **Bodega/Web:** piezas fisicas disponibles en Tecnotitlan.
-- **Asignado a Mercado Libre:** piezas que salieron de Bodega/Web y quedaron reservadas para ese canal.
-- **Publicado en Mercado Libre:** cantidad remota enviada por Tecnotitlan. Se calcula como asignado menos stock de seguridad.
-
-El calculo publicable esta protegido contra datos faltantes, negativos o invalidos: nunca envia `NaN` ni una cantidad menor que cero a Mercado Libre. Las pruebas automatizadas cubren stock asignado, buffer mayor al stock y valores invalidos.
-
-Un traspaso de 5 piezas desde Bodega/Web a Mercado Libre deja 0 en bodega si solo habia 5, y deja 5 asignadas a Mercado Libre. No crea otras 5 piezas. Si una publicacion existente tenia 10 unidades remotas, al vincularla Tecnotitlan la concilia a las 5 realmente asignadas.
-
-### Flujo recomendado para un producto nuevo
-
-1. Crear el producto en **Productos** con SKU, precio, descripcion, caracteristicas e imagenes.
-2. Registrar la entrada fisica en **Inventario > Entradas**.
-3. Realizar el traspaso desde **Bodega/Web** hacia **Mercado Libre**.
-4. Abrir el producto, entrar a la seccion **Mercado Libre** y pulsar **Preparar publicacion**.
-5. Confirmar categoria, atributos obligatorios, condicion y tipo de publicacion.
-6. Pulsar **Publicar en Mercado Libre**.
-7. Tecnotitlan crea la publicacion, guarda el item ID, vincula el SKU y publica exclusivamente el stock asignado.
-
-La publicacion se bloquea si no existe stock asignado a Mercado Libre. Para publicaciones creadas previamente fuera de Tecnotitlan, primero se hace el traspaso y despues se usa **Vincular una publicacion existente**.
-
-### Marca y atributos de catalogo
-
-Los valores que Mercado Libre devuelve para atributos como **Marca** son sugerencias del catalogo, no deben obligar a declarar una marca falsa. Cuando la categoria permite una marca textual, Tecnotitlan muestra sugerencias y permite capturar la marca real, por ejemplo `G-TIDE`. El valor se envia como atributo `BRAND` al publicar.
-
-### Recuperacion del producto AUR-002
-
-La publicacion de prueba `MLM3193668611` usa el SKU local `AUR-002`. Si se traspasaron 5 piezas y Bodega/Web quedo en 0, esa distribucion es correcta: las 5 piezas ahora pertenecen al canal Mercado Libre. Al vincular el item, la cantidad remota anterior de 10 debe conciliarse a 5, no sumarse.
-
-### Importacion de pedidos y comisiones
-
-Los pedidos de Mercado Libre se importan de forma idempotente por su ID externo. La comision reportada por Mercado Libre (`marketplace_fee`) se guarda como `paymentFee`; el ingreso neto se calcula como total menos comisiones. Solo despues de crear correctamente el pedido interno se descuenta inventario y se notifican la venta y el estado al equipo.
-
-Las ordenes que antes fallaron con `Argument paymentFee is missing` se pueden recuperar despues de desplegar el backend actualizado pulsando **Leer pedidos**. El reintento no duplica pedidos ya importados.
-
-### Despliegue
-
-No se requiere migracion de Prisma para esta fase. En EasyPanel:
-
-1. Desplegar primero el servicio **api**.
-2. Confirmar que el backend inicia y conecta con Prisma.
-3. Desplegar despues el servicio **web**.
-4. Abrir Mercado Libre en Configuracion y pulsar **Leer pedidos**.
-
-### Proveedor local bajo pedido y precios por canal (2026-07-29)
-
-Esta modalidad permite operar con proveedor local sin mezclar promesas de suministro con mercancia fisica ni con capital invertido.
-
-#### Regla financiera e inventario
-
-- **Inversiones** registra el dinero disponible, entradas de capital y gastos reales. La disponibilidad declarada por un proveedor no reduce una inversion.
-- **Bodega/Web** representa solo piezas propias que ya se compraron y recibieron. Las entradas reales se registran desde **Inventario > Entradas**.
-- Un producto de tipo **Proveedor local / bajo pedido** conserva, por separado, existencia finita o ilimitada del proveedor y tiempo estimado de surtido.
-- Al confirmarse una venta pagada, se usan primero piezas propias. La parte surtida por proveedor genera en ese momento la compra real y su salida por venta; asi el dinero solo se descuenta cuando realmente se necesita comprar ese articulo.
-- Una cancelacion aprobada restaura de forma idempotente las piezas propias o del proveedor que se hubieran descontado. No debe duplicar devoluciones ni movimientos.
-
-#### Canales y precios
-
-- Un traspaso sigue siendo fisico: mueve unidades de Bodega/Web a Mercado Libre, TikTok Shop o Amazon. No debe inventar unidades ni cambiar una promesa del proveedor por stock propio.
-- **Publicado** es el numero configurado en una publicacion remota; no equivale por si mismo a mercancia apartada. Se conserva separado del stock fisico/asignado.
-- El precio web (`product.price`) es el importe meta que se busca recibir antes de costos propios de marketplace. El precio automatico por canal absorbe comision porcentual, cuota fija y envio que el negocio decida absorber:
-
-  `(precio web + cuota fija + envio absorbido) / (1 - comision)`.
-
-- La comision acepta `16` o `0.16` para representar 16%. El precio calculado se puede sobrescribir solo al desactivar **Precio automatico** en el canal.
-
-#### Flujo operativo recomendado
-
-1. Crear producto y definir si es inventario propio o proveedor local bajo pedido.
-2. Registrar solamente las compras ya pagadas como entradas de inventario y ligarlas a una inversion cuando corresponda.
-3. Configurar precio/comision/cuota por canal antes de publicar.
-4. Trasladar unidades fisicas a un marketplace solo cuando efectivamente se manden a su bodega o se reserven para ese canal.
-5. Dejar que webhooks importen ventas y actualicen pedidos, movimientos y notificaciones.
-
-La publicacion automatica remota depende todavia de que cada articulo tenga categoria, atributos obligatorios e imagenes aceptadas por Mercado Libre. Esa validacion es necesaria antes de convertir un traspaso en una publicacion real; no es una segunda fuente de inventario.
-
-## Ficha de producto, disponibilidad y resenas (2026-08-09)
+## 16. Ficha de producto, disponibilidad y reseñas
 
 - Se conserva una sola ficha publica (`ProductScreen`), una sola ruta por SKU y un solo endpoint de resenas. No se agregaron pantallas ni servicios duplicados.
 - `Product.shortDescription` guarda un resumen comercial opcional de hasta 280 caracteres y se muestra debajo del titulo. La descripcion extensa y las especificaciones se mantienen en secciones inferiores para evitar una columna de compra demasiado larga.
@@ -1250,67 +521,59 @@ La publicacion automatica remota depende todavia de que cada articulo tenga cate
 - Solo un cliente autenticado con una compra pagada y no cancelada que incluya el producto puede publicar una calificacion de 1 a 5 y una opinion de 3 a 1000 caracteres. Solo se permite una resena por usuario y producto; ambas reglas se validan en la aplicacion y la unicidad tambien se protege con un indice unico en PostgreSQL.
 - Migraciones nuevas: `20260809120000_add_product_short_description` y `20260809120500_prevent_duplicate_product_reviews`.
 
-## Diagnostico de WhatsApp y Baileys (2026-08-09)
+## 17. Aviso de Privacidad Integral
 
-- Baileys es una integracion no oficial y no esta afiliada, autorizada ni respaldada por WhatsApp. No se encontro una regla publica de Meta que afirme que un numero se bloquea automaticamente por enviar un solo mensaje mediante Baileys.
-- Una restriccion despues de un solo mensaje puede estar relacionada con confianza o historial del numero, sesiones no oficiales, vinculaciones repetidas por QR, reconexiones, cambios de huella del dispositivo o reportes previos. Esta causa es una inferencia operativa; solo Meta puede confirmar el motivo de una cuenta especifica.
-- Los terminos y politicas de WhatsApp permiten limitar o suspender cuentas por uso no autorizado, retroalimentacion negativa, incumplimiento de calidad o mensajes sin consentimiento. La automatizacion debe conservar consentimiento verificable, identificacion clara del negocio y salida sencilla de las notificaciones.
-- No se modifico el ciclo de conexion, QR, sesion ni reconexion de WhatsApp durante este cierre. Tampoco se debe desplegar este commit solo para validar la ficha de producto, porque reiniciar el API puede provocar actividad innecesaria de la sesion.
-- Ruta recomendada para operacion estable: WhatsApp Cloud API oficial o un proveedor autorizado, numero dedicado de Tecnotitlan, plantillas aprobadas fuera de la ventana de atencion y correo como respaldo. n8n puede orquestar eventos, pero no convierte una sesion Baileys en una integracion oficial.
-
-# Aviso de Privacidad Integral
-
-**Última actualización:** Diciembre 2025
+**Última actualización técnica:** Septiembre 2026. El texto legal debe ser validado por asesoría jurídica antes de publicarse como versión definitiva.
 
 En cumplimiento con la **Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP)** de México, **TECNOTITLÁN** (en adelante "El Sitio"), pone a su disposición el presente Aviso de Privacidad.
 
-## 1. Identidad y Domicilio del Responsable
+### 17.1. Identidad y domicilio del responsable
 El responsable del tratamiento de sus datos personales es la administración de **TECNOTITLÁN**. Para efectos de este aviso, señalamos como medio de contacto nuestro formulario de atención al cliente y el correo electrónico de soporte visible en el sitio.
 
-## 2. Datos Personales Recabados
+### 17.2. Datos personales recabados
 Para procesar sus pedidos y brindarle servicio, recabamos los siguientes datos:
 *   **Datos de Identificación:** Nombre completo.
 *   **Datos de Contacto:** Correo electrónico, número de teléfono móvil, dirección de envío y facturación.
-*   **Datos Financieros:** Información de pago procesada de forma encriptada a través de pasarelas seguras (PayPal, Stripe, Mercado Pago). **El Sitio NO almacena números completos de tarjetas de crédito.**
+*   **Datos Financieros:** Información de pago procesada mediante Stripe o la plataforma externa seleccionada, como Mercado Libre. **El Sitio NO almacena números completos de tarjetas de crédito.**
 
-## 3. Finalidades del Tratamiento
+### 17.3. Finalidades del tratamiento
 Sus datos serán utilizados para las siguientes finalidades:
 *   **Primarias (Necesarias):** Procesamiento, envío y entrega de pedidos; facturación; contacto para aclaraciones sobre el servicio.
 *   **Secundarias:** Envío de promociones, boletines informativos y encuestas de calidad (puede darse de baja en cualquier momento).
 
-## 4. Transferencia de Datos (Dropshipping)
+### 17.4. Transferencia de datos
 Le informamos que, debido a nuestro modelo de operación logística, sus datos de envío (Nombre, Dirección, Teléfono) pueden ser compartidos con:
 *   Proveedores logísticos y de paquetería (DHL, FedEx, Estafeta, etc.).
 *   Almacenes y socios comerciales encargados del despacho de mercancía.
 
-## 5. Derechos ARCO
+### 17.5. Derechos ARCO
 Usted tiene derecho a **A**cceder, **R**ectificar, **C**ancelar u **O**ponerse al tratamiento de sus datos. Para ejercer estos derechos, envíe una solicitud a nuestro correo de soporte.
-# Términos y Condiciones de Uso
+## 18. Términos y condiciones de uso
 
 **Bienvenido a TECNOTITLÁN.**
 
 Al acceder y utilizar este sitio web, usted acepta estar sujeto a los siguientes términos y condiciones.
 
-## 1. Generalidades
+### 18.1. Generalidades
 Este sitio es operado por **TECNOTITLÁN**. Nos reservamos el derecho de rechazar la prestación de servicio a cualquier persona, por cualquier motivo y en cualquier momento.
 
-## 2. Productos y Servicios
+### 18.2. Productos y servicios
 *   **Disponibilidad:** Ciertos productos pueden estar disponibles exclusivamente en línea y tener cantidades limitadas.
 *   **Precios:** Los precios de nuestros productos están sujetos a cambios sin previo aviso.
 
-## 3. Envíos y Tiempos de Entrega (Modelo Dropshipping)
+### 18.3. Envíos y tiempos de entrega
 *   **Logística:** Trabajamos con proveedores nacionales e internacionales. Al realizar una compra, usted acepta que su pedido puede ser procesado y enviado directamente desde los almacenes de nuestros socios.
 *   **Tiempos:** Los tiempos de envío son estimados y pueden variar según la ubicación y la temporada. El tiempo promedio de entrega es de **5 a 15 días hábiles**.
 
-## 4. Política de Devoluciones
+### 18.4. Política de devoluciones
 Nuestra política tiene una duración de **30 días** a partir de la recepción del producto. Para ser elegible, el artículo debe estar sin usar y en las mismas condiciones en que lo recibió.
 
-## 5. Ley Aplicable
+### 18.5. Ley aplicable
 Estos Términos del Servicio se regirán e interpretarán de acuerdo con las leyes de **México**.
 
-```
+## 19. Registro de cambios funcionales
 
-## Actualizacion 2026-08-20 - Publicacion de productos en Mercado Libre
+### Actualización 2026-08-20 - Publicación de productos en Mercado Libre
 
 El flujo recomendado queda definido asi:
 
@@ -1330,14 +593,14 @@ Protecciones implementadas:
 - Despues de publicar, el boton **Publicar en Mercado Libre** se reemplaza por una tarjeta **Publicado en Mercado Libre**. Esta tarjeta muestra el item ID, el enlace directo, una accion para copiarlo, el stock publicable, el estado remoto y la ultima sincronizacion.
 - La accion de publicar no vuelve a mostrarse mientras exista un item ID remoto valido, para evitar anuncios duplicados. La tarjeta conserva la accion **Sincronizar stock**.
 - Una publicacion creada con un vendedor de prueba solo aparece en la cuenta `TESTUSER` que autorizo Tecnotitlan. No aparece en la cuenta real de Mercado Libre hasta reconectar esa cuenta y publicar desde ella.
-# Mercado Libre: vinculacion estricta por SKU local (2026-08-23)
+### Actualización 2026-08-23 - Vinculación estricta por SKU local
 
 - Cada producto de Tecnotitlan mantiene una publicacion independiente en Mercado Libre con el mismo SKU local.
 - Una publicacion remota solo puede reutilizarse cuando su `seller_custom_field` o atributo `SELLER_SKU` coincide exactamente con el SKU local.
 - Si un producto guarda por error el ID de otra publicacion o el ID de una categoria, Tecnotitlan limpia solamente ese vinculo local y crea una publicacion nueva para el SKU correcto.
 - La autocorreccion nunca elimina ni modifica la publicacion remota ajena. Por ejemplo, `AUR-002` permanece separado de cualquier reloj `WTC-*`.
 
-## Actualizacion 2026-08-23 - Familia obligatoria de Mercado Libre
+### Actualización 2026-08-23 - Familia obligatoria de Mercado Libre
 
 - La creacion de publicaciones envia `family_name` en la raiz del payload, como exige Mercado Libre.
 - El valor se construye con marca y modelo, por ejemplo `G-Tide R9 Pro`, sin duplicar la marca.
@@ -1345,14 +608,14 @@ Protecciones implementadas:
 - Cuando se usa `family_name`, Tecnotitlan no envia `title` en la misma solicitud porque Mercado Libre rechaza esa combinacion con `body.invalid_fields`.
 - Los errores de Mercado Libre ahora decodifican entidades HTML y muestran causas, referencias y atributos invalidos cuando la API los proporciona.
 
-## Actualizacion 2026-08-27 - Codigo universal GTIN/EAN/UPC
+### Actualización 2026-08-27 - Código universal GTIN/EAN/UPC
 
 - Los productos pueden guardar un codigo universal `gtin` opcional de 8, 12, 13 o 14 digitos.
 - El formulario administrativo permite capturarlo una sola vez y lo reutiliza al preparar y publicar en Mercado Libre.
 - Si la categoria de Mercado Libre exige `GTIN`, Tecnotitlan lo envia como atributo de la publicacion y bloquea el envio con un mensaje claro cuando falta.
 - La migracion `20260823000000_add_product_gtin` agrega la columna sin modificar productos existentes.
 
-## Actualizacion 2026-08-27 - Categorias de Mercado Libre importadas en vivo
+### Actualización 2026-08-27 - Categorías de Mercado Libre importadas en vivo
 
 - `Preparar publicacion` consulta el predictor oficial de Mercado Libre con el nombre del producto y muestra las tres mejores categorias sugeridas.
 - Cada opcion muestra la ruta completa del arbol y su ID `MLM`; el operador selecciona una categoria sin memorizar ni escribir identificadores.
@@ -1365,7 +628,7 @@ Protecciones implementadas:
 - El payload se comprueba con `/items/validate` antes de ejecutar `POST /items`. Los atributos enumerados conservan tanto `value_id` como `value_name`, incluido `EMPTY_GTIN_REASON`.
 - La publicacion consulta `/users/{seller_id}/shipping_preferences` y elige un modo habilitado, priorizando ME2. Las causas de validacion marcadas por Mercado Libre como `warning` no bloquean el alta; si exige envio gratis, se revalida con `shipping.free_shipping=true`. Las causas de tipo `error` si detienen la publicacion.
 
-## Actualizacion 2026-08-28 - Cotizacion e imagenes de Mercado Libre
+### Actualización 2026-08-28 - Cotización e imágenes de Mercado Libre
 
 - Antes de publicar, Tecnotitlan consulta en vivo la comision y el costo de envio para la categoria, modalidad Clasica o Premium, precio, dimensiones y configuracion logistica de la cuenta.
 - La pantalla muestra precio base, precio sugerido, comision, envio, otros cargos y neto estimado. El operador debe confirmar expresamente el desglose; el backend vuelve a calcularlo y aplica el precio sugerido, por lo que no confia en importes enviados por el navegador.
@@ -1376,14 +639,14 @@ Protecciones implementadas:
 - La cotizacion detecta cuando la cuenta conectada no reporta RFC y agrega la estimacion conservadora de retenciones maximas sobre la base sin IVA. Con RFC detectado muestra una advertencia porque el importe exacto depende del regimen validado por Mercado Libre.
 - En publicaciones vinculadas, el costo de envio se consulta por `item_id` para utilizar las dimensiones logisticas efectivas de Mercado Libre. Al importar una venta de una sola pieza, las dimensiones del paquete remoto actualizan la ficha local para futuras simulaciones.
 
-## Actualizacion 2026-08-28 - Guias de Mercado Envios en Pedidos
+### Actualización 2026-08-28 - Guías de Mercado Envíos en pedidos
 
 - Al recibir o releer una orden, Tecnotitlan consulta `/shipments/{shipping_id}` y guarda automaticamente destinatario, domicilio, telefono disponible, paqueteria, numero de guia, estado, modalidad logistica, costo, dimensiones y fecha estimada.
 - Los webhooks de envios refrescan el pedido local sin esperar una captura manual.
 - La tarjeta administrativa del pedido permite actualizar el envio y descargar/imprimir la etiqueta oficial PDF desde `/shipment_labels` cuando el envio ME2 esta `ready_to_ship` y `ready_to_print` o `printed`.
 - Las etiquetas no se inventan ni se almacenan como documentos propios: se solicitan autenticadas a Mercado Libre y se entregan al operador para impresion.
 
-## Actualizacion 2026-08-28 - Reclamos, devoluciones y comunicaciones Mercado Libre
+### Actualización 2026-08-28 - Reclamos, devoluciones y comunicaciones Mercado Libre
 
 - El Centro de Reclamos conserva expediente, pedido relacionado, plazo oficial, impacto en reputacion, devolucion, rastreo, costo, estado del dinero, inspeccion y bitacora de acciones.
 - Los webhooks `post_purchase`, `claims` y `claims_actions` actualizan el expediente; las acciones monetarias o de resolucion solo se habilitan cuando Mercado Libre las reporta disponibles y exigen confirmacion del folio.
@@ -1395,7 +658,7 @@ Protecciones implementadas:
 - El texto posventa respeta el limite dinamico informado por Mercado Libre, normalmente 350 caracteres. La implementacion reconoce la ruta de agentes de mensajeria y conserva compatibilidad con conversaciones anteriores.
 - Las tablas `meli_questions`, `meli_post_sale_conversations`, `meli_post_sale_messages` y `meli_communication_activities` separan los datos operativos, mensajes y auditoria.
 
-## Actualizacion 2026-08-30 - Bandeja unificada ligada al pedido
+### Actualización 2026-08-30 - Bandeja unificada ligada al pedido
 
 - La ruta administrativa **Atencion > Bandeja unificada** reúne WhatsApp, tickets de soporte y correo, preguntas y mensajes posventa de Mercado Libre, reclamos y conversaciones escaladas de Tecatl.
 - Cada expediente muestra en la misma vista el historial del canal, estado, prioridad, cliente y el contexto comercial del pedido: numero, estado, canal de venta, total y productos con SKU.
@@ -1403,9 +666,9 @@ Protecciones implementadas:
 - El operador puede buscar por numero de pedido, cliente, telefono, SKU o folio externo, confirmar o cambiar el vínculo y quitar un vínculo manual. Un vínculo manual siempre tiene prioridad sobre cualquier sugerencia automatica.
 - Las respuestas se envian mediante el canal original y respetan sus reglas: WhatsApp, correo de soporte, respuestas preventa, mensajes posventa, reclamos o escalamiento Tecatl. El backend vuelve a validar permisos por origen y el estado que permita responder.
 - Las tablas `unified_inbox_links` y `unified_inbox_replies` conservan los vínculos confirmados y la trazabilidad de respuestas. Ninguna coincidencia parcial o difusa vincula automaticamente datos de clientes distintos.
-- El menu muestra un contador agregado de conversaciones pendientes y la bandeja se actualiza cada 30 segundos sin interrumpir el trabajo del operador.
+- El menú muestra un contador agregado y recibe invalidaciones por Socket.IO; el sondeo de cinco minutos recupera desconexiones prolongadas.
 
-## Actualizacion 2026-08-30 - Inspeccion y cuarentena de devoluciones
+### Actualización 2026-08-30 - Inspección y cuarentena de devoluciones
 
 - La ruta **Atencion > Devoluciones y cuarentena** controla la recepcion fisica de devoluciones asociadas a un pedido y, cuando corresponde, a un reclamo de Mercado Libre.
 - Al recibir un paquete se registra ubicacion de cuarentena, condicion del empaque, sello, evidencia, notas y cantidades reales por producto. La recepcion no modifica `Product.countInStock` ni el stock de ningun marketplace.
@@ -1415,7 +678,7 @@ Protecciones implementadas:
 - La finalizacion es idempotente por pieza: repetir la solicitud no duplica inventario. El expediente guarda quién recibio, quién finalizo, fechas y ubicacion; el reclamo Mercado Libre recibe el resultado de inspeccion y una actividad de auditoria.
 - Las recepciones parciales estan permitidas, pero la suma de todos los expedientes nunca puede superar la cantidad vendida en el pedido.
 
-## Actualizacion 2026-08-30 - SLA, alertas, plantillas y calidad
+### Actualización 2026-08-30 - SLA, alertas, plantillas y calidad
 
 - Cada expediente de la bandeja unificada calcula un objetivo de primera respuesta según canal y prioridad. WhatsApp y Tecatl tienen ventanas cortas; soporte, preguntas, posventa y reclamos usan ventanas propias, ajustadas para prioridades alta y urgente.
 - El reloj sólo corre cuando existe un mensaje pendiente real (`unreadCount > 0`) y no hay una respuesta posterior. Los estados son `ON_TRACK`, `AT_RISK`, `BREACHED` y `MET`; las conversaciones ya leidas no generan falsos vencimientos.
@@ -1428,11 +691,11 @@ Protecciones implementadas:
 - La medicion excluye rutas administrativas y robots, respeta `Do Not Track`, elimina parametros sensibles al guardar sólo `pathname` y deduplica recargas del mismo visitante/pagina durante 30 segundos.
 - La IP nunca se almacena. Para estimar visitantes se genera un hash SHA-256 diario con secreto del servidor, IP y agente de usuario; el identificador cambia cada dia y no permite recuperar la IP original.
 
-## Actualizacion 2026-08-30 - Cifrado de tokens, auditoria y 2FA
+### Actualización 2026-08-30 - Cifrado de tokens, auditoría y 2FA
 
 - Los tokens de acceso y renovacion de Mercado Libre y TikTok Shop se guardan con AES-256-GCM. Cada valor usa un nonce aleatorio y etiqueta de autenticidad; el prefijo versionado `enc:v1` permite rotaciones futuras sin confundir texto antiguo con ciphertext.
 
-## Actualizacion 2026-08-30 - Sincronizacion en tiempo real sin recargar
+### Actualización 2026-08-30 - Sincronización en tiempo real sin recargar
 
 - El backend publica invalidaciones por Socket.IO despues de cada mutacion exitosa. Los temas separan Mercado Libre, pedidos, productos, inventario, devoluciones, bandeja, calidad, usuarios, seguridad, finanzas y dashboard.
 - Los webhooks de Mercado Libre avisan solamente despues de terminar su procesamiento; asi la interfaz no consulta datos anteriores mientras una orden, reclamo o cambio de publicacion sigue en proceso.
@@ -1447,29 +710,29 @@ Protecciones implementadas:
 - `audit_logs` registra mutaciones autenticadas, accesos y cambios de seguridad con actor, accion, categoria, resultado, ruta y fecha. No copia cuerpos de solicitudes, contrasenas ni tokens; la IP se convierte en una huella HMAC irreversible.
 - Cada usuario consulta su actividad reciente. El Super Admin dispone de **Administracion > Seguridad y auditoria** con los últimos eventos operativos y administrativos.
 
-## Actualizacion 2026-08-31 - Desenlace de reclamos en bandeja unificada
+### Actualización 2026-08-31 - Desenlace de reclamos en bandeja unificada
 
 - Los reclamos cerrados de Mercado Libre muestran una resolución de sistema dentro de la conversación: beneficiario, motivo, quién cerró el caso, cobertura aplicada, cancelación del pedido y estado monetario disponible.
 - Cuando Mercado Libre relaciona un reclamo con un `shipment` en lugar de una orden, Tecnotitlan busca el pedido local por `shippingInfo.shippingId` y recupera su orden externa. Esto evita expedientes cerrados sin contexto comercial.
 - Un reclamo cerrado sin devolución física pendiente pasa a control interno `RESOLVED`. Los casos que todavía requieren recibir o inspeccionar mercancía conservan su flujo de cuarentena.
 - La bandeja no inventa un reembolso: muestra fecha o estado del dinero sólo si Mercado Libre los reporta. Si la orden cancelada deja de tener un pago vigente, lo expresa con ese alcance exacto.
 
-## Actualizacion 2026-08-31 - Secciones y alertas de la bandeja unificada
+### Actualización 2026-08-31 - Secciones y alertas de la bandeja unificada
 
 - La Bandeja unificada se divide en **Casos importantes** y **Conversaciones**. La primera sección contiene reclamos, cancelaciones y devoluciones; la segunda reúne preguntas preventa y mensajes privados o posventa.
 - Cada expediente recibe una clasificación visible y contadores por sección y tipo. Los filtros conservan búsqueda, canal, estado pendiente, SLA y contexto del pedido.
 - Las cancelaciones de pedidos Mercado Libre aparecen aunque no exista un reclamo asociado. Si el reclamo ya está ligado al pedido cancelado se muestra un solo expediente, evitando duplicar el caso.
-- Los reclamos nuevos, las transiciones nuevas a pedido cancelado y los reembolsos confirmados notifican a administradores, supervisores y personal de ventas. Se respeta la preferencia individual de correo y WhatsApp y cada destinatario se deduplica por evento y expediente.
+- Los reclamos, cancelaciones y reembolsos notifican al equipo. El correo usa destinatarios individuales; Baileys usa exclusivamente el grupo y deduplica por evento.
 - Las resincronizaciones o webhooks repetidos no generan avisos duplicados. La notificación lleva al operador directamente a la Bandeja unificada, donde puede revisar pedido, dinero, inventario y fechas límite.
 
-## Actualizacion 2026-08-31 - Alertas críticas en dashboard
+### Actualización 2026-08-31 - Alertas críticas en dashboard
 
 - El dashboard administrativo muestra una tarjeta roja pulsante cuando existe un reclamo abierto o un reembolso confirmado pendiente de revisión. La animación respeta `prefers-reduced-motion` para accesibilidad.
 - Las alertas llegan en tiempo real, muestran pedido y resumen del evento, y enlazan con la Bandeja unificada para atender el expediente.
 - **Marcar revisado** registra actor, fecha y tipo de alerta en la actividad del reclamo. El acuse sólo indica que un integrante del equipo vio el evento; no cambia el estado del reclamo ni lo declara resuelto.
 - Reclamo y reembolso usan acuses independientes. Haber revisado el reclamo no oculta un reembolso que Mercado Libre confirme posteriormente.
 
-## Actualizacion 2026-08-31 - Operacion completa de incidencias críticas
+### Actualización 2026-08-31 - Operación completa de incidencias críticas
 
 - Cada reclamo o reembolso se autoasigna al vendedor con menor carga de asignaciones durante los últimos 30 días. Si no hay vendedores, se asigna a un rol administrativo. Un administrador distinto queda como suplente cuando existe y ambos responsables se pueden cambiar desde el dashboard.
 - El monitor operativo escala un caso sin acuse a los 15 minutos hacia responsable y suplente. A los 30 minutos genera una segunda escalación para `SUPER_ADMIN`, `ADMIN` y `SUPERVISOR`. Cada nivel se registra una sola vez en la actividad del reclamo.
@@ -1480,26 +743,26 @@ Protecciones implementadas:
 - El panel muestra la salud de WhatsApp y enlaza a la configuración protegida cuando no existe sesión. También permite activar avisos del navegador; con permiso concedido, una alerta crítica nueva produce sonido, notificación y contador rojo en Dashboard aun si el operador navega en otro módulo del panel.
 - Sin una sesión WhatsApp guardada no se intenta generar QR de manera repetitiva. El Super Admin debe abrir **Configuración > WhatsApp**, iniciar la conexión y escanear el QR desde el teléfono una sola vez.
 
-## Actualizacion 2026-09-01 - Seguridad, operacion por rol y frontend Vite
+### Actualización 2026-09-01 - Seguridad, operación por rol y frontend Vite
 
 - La sesion de usuario se entrega exclusivamente mediante una cookie `HttpOnly`, `Secure` en produccion y `SameSite=Lax`, con vigencia de ocho horas. El navegador ya no guarda ni adjunta el JWT desde `localStorage`; cerrar sesion invalida tambien la version del token en servidor.
 - El personal administrativo y operativo debe completar 2FA antes de entrar al panel. Mientras lo configura, la sesion solamente permite abrir Seguridad, consultar el perfil y cerrar sesion. Los clientes pueden activar TOTP de forma opcional.
 - Las contrasenas nuevas y los cambios de contrasena exigen al menos doce caracteres. Las paginas legales se limpian con una lista permitida en backend y vuelven a sanitizarse en el navegador antes de renderizar HTML.
 - Las credenciales configurables marcadas como secreto se guardan cifradas con AES-256-GCM. Produccion debe definir una clave estable e independiente en `TOKEN_ENCRYPTION_KEY`; no debe rotarse sin migrar previamente los valores almacenados.
-- Los avisos administrativos por Baileys se envian a un unico grupo definido por `WHATSAPP_ADMIN_GROUP_JID`; ya no se realiza un envio simultaneo a varios numeros privados. La alternativa oficial `WHATSAPP_PROVIDER=cloud` incorpora envio de texto, verificacion de webhook, firma HMAC e ingreso de mensajes de WhatsApp Cloud API.
+- Los avisos administrativos por Baileys se envían a un único grupo definido por `WHATSAPP_ADMIN_GROUP_JID`; Cloud API queda inactivo y diferido.
 - **Mi trabajo** es la entrada principal del panel y resume, segun permisos, pedidos por preparar, reclamos abiertos y mensajes pendientes. **Bandeja unificada** queda como centro de atencion; WhatsApp, Mercado Libre, correo y Tecatl permanecen como herramientas especializadas.
 - El panel administrativo incorpora un menu lateral adaptable a telefono, barra superior movil, fondo de cierre y accesos rapidos. El menu conserva RBAC y oculta modulos sin permiso.
-- El frontend fue migrado de Create React App a Vite. El contenedor sigue generando `build/`, expone variables `REACT_APP_*` compatibles y conserva `env.js` para configurar la URL de API al iniciar el contenedor sin recompilar la aplicacion.
+- El frontend fue migrado de Create React App a Vite. El contenedor sigue generando `build/`, admite variables `REACT_APP_*` y conserva `env.js` para configuración en tiempo de ejecución.
 - La configuracion Nginx agrega HSTS, CSP, proteccion contra MIME sniffing, politica de referentes, permisos del navegador y restricciones de iframe. Los recursos de pagos, reCAPTCHA y contenido autorizado permanecen declarados de forma explicita.
-- Validacion inicial del parche: compilacion Vite de produccion, 79 pruebas del backend y auditoria del backend sin vulnerabilidades conocidas.
 
-## Actualizacion 2026-09-06 - Cierre de seguridad, adjuntos Cloud y trabajo por rol
+### Actualización 2026-09-08 - Estabilización Baileys y monitoreo
 
-- WhatsApp Cloud API admite desde la bandeja imagenes JPEG/PNG, video MP4/3GPP, audio compatible y documentos PDF, texto, Word o Excel, con limite operativo de 12 MB. Primero carga el archivo a Meta, envia el `media_id` y conserva una copia local auditada junto al mensaje.
-- Los webhooks firmados de Meta reconocen adjuntos entrantes, recuperan su URL temporal mediante autenticacion, descargan el archivo dentro del limite y lo muestran en la misma conversacion. Si la descarga falla, el mensaje y su tipo permanecen visibles sin bloquear el webhook.
-- Configuracion del sistema expone todos los campos necesarios para elegir grupo unico de Baileys o Cloud API. La pantalla de WhatsApp informa si el grupo, credenciales, firma del webhook y adjuntos estan listos, sin revelar secretos.
-- El editor Quill fue retirado por completo. Las paginas legales usan un editor local con ayudas de formato y vista previa DOMPurify; el backend conserva la sanitizacion definitiva antes de guardar. Frontend y backend quedan sin vulnerabilidades reportadas por `npm audit`.
-- Los contenedores de construccion y ejecucion usan Node.js 22 LTS para satisfacer los motores soportados por las dependencias de seguridad. La carga multipart fue migrada de Multer 1 a Multer 2.
-- **Mi trabajo** calcula totales sin el limite de veinte filas de la vista. Administradores y supervisores ven la carga del equipo; los demas roles operativos ven reclamos y tickets propios o todavia sin asignar, siempre condicionados por sus permisos efectivos.
-- El 2FA obligatorio cubre cualquier rol distinto de cliente, incluidos roles personalizados. Antes del enrolamiento sólo se permite consultar estado, iniciar/completar configuracion, leer perfil o cerrar sesion.
-- El VPS acepta administracion SSH por llave dedicada y rechaza autenticacion por contraseña. La politica reproducible vive en `ops/ssh/00-tecnotitlan-hardening.conf`; conserva `PermitRootLogin prohibit-password` para permitir recuperacion con llave sin exponer credenciales reutilizables.
+- Baileys `7.0.0-rc13` queda fijado; no se adoptan `rc14`, `master` ni PRs abiertas.
+- Gateway único PN→LID: un envío por operación para texto, multimedia y grupo.
+- 463 abre el circuito tanto síncrono como desde `messages.update`, sin logout, QR ni retry.
+- Caché verificada de versión WA Web evita bucles 408 por datos obsoletos.
+- Alertas de Técatl y pagos internos usan un solo grupo Baileys.
+- Migración `20260907190000_whatsapp_delivery_observability` añade trazabilidad de operación e identidad.
+- Sentry `10.73.0` está integrado en Node y React sin PII. Sin DSN queda inactivo y Seguridad lo marca pendiente.
+- Verificación: 111 pruebas backend, build Vite, Prisma válido y cero vulnerabilidades en `npm audit`.
+- No se ejecutó QR, vinculación, logout, envío real ni despliegue durante esta estabilización.
