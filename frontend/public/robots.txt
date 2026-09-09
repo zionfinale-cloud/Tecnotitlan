@@ -2,4 +2,14 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /mail
-Sitemap: https://tecnotitlan.com.mx/sitemap.xml
+Disallow: /cart
+Disallow: /login
+Disallow: /register
+Disallow: /profile
+Disallow: /security
+Disallow: /shipping
+Disallow: /payment
+Disallow: /placeorder
+Disallow: /order/
+Disallow: /verify-email
+Sitemap: https://www.tecnotitlan.com.mx/sitemap.xml

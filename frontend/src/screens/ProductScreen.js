@@ -13,8 +13,15 @@ import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 import { FALLBACK_PRODUCT_IMAGE, resolveAssetUrl } from '../utils/assetUrl';
 import { getAvailabilityText, getItemAvailableStock, hasItemAvailability } from '../utils/productAvailability';
 import styles from './ProductScreen.module.css';
+import Seo, { absoluteUrl, getSiteOrigin } from '../components/Seo';
 
 const fallbackImage = FALLBACK_PRODUCT_IMAGE;
+
+const summarize = (value = '', maxLength = 155) => {
+  const clean = String(value).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxLength) return clean;
+  return `${clean.slice(0, maxLength - 1).trim()}…`;
+};
 
 const isInternalCharacteristic = (characteristic) =>
   /^\s*(?:etiquetas?\s*tecatl|tecatl\s*tags?)\s*$/i.test(characteristic?.key || '');
@@ -109,6 +116,59 @@ const ProductScreen = () => {
   const userHasReviewed = Boolean(
     userInfo?.id && reviews.some((review) => review.userId === userInfo.id)
   );
+  const seo = useMemo(() => {
+    if (!product) return null;
+    const origin = getSiteOrigin();
+    const canonicalPath = `/product/${encodeURIComponent(product.sku)}`;
+    const productUrl = absoluteUrl(canonicalPath, origin);
+    const images = (product.media || [])
+      .map((item) => absoluteUrl(resolveAssetUrl(item.url, ''), origin))
+      .filter(Boolean);
+    const description = summarize(product.shortDescription || product.description || `${product.name} disponible en Tecnotitlán.`);
+    const schema = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      description,
+      sku: product.sku,
+      gtin: product.gtin || undefined,
+      image: images,
+      url: productUrl,
+      brand: { '@type': 'Brand', name: product.brand || 'Tecnotitlán' },
+      category: product.category?.name || undefined,
+      offers: {
+        '@type': 'Offer',
+        url: productUrl,
+        priceCurrency: 'MXN',
+        price: Number(product.price).toFixed(2),
+        availability: hasStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        itemCondition: 'https://schema.org/NewCondition',
+      },
+      ...(Number(product.numReviews) > 0 ? {
+        aggregateRating: {
+          '@type': 'AggregateRating',
+          ratingValue: Number(product.rating).toFixed(1),
+          reviewCount: Number(product.numReviews),
+        },
+      } : {}),
+    };
+    const breadcrumbs = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Inicio', item: `${origin}/` },
+        ...(product.category?.name ? [{ '@type': 'ListItem', position: 2, name: product.category.name, item: `${origin}/?category=${encodeURIComponent(product.category.slug || product.category.name)}` }] : []),
+        { '@type': 'ListItem', position: product.category?.name ? 3 : 2, name: product.name, item: productUrl },
+      ],
+    };
+    return {
+      title: `${product.name} | Tecnotitlán`,
+      description,
+      canonicalPath,
+      image: images[0] || image,
+      jsonLd: [schema, breadcrumbs],
+    };
+  }, [hasStock, image, product]);
 
   const addToCartHandler = () => {
     if (!product || !hasStock) return;
@@ -162,6 +222,9 @@ const ProductScreen = () => {
   };
 
   return (
+    <>
+      {seo && <Seo {...seo} type="product" />}
+      {!loading && error && <Seo title="Producto no encontrado | Tecnotitlán" description="El producto solicitado no está disponible." canonicalPath={`/product/${encodeURIComponent(sku)}`} robots="noindex, nofollow" />}
     <Container className={styles.page}>
       <Link to="/" className={styles.backLink}>
         <i className="fas fa-chevron-left"></i> Volver a la tienda
@@ -393,6 +456,7 @@ const ProductScreen = () => {
         </div>
       )}
     </Container>
+    </>
   );
 };
 

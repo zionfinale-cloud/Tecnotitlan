@@ -43,6 +43,7 @@ import analyticsRoutes from './routes/analyticsRoutes.js';
 import securityRoutes from './routes/securityRoutes.js';
 import auditRoutes from './routes/auditRoutes.js';
 import myWorkRoutes from './routes/myWorkRoutes.js';
+import seoRoutes from './routes/seoRoutes.js';
 import { auditMutations } from './middleware/auditMiddleware.js';
 import { encryptStoredIntegrationTokens } from './services/tokenEncryptionService.js';
 import { configureRealtime } from './services/realtimeService.js';
@@ -202,7 +203,8 @@ app.use(express.json({
     app.use('/api/users/login', authLimiter);
 	    app.use('/api/users/register', authLimiter);
 	    app.use('/api/security/2fa/verify-login', authLimiter);
-    app.use('/api/products', productRoutes);
+     app.use('/api/products', productRoutes);
+     app.use('/api/seo', seoRoutes);
     app.use('/api/users', userRoutes);
     app.use('/api/orders', orderRoutes);
     app.use('/api/upload', uploadRoutes);

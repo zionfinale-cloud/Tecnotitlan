@@ -58,6 +58,7 @@ export const config = {
   UPLOAD_STRATEGY: process.env.UPLOAD_STRATEGY || 'local',
   CLIENT_URL_PRIMARY: process.env.CLIENT_URL_PRIMARY,
   CLIENT_URL_SECONDARY: process.env.CLIENT_URL_SECONDARY,
+  SEO_SITE_URL: process.env.SEO_SITE_URL || process.env.CLIENT_URL_SECONDARY || process.env.CLIENT_URL_PRIMARY,
   RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
   SMTP_HOST: process.env.SMTP_HOST,
   SMTP_PORT: process.env.SMTP_PORT,

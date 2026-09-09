@@ -220,6 +220,16 @@ Detalles adicionales: `README.md`, `DEPLOY_VPS_EASYPANEL.md` y `ops/`.
 6. Integrar PayPal al final, después de Stripe y conciliación.
 7. TikTok Shop y Amazon permanecen posteriores a Mercado Libre.
 
+### Base SEO automatizada
+
+- `/sitemap.xml` se genera desde la base de datos e incluye páginas públicas, categorías con productos y cada producto no archivado. Se actualiza sin editar archivos al cambiar el catálogo.
+- Cada producto publica título, descripción, URL canónica, imagen social y JSON-LD `Product`, `Offer`, `AggregateRating` cuando aplica y `BreadcrumbList`.
+- La portada publica `Organization` y `WebSite`; contacto y páginas legales tienen metadatos propios.
+- Administración, cuenta, carrito, checkout, pedidos y verificación usan `noindex` en cliente y están bloqueados en `robots.txt`.
+- El dominio canónico es `https://www.tecnotitlan.com.mx`. `SEO_SITE_URL` y `REACT_APP_SITE_URL` permiten cambiarlo de manera explícita.
+- Pendiente externo después de cargar el catálogo: verificar dominio y enviar sitemap en Google Search Console/Bing Webmaster Tools, conectar Merchant Center y medir consultas, cobertura y Core Web Vitals.
+- El SEO dinámico actual es compatible con el renderizado JavaScript de buscadores. Si la cobertura demuestra retrasos, la siguiente evolución técnica será SSR o prerenderizado de catálogo, sin usar contenido distinto para bots.
+
 ## 11. Flujo de negocio e infraestructura
 
 1. El navegador consume exclusivamente la API; nunca escribe pedidos directamente en Supabase.
@@ -764,5 +774,5 @@ Protecciones implementadas:
 - Alertas de Técatl y pagos internos usan un solo grupo Baileys.
 - Migración `20260907190000_whatsapp_delivery_observability` añade trazabilidad de operación e identidad.
 - Sentry `10.73.0` está integrado en Node y React sin PII. Sin DSN queda inactivo y Seguridad lo marca pendiente.
-- Verificación: 111 pruebas backend, build Vite, Prisma válido y cero vulnerabilidades en `npm audit`.
+- Verificación: 113 pruebas backend, build Vite, Prisma válido y cero vulnerabilidades en `npm audit`.
 - Producción quedó desplegada con esta estabilización el 8 de septiembre de 2026. La migración `20260907190000_whatsapp_delivery_observability` fue aplicada y Prisma confirmó las 39 migraciones al día. La API ejecuta las migraciones automáticamente antes de iniciar y quedó saludable junto con la web, sin QR, vinculación, logout ni envío real; no existe una sesión Baileys guardada.

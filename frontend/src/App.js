@@ -62,6 +62,7 @@ const UnifiedInboxScreen = lazy(() => import('./screens/admin/UnifiedInboxScreen
 const ReturnInspectionScreen = lazy(() => import('./screens/admin/ReturnInspectionScreen'));
 const ServiceQualityScreen = lazy(() => import('./screens/admin/ServiceQualityScreen'));
 import PageViewTracker from './components/PageViewTracker';
+import RouteSeo from './components/RouteSeo';
 const VerifyAccountScreen = lazy(() => import('./screens/VerifyAccountScreen'));
 const SecurityScreen = lazy(() => import('./screens/SecurityScreen'));
 const MyWorkScreen = lazy(() => import('./screens/admin/MyWorkScreen'));
@@ -76,6 +77,7 @@ function App() {
                             <NotificationProvider>
                                 <ToastProvider>
                                     <BrowserRouter>
+                                        <RouteSeo />
                                         <PageViewTracker />
                                         <Suspense fallback={<LoadingSpinner />}><Routes>
                                             {/* --- Rutas Públicas y de Cliente (Usan el Layout Principal) --- */}

@@ -523,7 +523,7 @@ const getProductById = asyncHandler(async (req, res, next) => {
         orderBy: { createdAt: 'desc' },
         include: { user: { select: { firstName: true, lastName: true } } },
       },
-      category: { select: { id: true, name: true } },
+      category: { select: { id: true, name: true, slug: true } },
       media: true,
       characteristics: true,
     },
